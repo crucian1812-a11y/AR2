@@ -26,12 +26,29 @@ func _ready() -> void:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = Color(1.0, 0.85, 0.2)
 	m.metallic = 0.8
-	m.roughness = 0.25
+	m.roughness = 0.2
 	m.emission_enabled = true
 	m.emission = Color(1.0, 0.75, 0.1)
-	m.emission_energy_multiplier = 1.4
+	m.emission_energy_multiplier = 1.8
+	m.rim_enabled = true
+	m.rim = 0.4
 	mi.material_override = m
 	add_child(mi)
+
+	var core := MeshInstance3D.new()
+	var core_mesh := CylinderMesh.new()
+	core_mesh.top_radius = 0.2
+	core_mesh.bottom_radius = 0.2
+	core_mesh.height = 0.1
+	core.mesh = core_mesh
+	core.rotation.x = deg_to_rad(90.0)
+	var cm := StandardMaterial3D.new()
+	cm.albedo_color = Color(1.0, 0.95, 0.5)
+	cm.emission_enabled = true
+	cm.emission = Color(1.0, 0.9, 0.3)
+	cm.emission_energy_multiplier = 2.4
+	core.material_override = cm
+	add_child(core)
 
 	_base_y = position.y
 	_t = randf() * TAU

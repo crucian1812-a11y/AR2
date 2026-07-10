@@ -1,12 +1,13 @@
 class_name BearPlayer
 extends CharacterBody3D
-# Медведь-игрок: движение от третьего лица, прыжки, удар, здоровье.
+# Медведь-игрок: движение от третьего лица, прыжок с сальто, удар, здоровье.
 # Локальный игрок управляется вводом, удалённые интерполируются по RPC.
 
 const SPEED := 6.5
 const ACCEL := 12.0
 const JUMP_VELOCITY := 9.5
 const GRAVITY := 22.0
+const FLIP_TIME := 0.55
 
 var peer_id := 1
 var display_name := ""
@@ -22,12 +23,18 @@ var _attack_anim := 0.0
 var _send_tick := 0
 var _anim_t := 0.0
 var _spawn_pos := Vector3.ZERO
+var _flip := 0.0
+var _lean := 0.0
+var _squash_t := 0.0
+var _was_airborne := false
 
 var _target_pos := Vector3.ZERO
 var _target_yaw := 0.0
 var _net_anim := "idle"
+var _prev_net_anim := "idle"
 
 var _visual: Node3D
+var _flip_node: Node3D
 var _cam_yaw: Node3D
 var _spring: SpringArm3D
 var _l_arm: Node3D
@@ -54,7 +61,7 @@ func _ready() -> void:
 
 	var label := Label3D.new()
 	label.text = display_name
-	label.position = Vector3(0, 2.2, 0)
+	label.position = Vector3(0, 2.3, 0)
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.font_size = 56
 	label.outline_size = 10
@@ -74,7 +81,7 @@ func _ready() -> void:
 		_spring.add_excluded_object(get_rid())
 		_cam_yaw.add_child(_spring)
 		var cam := Camera3D.new()
-		cam.fov = 72.0
+		cam.fov = 73.0
 		_spring.add_child(cam)
 		cam.current = true
 
@@ -119,6 +126,10 @@ func _physics_process(delta: float) -> void:
 			global_position = _target_pos
 		_visual.rotation.y = lerp_angle(_visual.rotation.y, _target_yaw, minf(delta * 10.0, 1.0))
 		anim_state = _net_anim
+		if _net_anim != _prev_net_anim:
+			if _prev_net_anim == "jump" and _net_anim != "jump":
+				_squash_t = 0.22
+			_prev_net_anim = _net_anim
 	_animate(delta)
 
 
@@ -135,9 +146,15 @@ func _local_move(delta: float) -> void:
 	velocity.z = lerpf(velocity.z, dir.z * SPEED, minf(ACCEL * delta, 1.0))
 
 	if is_on_floor():
+		if _was_airborne:
+			_was_airborne = false
+			_squash_t = 0.22
 		if Input.is_action_just_pressed("jump"):
 			velocity.y = JUMP_VELOCITY
+			_flip = 0.001
+			_was_airborne = true
 	else:
+		_was_airborne = true
 		velocity.y -= GRAVITY * delta
 
 	move_and_slide()
@@ -160,14 +177,16 @@ func _local_move(delta: float) -> void:
 
 	_send_tick += 1
 	if _send_tick % 3 == 0 and Net.online:
-		net_state.rpc(global_position, _visual.rotation.y, anim_state)
+		net_state.rpc(global_position, _visual.rotation.y, anim_state, _flip)
 
 
 @rpc("authority", "call_remote", "unreliable")
-func net_state(pos: Vector3, yaw: float, a: String) -> void:
+func net_state(pos: Vector3, yaw: float, a: String, flip: float) -> void:
 	_target_pos = pos
 	_target_yaw = yaw
 	_net_anim = a
+	if not is_local:
+		_flip = flip
 
 
 func _tick_timers(delta: float) -> void:
@@ -230,11 +249,29 @@ func _fall_respawn() -> void:
 	place_at(_spawn_pos)
 
 
-# ---------- Внешний вид и анимация ----------
+# ---------- Анимация ----------
 
 
 func _animate(delta: float) -> void:
-	var run_speed := 10.0 if anim_state == "run" else 2.0
+	# Сальто в прыжке
+	if is_local and _flip > 0.0:
+		_flip += delta * TAU / FLIP_TIME
+		if _flip >= TAU:
+			_flip = 0.0
+
+	# Наклон корпуса в беге
+	var lean_target := 0.16 if anim_state == "run" else 0.0
+	_lean = lerpf(_lean, lean_target, minf(delta * 8.0, 1.0))
+	_flip_node.rotation.x = _flip + _lean
+
+	# Сквош при приземлении
+	var squash_target := Vector3.ONE
+	if _squash_t > 0.0:
+		_squash_t -= delta
+		squash_target = Vector3(1.15, 0.78, 1.15)
+	_flip_node.scale = _flip_node.scale.lerp(squash_target, minf(delta * 14.0, 1.0))
+
+	var run_speed := 11.0 if anim_state == "run" else 2.0
 	_anim_t += delta * run_speed
 	var la := 0.0
 	var ra := 0.0
@@ -243,16 +280,16 @@ func _animate(delta: float) -> void:
 	var bob := 0.0
 	match anim_state:
 		"run":
-			ll = sin(_anim_t) * 0.9
-			rl = -sin(_anim_t) * 0.9
-			la = -sin(_anim_t) * 0.7
-			ra = sin(_anim_t) * 0.7
-			bob = absf(sin(_anim_t)) * 0.06
+			ll = sin(_anim_t) * 0.95
+			rl = -sin(_anim_t) * 0.95
+			la = -sin(_anim_t) * 0.75
+			ra = sin(_anim_t) * 0.75
+			bob = absf(sin(_anim_t)) * 0.07
 		"jump":
-			ll = -0.5
-			rl = 0.6
-			la = -2.4
-			ra = -2.4
+			ll = -0.6
+			rl = 0.7
+			la = -2.5
+			ra = -2.5
 		"attack":
 			ra = -2.0
 			la = 0.3
@@ -264,10 +301,23 @@ func _animate(delta: float) -> void:
 	_r_arm.rotation.x = lerpf(_r_arm.rotation.x, ra, k)
 	_l_leg.rotation.x = lerpf(_l_leg.rotation.x, ll, k)
 	_r_leg.rotation.x = lerpf(_r_leg.rotation.x, rl, k)
-	_body.position.y = lerpf(_body.position.y, bob, k)
+	_body.position.y = lerpf(_body.position.y, -1.0 + bob, k)
 
 
-func _ball(parent: Node3D, pos: Vector3, s: Vector3, col: Color, rough := 0.85) -> MeshInstance3D:
+# ---------- Внешний вид ----------
+
+
+func _fur(col: Color, rough := 0.8) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = col
+	m.roughness = rough
+	m.rim_enabled = true
+	m.rim = 0.3
+	m.rim_tint = 0.5
+	return m
+
+
+func _ball(parent: Node3D, pos: Vector3, s: Vector3, m: StandardMaterial3D) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var mesh := SphereMesh.new()
 	mesh.radius = 0.5
@@ -275,15 +325,15 @@ func _ball(parent: Node3D, pos: Vector3, s: Vector3, col: Color, rough := 0.85) 
 	mi.mesh = mesh
 	mi.position = pos
 	mi.scale = s
-	var m := StandardMaterial3D.new()
-	m.albedo_color = col
-	m.roughness = rough
 	mi.material_override = m
 	parent.add_child(mi)
 	return mi
 
 
-func _limb(parent: Node3D, pivot_pos: Vector3, length: float, radius: float, col: Color) -> Node3D:
+func _limb(
+	parent: Node3D, pivot_pos: Vector3, length: float, radius: float, m: StandardMaterial3D,
+	paw_m: StandardMaterial3D
+) -> Node3D:
 	var pivot := Node3D.new()
 	pivot.position = pivot_pos
 	parent.add_child(pivot)
@@ -293,37 +343,62 @@ func _limb(parent: Node3D, pivot_pos: Vector3, length: float, radius: float, col
 	mesh.height = length
 	mi.mesh = mesh
 	mi.position = Vector3(0, -length * 0.5 + radius * 0.5, 0)
-	var m := StandardMaterial3D.new()
-	m.albedo_color = col
-	m.roughness = 0.85
 	mi.material_override = m
 	pivot.add_child(mi)
+	_ball(pivot, Vector3(0, -length * 0.72, 0.07), Vector3(0.22, 0.13, 0.28), paw_m)
 	return pivot
 
 
 func _build_bear() -> void:
-	var fur := Color.from_hsv(hue, 0.55, 0.5)
-	var fur_light := Color.from_hsv(hue, 0.4, 0.72)
-	var dark := Color(0.12, 0.08, 0.06)
+	var fur := _fur(Color.from_hsv(hue, 0.5, 0.55))
+	var fur_light := _fur(Color.from_hsv(hue, 0.32, 0.8))
+	var dark := _fur(Color(0.1, 0.08, 0.07), 0.6)
+	var white := _fur(Color(0.95, 0.95, 0.95), 0.5)
 
+	_flip_node = Node3D.new()
+	_flip_node.position = Vector3(0, 1.0, 0)
+	_visual.add_child(_flip_node)
 	_body = Node3D.new()
-	_visual.add_child(_body)
+	_body.position = Vector3(0, -1.0, 0)
+	_flip_node.add_child(_body)
 
-	_ball(_body, Vector3(0, 0.8, 0), Vector3(1.1, 1.3, 1.0), fur)
-	_ball(_body, Vector3(0, 0.78, 0.3), Vector3(0.7, 0.9, 0.5), fur_light)
-	var head := _ball(_body, Vector3(0, 1.5, 0), Vector3(0.78, 0.72, 0.74), fur)
-	head.name = "Head"
-	_ball(_body, Vector3(0, 1.42, 0.3), Vector3(0.38, 0.3, 0.3), fur_light)
-	_ball(_body, Vector3(0, 1.46, 0.44), Vector3(0.12, 0.1, 0.1), dark)
-	_ball(_body, Vector3(-0.14, 1.58, 0.31), Vector3(0.1, 0.11, 0.08), dark)
-	_ball(_body, Vector3(0.14, 1.58, 0.31), Vector3(0.1, 0.11, 0.08), dark)
-	_ball(_body, Vector3(-0.24, 1.82, 0), Vector3(0.24, 0.24, 0.14), fur)
-	_ball(_body, Vector3(0.24, 1.82, 0), Vector3(0.24, 0.24, 0.14), fur)
-	_ball(_body, Vector3(-0.24, 1.84, 0.03), Vector3(0.12, 0.12, 0.08), fur_light)
-	_ball(_body, Vector3(0.24, 1.84, 0.03), Vector3(0.12, 0.12, 0.08), fur_light)
-	_ball(_body, Vector3(0, 0.72, -0.5), Vector3(0.28, 0.28, 0.28), fur_light)
+	# Туловище
+	_ball(_body, Vector3(0, 0.78, 0), Vector3(1.0, 1.15, 0.9), fur)
+	_ball(_body, Vector3(0, 0.76, 0.27), Vector3(0.6, 0.8, 0.45), fur_light)
+	_ball(_body, Vector3(0, 0.68, -0.42), Vector3(0.26, 0.26, 0.26), fur_light)
 
-	_l_arm = _limb(_body, Vector3(-0.56, 1.12, 0), 0.55, 0.13, fur)
-	_r_arm = _limb(_body, Vector3(0.56, 1.12, 0), 0.55, 0.13, fur)
-	_l_leg = _limb(_body, Vector3(-0.24, 0.5, 0), 0.5, 0.15, fur)
-	_r_leg = _limb(_body, Vector3(0.24, 0.5, 0), 0.5, 0.15, fur)
+	# Голова
+	_ball(_body, Vector3(0, 1.5, 0), Vector3(0.85, 0.8, 0.82), fur)
+	_ball(_body, Vector3(0, 1.4, 0.34), Vector3(0.4, 0.3, 0.32), fur_light)
+	_ball(_body, Vector3(0, 1.47, 0.49), Vector3(0.13, 0.1, 0.1), dark)
+	_ball(_body, Vector3(-0.15, 1.58, 0.33), Vector3(0.11, 0.13, 0.06), white)
+	_ball(_body, Vector3(0.15, 1.58, 0.33), Vector3(0.11, 0.13, 0.06), white)
+	_ball(_body, Vector3(-0.15, 1.58, 0.37), Vector3(0.05, 0.07, 0.03), dark)
+	_ball(_body, Vector3(0.15, 1.58, 0.37), Vector3(0.05, 0.07, 0.03), dark)
+	_ball(_body, Vector3(-0.28, 1.85, -0.02), Vector3(0.26, 0.26, 0.15), fur)
+	_ball(_body, Vector3(0.28, 1.85, -0.02), Vector3(0.26, 0.26, 0.15), fur)
+	_ball(_body, Vector3(-0.28, 1.86, 0.03), Vector3(0.13, 0.13, 0.08), fur_light)
+	_ball(_body, Vector3(0.28, 1.86, 0.03), Vector3(0.13, 0.13, 0.08), fur_light)
+
+	# Шарф — яркий цвет игрока
+	var scarf := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.18
+	torus.outer_radius = 0.42
+	scarf.mesh = torus
+	scarf.position = Vector3(0, 1.16, 0)
+	scarf.scale = Vector3(1.0, 0.7, 1.0)
+	var sm := StandardMaterial3D.new()
+	sm.albedo_color = Color.from_hsv(hue, 0.85, 0.95)
+	sm.roughness = 0.7
+	sm.emission_enabled = true
+	sm.emission = Color.from_hsv(hue, 0.85, 0.6)
+	sm.emission_energy_multiplier = 0.4
+	scarf.material_override = sm
+	_body.add_child(scarf)
+
+	# Конечности
+	_l_arm = _limb(_body, Vector3(-0.52, 1.06, 0), 0.52, 0.13, fur, fur_light)
+	_r_arm = _limb(_body, Vector3(0.52, 1.06, 0), 0.52, 0.13, fur, fur_light)
+	_l_leg = _limb(_body, Vector3(-0.23, 0.5, 0), 0.5, 0.15, fur, fur_light)
+	_r_leg = _limb(_body, Vector3(0.23, 0.5, 0), 0.5, 0.15, fur, fur_light)

@@ -1,9 +1,13 @@
 class_name WorldBase
 extends Node3D
 # База для всех миров: небо/свет/туман, помощники для платформ, деревьев,
-# монет, врагов, порталов, воды. Конкретные миры переопределяют build().
+# монет, врагов, порталов, воды, травы и облаков.
+# Конкретные миры переопределяют build().
 
 const WATER_SHADER := preload("res://shaders/water.gdshader")
+const GRASS_SHADER := preload("res://shaders/grass.gdshader")
+
+static var _tex_cache: Dictionary = {}
 
 var spawn_point := Vector3(0, 1.5, 6)
 var coins_node: Node3D
@@ -12,6 +16,7 @@ var enemies_node: Node3D
 var _mat_cache: Dictionary = {}
 var _coin_count := 0
 var _enemy_count := 0
+var _clouds: Array[Node3D] = []
 
 
 func _ready() -> void:
@@ -26,6 +31,59 @@ func _ready() -> void:
 
 func build() -> void:
 	pass
+
+
+func _process(delta: float) -> void:
+	for c in _clouds:
+		c.position.x += delta * 0.6
+		if c.position.x > 70.0:
+			c.position.x = -70.0
+
+
+# ---------- Процедурные текстуры (общие на все миры) ----------
+
+
+static func detail_tex() -> Texture2D:
+	if _tex_cache.has("detail"):
+		return _tex_cache["detail"]
+	var n := FastNoiseLite.new()
+	n.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	n.frequency = 0.06
+	var img := n.get_seamless_image(128, 128)
+	for y in range(128):
+		for x in range(128):
+			var v := img.get_pixel(x, y).r
+			var g := 0.78 + 0.22 * v
+			img.set_pixel(x, y, Color(g, g, g))
+	var t := ImageTexture.create_from_image(img)
+	_tex_cache["detail"] = t
+	return t
+
+
+static func bump_tex() -> Texture2D:
+	if _tex_cache.has("bump"):
+		return _tex_cache["bump"]
+	var n := FastNoiseLite.new()
+	n.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	n.frequency = 0.1
+	var img := n.get_seamless_image(128, 128)
+	img.bump_map_to_normal_map(2.0)
+	var t := ImageTexture.create_from_image(img)
+	_tex_cache["bump"] = t
+	return t
+
+
+static func water_bump_tex() -> Texture2D:
+	if _tex_cache.has("water_bump"):
+		return _tex_cache["water_bump"]
+	var n := FastNoiseLite.new()
+	n.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	n.frequency = 0.15
+	var img := n.get_seamless_image(128, 128)
+	img.bump_map_to_normal_map(1.5)
+	var t := ImageTexture.create_from_image(img)
+	_tex_cache["water_bump"] = t
+	return t
 
 
 # ---------- Окружение ----------
@@ -71,6 +129,7 @@ func setup_sky(
 	sun.rotation_degrees = sun_rot_deg
 	sun.light_energy = sun_energy
 	sun.shadow_enabled = true
+	sun.shadow_blur = 1.4
 	sun.directional_shadow_max_distance = 70.0
 	add_child(sun)
 
@@ -78,8 +137,17 @@ func setup_sky(
 # ---------- Материалы и геометрия ----------
 
 
-func mat(color: Color, rough := 0.9, metal := 0.0, emis := Color.BLACK) -> StandardMaterial3D:
-	var key := "%s|%f|%f|%s" % [color.to_html(), rough, metal, emis.to_html()]
+func mat(
+	color: Color,
+	rough := 0.9,
+	metal := 0.0,
+	emis := Color.BLACK,
+	detail := 0.0,
+	normal_s := 0.0
+) -> StandardMaterial3D:
+	var key := (
+		"%s|%f|%f|%s|%f|%f" % [color.to_html(), rough, metal, emis.to_html(), detail, normal_s]
+	)
 	if _mat_cache.has(key):
 		return _mat_cache[key]
 	var m := StandardMaterial3D.new()
@@ -90,12 +158,30 @@ func mat(color: Color, rough := 0.9, metal := 0.0, emis := Color.BLACK) -> Stand
 		m.emission_enabled = true
 		m.emission = emis
 		m.emission_energy_multiplier = 1.2
+	if detail > 0.0 or normal_s > 0.0:
+		m.uv1_triplanar = true
+		m.uv1_world_triplanar = true
+		var s := detail if detail > 0.0 else 0.3
+		m.uv1_scale = Vector3(s, s, s)
+	if detail > 0.0:
+		m.albedo_texture = detail_tex()
+	if normal_s > 0.0:
+		m.normal_enabled = true
+		m.normal_texture = bump_tex()
+		m.normal_scale = normal_s
 	_mat_cache[key] = m
 	return m
 
 
 func add_box(
-	pos: Vector3, size: Vector3, color: Color, rough := 0.9, metal := 0.0, yaw_deg := 0.0
+	pos: Vector3,
+	size: Vector3,
+	color: Color,
+	rough := 0.9,
+	metal := 0.0,
+	yaw_deg := 0.0,
+	detail := 0.0,
+	normal_s := 0.0
 ) -> StaticBody3D:
 	var body := StaticBody3D.new()
 	body.position = pos
@@ -109,7 +195,7 @@ func add_box(
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	mi.mesh = mesh
-	mi.material_override = mat(color, rough, metal)
+	mi.material_override = mat(color, rough, metal, Color.BLACK, detail, normal_s)
 	body.add_child(mi)
 	add_child(body)
 	return body
@@ -223,9 +309,15 @@ func add_rock(pos: Vector3, s: float, color := Color(0.55, 0.55, 0.58)) -> void:
 	mesh.height = 1.0
 	mi.mesh = mesh
 	mi.scale = Vector3(s, s * 0.7, s * 0.9)
-	mi.material_override = mat(color, 0.95)
+	mi.material_override = mat(color, 0.95, 0.0, Color.BLACK, 1.2, 0.8)
 	body.add_child(mi)
 	add_child(body)
+
+
+func add_bush(pos: Vector3, color := Color(0.2, 0.45, 0.2)) -> void:
+	add_decor_ball(pos + Vector3(0, 0.35, 0), Vector3(1.1, 0.8, 1.1), color)
+	add_decor_ball(pos + Vector3(0.45, 0.28, 0.2), Vector3(0.7, 0.55, 0.7), color.lightened(0.1))
+	add_decor_ball(pos + Vector3(-0.4, 0.3, -0.15), Vector3(0.65, 0.5, 0.65), color.darkened(0.07))
 
 
 func add_flower(pos: Vector3, color: Color) -> void:
@@ -241,6 +333,69 @@ func add_flower(pos: Vector3, color: Color) -> void:
 	add_decor_ball(pos + Vector3(0, 0.45, 0), Vector3(0.22, 0.18, 0.22), color)
 
 
+func add_grass(center: Vector3, extent: Vector2, count: int, base: Color, tip: Color) -> void:
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.16, 0.42)
+	quad.center_offset = Vector3(0, 0.21, 0)
+	var sm := ShaderMaterial.new()
+	sm.shader = GRASS_SHADER
+	sm.set_shader_parameter("col_base", base)
+	sm.set_shader_parameter("col_tip", tip)
+	quad.material = sm
+
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = quad
+	mm.instance_count = count
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 12345
+	for i in range(count):
+		var pos := center + Vector3(
+			rng.randf_range(-extent.x, extent.x), 0.0, rng.randf_range(-extent.y, extent.y)
+		)
+		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(
+			Vector3.ONE * rng.randf_range(0.7, 1.5)
+		)
+		mm.set_instance_transform(i, Transform3D(b, pos))
+
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mmi)
+
+
+func add_cloud(pos: Vector3, s := 1.0, tint := Color(1, 1, 1)) -> void:
+	var root := Node3D.new()
+	root.position = pos
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(tint.r, tint.g, tint.b, 0.85)
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var offsets := [
+		Vector3(0, 0, 0),
+		Vector3(2.2, 0.3, 0.4),
+		Vector3(-2.0, 0.2, -0.3),
+		Vector3(0.8, 0.8, -0.5),
+	]
+	var scales := [
+		Vector3(4.0, 1.6, 2.6), Vector3(2.6, 1.2, 2.0), Vector3(2.4, 1.1, 1.8),
+		Vector3(2.2, 1.3, 1.8)
+	]
+	for i in range(4):
+		var mi := MeshInstance3D.new()
+		var mesh := SphereMesh.new()
+		mesh.radius = 0.5
+		mesh.height = 1.0
+		mi.mesh = mesh
+		mi.position = offsets[i] * s
+		mi.scale = scales[i] * s
+		mi.material_override = m
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(mi)
+	add_child(root)
+	_clouds.append(root)
+
+
 func add_water(pos: Vector3, size: Vector2) -> void:
 	var mi := MeshInstance3D.new()
 	var mesh := PlaneMesh.new()
@@ -251,6 +406,8 @@ func add_water(pos: Vector3, size: Vector2) -> void:
 	mi.position = pos
 	var sm := ShaderMaterial.new()
 	sm.shader = WATER_SHADER
+	sm.set_shader_parameter("normal_tex", water_bump_tex())
+	sm.set_shader_parameter("uv_scale", maxf(size.x, size.y) * 0.4)
 	mi.material_override = sm
 	add_child(mi)
 

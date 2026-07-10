@@ -62,5 +62,6 @@ attack={
 
 renderer/rendering_method="mobile"
 textures/vram_compression/import_etc2_astc=true
-anti_aliasing/quality/msaa_3d=1
+anti_aliasing/quality/msaa_3d=2
+anti_aliasing/quality/use_debanding=true
 environment/defaults/default_clear_color=Color(0.25, 0.4, 0.6, 1)

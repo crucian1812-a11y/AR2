@@ -2,23 +2,39 @@ class_name MeadowWorld
 extends WorldBase
 # Солнечные луга — платформинг, монеты и грибы-вредины.
 
-const GRASS := Color(0.4, 0.68, 0.3)
-const PLAT := Color(0.5, 0.75, 0.35)
+const GRASS := Color(0.42, 0.72, 0.28)
+const PLAT := Color(0.52, 0.78, 0.33)
 
 
 func build() -> void:
 	spawn_point = Vector3(0, 1.5, 24)
 	setup_sky(
-		Color(0.35, 0.6, 0.95),
-		Color(0.85, 0.9, 0.8),
+		Color(0.33, 0.6, 0.98),
+		Color(0.88, 0.92, 0.8),
 		Color(0.3, 0.4, 0.25),
 		Vector3(-55, 20, 0),
-		1.5
+		1.55
 	)
 
 	# Основное поле
-	add_box(Vector3(0, -0.5, 0), Vector3(90, 1, 90), GRASS, 0.95)
-	add_box(Vector3(0, -3.0, 0), Vector3(80, 4, 80), Color(0.45, 0.32, 0.2))
+	add_box(Vector3(0, -0.5, 0), Vector3(90, 1, 90), GRASS, 0.95, 0.0, 0.0, 0.3, 0.35)
+	add_box(Vector3(0, -3.0, 0), Vector3(80, 4, 80), Color(0.45, 0.32, 0.2), 0.95, 0.0, 0.0, 0.6, 0.6)
+
+	# Трава и облака
+	add_grass(
+		Vector3(14, 0.02, 0), Vector2(26, 38), 4200, Color(0.22, 0.5, 0.12), Color(0.62, 0.9, 0.3)
+	)
+	add_grass(
+		Vector3(-24, 0.02, 20), Vector2(14, 14), 1200, Color(0.22, 0.5, 0.12), Color(0.62, 0.9, 0.3)
+	)
+	add_grass(
+		Vector3(24, 9.52, -42), Vector2(5, 5), 350, Color(0.22, 0.5, 0.12), Color(0.62, 0.9, 0.3)
+	)
+	add_cloud(Vector3(-40, 28, -25), 2.4)
+	add_cloud(Vector3(20, 34, -45), 3.0)
+	add_cloud(Vector3(45, 26, 20), 2.0)
+	add_cloud(Vector3(-20, 30, 35), 2.2)
+	add_cloud(Vector3(0, 36, 0), 2.6)
 
 	# Холмы по краям (декор)
 	add_decor_ball(Vector3(-34, -2, -30), Vector3(30, 12, 26), GRASS.darkened(0.08))

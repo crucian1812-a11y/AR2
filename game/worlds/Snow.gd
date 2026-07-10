@@ -19,8 +19,14 @@ func build() -> void:
 	)
 
 	# Снежная долина
-	add_box(Vector3(0, -0.5, 0), Vector3(80, 1, 80), SNOW, 0.7)
-	add_box(Vector3(0, -3.0, 0), Vector3(70, 4, 70), Color(0.6, 0.65, 0.75))
+	add_box(Vector3(0, -0.5, 0), Vector3(80, 1, 80), SNOW, 0.6, 0.0, 0.0, 0.4, 0.5)
+	add_box(Vector3(0, -3.0, 0), Vector3(70, 4, 70), Color(0.6, 0.65, 0.75), 0.9, 0.0, 0.0, 0.6, 0.7)
+
+	# Облака
+	add_cloud(Vector3(-30, 30, -25), 2.4, Color(0.92, 0.94, 1.0))
+	add_cloud(Vector3(25, 34, -40), 2.8, Color(0.9, 0.92, 0.98))
+	add_cloud(Vector3(40, 28, 15), 2.0, Color(0.92, 0.94, 1.0))
+	add_cloud(Vector3(-18, 36, 30), 2.3, Color(0.9, 0.92, 0.98))
 
 	# Портал домой
 	add_portal(Vector3(0, 1.4, 30), "hub", "В деревню", Color(1.0, 0.8, 0.4))

@@ -7,8 +7,11 @@ var label_text := ""
 var portal_color := Color(0.4, 1.0, 0.6)
 var locked := false
 
+const PORTAL_SHADER := preload("res://shaders/portal.gdshader")
+
 var _ring_mat: StandardMaterial3D
 var _label: Label3D
+var _disc: MeshInstance3D
 
 
 func _ready() -> void:
@@ -33,6 +36,18 @@ func _ready() -> void:
 	_ring_mat.metallic = 0.4
 	ring.material_override = _ring_mat
 	add_child(ring)
+
+	_disc = MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(2.2, 2.2)
+	_disc.mesh = quad
+	_disc.position.y = 0.2
+	var dm := ShaderMaterial.new()
+	dm.shader = PORTAL_SHADER
+	dm.set_shader_parameter("col", portal_color)
+	_disc.material_override = dm
+	_disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_disc)
 
 	var parts := GPUParticles3D.new()
 	parts.amount = 24
@@ -85,9 +100,11 @@ func _refresh() -> void:
 	if locked:
 		_ring_mat.albedo_color = Color(0.4, 0.4, 0.45)
 		_ring_mat.emission_enabled = false
+		_disc.visible = false
 		_label.text = "%s\n(соберите %d монет)" % [label_text, Net.QUEST_COINS]
 		_label.modulate = Color(0.8, 0.8, 0.8)
 	else:
+		_disc.visible = true
 		_ring_mat.albedo_color = portal_color
 		_ring_mat.emission_enabled = true
 		_ring_mat.emission = portal_color

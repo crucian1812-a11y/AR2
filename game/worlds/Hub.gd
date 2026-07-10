@@ -2,29 +2,39 @@ class_name HubWorld
 extends WorldBase
 # Медвежья деревня — стартовый мир с NPC и порталами в другие миры.
 
-const GRASS := Color(0.36, 0.62, 0.3)
-const PATH_C := Color(0.78, 0.68, 0.5)
+const GRASS := Color(0.34, 0.66, 0.27)
+const PATH_C := Color(0.82, 0.7, 0.48)
 
 
 func build() -> void:
 	spawn_point = Vector3(0, 1.5, 10)
 	setup_sky(
-		Color(0.3, 0.55, 0.9),
-		Color(0.75, 0.85, 0.95),
+		Color(0.28, 0.55, 0.95),
+		Color(0.78, 0.88, 0.98),
 		Color(0.25, 0.32, 0.25),
 		Vector3(-48, 35, 0),
-		1.35
+		1.4
 	)
 
 	# Остров
-	add_box(Vector3(0, -0.5, 0), Vector3(60, 1, 60), GRASS, 0.95)
-	add_box(Vector3(0, -2.5, 0), Vector3(52, 3, 52), Color(0.45, 0.32, 0.2))
-	add_box(Vector3(0, -5.0, 0), Vector3(40, 2, 40), Color(0.38, 0.27, 0.17))
+	add_box(Vector3(0, -0.5, 0), Vector3(60, 1, 60), GRASS, 0.95, 0.0, 0.0, 0.3, 0.35)
+	add_box(Vector3(0, -2.5, 0), Vector3(52, 3, 52), Color(0.45, 0.32, 0.2), 0.95, 0.0, 0.0, 0.6, 0.6)
+	add_box(Vector3(0, -5.0, 0), Vector3(40, 2, 40), Color(0.38, 0.27, 0.17), 0.95, 0.0, 0.0, 0.6, 0.6)
 
 	# Дорожки
-	add_box(Vector3(0, 0.02, 5), Vector3(3, 0.1, 20), PATH_C, 0.95)
-	add_box(Vector3(-8, 0.02, 0), Vector3(14, 0.1, 3), PATH_C, 0.95)
-	add_box(Vector3(8, 0.02, 0), Vector3(14, 0.1, 3), PATH_C, 0.95)
+	add_box(Vector3(0, 0.02, 5), Vector3(3, 0.1, 20), PATH_C, 0.95, 0.0, 0.0, 0.9, 0.4)
+	add_box(Vector3(-8, 0.02, 0), Vector3(14, 0.1, 3), PATH_C, 0.95, 0.0, 0.0, 0.9, 0.4)
+	add_box(Vector3(8, 0.02, 0), Vector3(14, 0.1, 3), PATH_C, 0.95, 0.0, 0.0, 0.9, 0.4)
+
+	# Трава и облака
+	add_grass(
+		Vector3(0, 0.02, 0), Vector2(28, 28), 2600, Color(0.2, 0.45, 0.14), Color(0.55, 0.85, 0.3)
+	)
+	add_cloud(Vector3(-30, 26, -20), 2.0)
+	add_cloud(Vector3(15, 30, -35), 2.6)
+	add_cloud(Vector3(40, 24, 10), 1.8)
+	add_cloud(Vector3(-15, 32, 30), 2.2)
+	add_cloud(Vector3(55, 28, -8), 2.4)
 
 	# Фонтан в центре
 	add_cylinder(Vector3(0, 0.4, 0), 2.6, 0.8, Color(0.7, 0.7, 0.75), 0.6)
@@ -73,6 +83,13 @@ func build() -> void:
 	add_rock(Vector3(-14, 0.3, -4), 1.6)
 	add_rock(Vector3(13, 0.25, 7), 1.2)
 	add_rock(Vector3(-4, 0.2, 16), 1.0)
+
+	# Кусты у домиков
+	add_bush(Vector3(-13.2, 0, -10))
+	add_bush(Vector3(-6.8, 0, -13.5), Color(0.25, 0.5, 0.18))
+	add_bush(Vector3(13.4, 0, -9.6))
+	add_bush(Vector3(-18.5, 0, 5.2), Color(0.18, 0.42, 0.22))
+	add_bush(Vector3(7, 0, 18))
 
 	# Цветы
 	var flower_colors := [
