@@ -63,6 +63,19 @@ jobs:
         run: |
           godot --headless --path game --import || true
 
+      - name: Smoke test (headless solo run)
+        run: |
+          out=$(timeout 90 godot --headless --path game -- --autotest 2>&1 || true)
+          echo "$out"
+          if echo "$out" | grep -qE "SCRIPT ERROR|Parse Error|Failed to load script"; then
+            echo "::error::Script errors detected during smoke test"
+            exit 1
+          fi
+          if ! echo "$out" | grep -q "AUTOTEST OK"; then
+            echo "::error::Smoke test did not reach AUTOTEST OK marker"
+            exit 1
+          fi
+
       - name: Export debug APK
         run: |
           set -e

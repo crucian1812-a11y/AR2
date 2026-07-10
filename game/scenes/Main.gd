@@ -43,6 +43,14 @@ func _ready() -> void:
 		hud.show_loading(true)
 		Net.notify_game_scene_ready()
 
+	if "--autotest" in OS.get_cmdline_user_args():
+		get_tree().create_timer(3.0).timeout.connect(_finish_autotest)
+
+
+func _finish_autotest() -> void:
+	print("AUTOTEST OK")
+	get_tree().quit(0)
+
 
 func _physics_process(delta: float) -> void:
 	if Net.is_host and current_world_node != null:

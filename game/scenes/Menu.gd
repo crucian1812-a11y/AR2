@@ -116,6 +116,9 @@ func _ready() -> void:
 	version.offset_top = -34
 	add_child(version)
 
+	if "--autotest" in OS.get_cmdline_user_args():
+		call_deferred("_on_solo")
+
 
 func _spacer(h: float) -> Control:
 	var s := Control.new()
