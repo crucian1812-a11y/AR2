@@ -1,0 +1,93 @@
+class_name MeadowWorld
+extends WorldBase
+# Солнечные луга — платформинг, монеты и грибы-вредины.
+
+const GRASS := Color(0.4, 0.68, 0.3)
+const PLAT := Color(0.5, 0.75, 0.35)
+
+
+func build() -> void:
+	spawn_point = Vector3(0, 1.5, 24)
+	setup_sky(
+		Color(0.35, 0.6, 0.95),
+		Color(0.85, 0.9, 0.8),
+		Color(0.3, 0.4, 0.25),
+		Vector3(-55, 20, 0),
+		1.5
+	)
+
+	# Основное поле
+	add_box(Vector3(0, -0.5, 0), Vector3(90, 1, 90), GRASS, 0.95)
+	add_box(Vector3(0, -3.0, 0), Vector3(80, 4, 80), Color(0.45, 0.32, 0.2))
+
+	# Холмы по краям (декор)
+	add_decor_ball(Vector3(-34, -2, -30), Vector3(30, 12, 26), GRASS.darkened(0.08))
+	add_decor_ball(Vector3(36, -3, -24), Vector3(26, 14, 24), GRASS.darkened(0.12))
+	add_decor_ball(Vector3(30, -4, 32), Vector3(28, 12, 22), GRASS.darkened(0.05))
+
+	# Портал домой
+	add_portal(Vector3(0, 1.4, 32), "hub", "В деревню", Color(1.0, 0.8, 0.4))
+
+	# Поле с монетами и грибами
+	add_coin(Vector3(4, 1.0, 16))
+	add_coin(Vector3(-5, 1.0, 12))
+	add_coin(Vector3(8, 1.0, 8))
+	add_coin(Vector3(-9, 1.0, 4))
+	add_coin(Vector3(2, 1.0, 0))
+	add_coin(Vector3(-3, 1.0, -6))
+	add_coin(Vector3(7, 1.0, -10))
+	add_coin(Vector3(-8, 1.0, -14))
+	add_enemy(Vector3(-6, 0, 8), Vector3(6, 0, 8), "mushroom", 2.2)
+	add_enemy(Vector3(5, 0, -2), Vector3(-5, 0, -6), "mushroom", 2.5)
+
+	# Пруд с камнями-ступеньками
+	add_box(Vector3(-20, -0.4, -8), Vector3(16, 0.8, 20), Color(0.5, 0.42, 0.3))
+	add_water(Vector3(-20, 0.12, -8), Vector2(15, 19))
+	var stone := Color(0.62, 0.6, 0.55)
+	add_box(Vector3(-15, 0.3, -2), Vector3(2, 0.7, 2), stone, 0.95)
+	add_box(Vector3(-18, 0.3, -6), Vector3(2, 0.7, 2), stone, 0.95)
+	add_box(Vector3(-21, 0.3, -10), Vector3(2, 0.7, 2), stone, 0.95)
+	add_box(Vector3(-24, 0.3, -13), Vector3(2, 0.7, 2), stone, 0.95)
+	add_coin(Vector3(-15, 1.4, -2))
+	add_coin(Vector3(-18, 1.4, -6))
+	add_coin(Vector3(-21, 1.4, -10))
+	add_coin(Vector3(-24, 1.4, -13))
+
+	# Парящие платформы наверх к плато
+	var steps := [
+		Vector3(6, 1.5, -18),
+		Vector3(10, 3.0, -22),
+		Vector3(14, 4.5, -26),
+		Vector3(10, 6.0, -30),
+		Vector3(14, 7.5, -34),
+		Vector3(18, 8.5, -38),
+	]
+	for s in steps:
+		add_box(s, Vector3(3.2, 0.6, 3.2), PLAT, 0.9)
+		add_coin(s + Vector3(0, 1.2, 0))
+
+	# Плато с большим деревом
+	add_box(Vector3(24, 9.0, -42), Vector3(12, 1, 12), GRASS.lightened(0.05))
+	add_tree(Vector3(26, 9.5, -44), Color(0.3, 0.6, 0.25), 1.8)
+	add_enemy(Vector3(20, 9.7, -40), Vector3(28, 9.7, -40), "mushroom", 2.0)
+	add_coin(Vector3(22, 10.6, -40))
+	add_coin(Vector3(26, 10.6, -40))
+	add_coin(Vector3(24, 10.6, -46))
+	add_coin(Vector3(20, 10.6, -46))
+
+	# Деревья, камни, цветы
+	add_tree(Vector3(16, 0, 14))
+	add_tree(Vector3(-14, 0, 20), Color(0.32, 0.55, 0.2), 1.2)
+	add_tree(Vector3(22, 0, -6), Color(0.85, 0.55, 0.3), 0.9)
+	add_tree(Vector3(-26, 0, 12), Color(0.25, 0.55, 0.3))
+	add_rock(Vector3(12, 0.3, 2), 1.5)
+	add_rock(Vector3(-2, 0.25, 22), 1.1)
+	var flower_colors := [
+		Color(0.95, 0.4, 0.45), Color(0.95, 0.85, 0.3), Color(0.6, 0.5, 0.95), Color(1.0, 0.65, 0.3)
+	]
+	for i in range(26):
+		var ang := randf() * TAU
+		var r := randf_range(4.0, 34.0)
+		var p := Vector3(cos(ang) * r, 0, sin(ang) * r)
+		if p.x > -12 or p.z > 4:
+			add_flower(p, flower_colors[i % 4])

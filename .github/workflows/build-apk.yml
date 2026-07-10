@@ -1,0 +1,96 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - claude/super-bear-adventure-clone-twher0
+      - main
+    paths:
+      - "game/**"
+      - ".github/workflows/build-apk.yml"
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.3"
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Download Godot
+        run: |
+          set -e
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
+          godot --version
+
+      - name: Download export templates
+        run: |
+          set -e
+          curl -sSL -o templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          unzip -q templates.tpz -d /tmp/templates
+          mv /tmp/templates/templates/* "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/"
+
+      - name: Setup debug keystore and editor settings
+        run: |
+          set -e
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore "$HOME/debug.keystore" -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999
+          mkdir -p "$HOME/.config/godot"
+          SDK_PATH="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          cat > "$HOME/.config/godot/editor_settings-4.3.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "$SDK_PATH"
+          export/android/debug_keystore = "$HOME/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+          cp "$HOME/.config/godot/editor_settings-4.3.tres" "$HOME/.config/godot/editor_settings-4.tres"
+
+      - name: Import project assets
+        run: |
+          godot --headless --path game --import || true
+
+      - name: Export debug APK
+        run: |
+          set -e
+          mkdir -p build
+          godot --headless --path game --export-debug "Android" "$GITHUB_WORKSPACE/build/BearAdventure.apk"
+          test -f build/BearAdventure.apk
+          ls -la build/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BearAdventure-APK
+          path: build/BearAdventure.apk
+
+      - name: Publish APK to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: "Медвежьи Приключения — последний APK"
+          prerelease: true
+          make_latest: false
+          body: |
+            Автоматическая сборка игры «Медвежьи Приключения».
+
+            **Как установить:**
+            1. Скачайте `BearAdventure.apk` ниже на телефон.
+            2. Откройте файл и разрешите установку из неизвестных источников.
+
+            **Мультиплеер:** все игроки подключаются к одному Wi-Fi.
+            Один нажимает «Создать игру», остальные — «Присоединиться»
+            (игра найдётся автоматически, либо введите IP хоста).
+          files: build/BearAdventure.apk
