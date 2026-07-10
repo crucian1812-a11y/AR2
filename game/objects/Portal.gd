@@ -38,9 +38,9 @@ func _ready() -> void:
 	add_child(ring)
 
 	_disc = MeshInstance3D.new()
-	var quad := QuadMesh.new()
-	quad.size = Vector2(2.2, 2.2)
-	_disc.mesh = quad
+	var disc_quad := QuadMesh.new()
+	disc_quad.size = Vector2(2.2, 2.2)
+	_disc.mesh = disc_quad
 	_disc.position.y = 0.2
 	var dm := ShaderMaterial.new()
 	dm.shader = PORTAL_SHADER
