@@ -70,6 +70,7 @@ func _on_body_entered(body: Node3D) -> void:
 
 
 func collect_effect() -> void:
+	Snd.play("coin", 0.0, randf_range(0.95, 1.1))
 	set_process(false)
 	set_deferred("monitoring", false)
 	var tw := create_tween()

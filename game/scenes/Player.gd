@@ -42,6 +42,8 @@ var _r_arm: Node3D
 var _l_leg: Node3D
 var _r_leg: Node3D
 var _body: Node3D
+var _swipe: MeshInstance3D
+var _swipe_mat: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -129,6 +131,8 @@ func _physics_process(delta: float) -> void:
 		if _net_anim != _prev_net_anim:
 			if _prev_net_anim == "jump" and _net_anim != "jump":
 				_squash_t = 0.22
+			if _net_anim == "attack":
+				_attack_anim = 0.35
 			_prev_net_anim = _net_anim
 	_animate(delta)
 
@@ -149,17 +153,19 @@ func _local_move(delta: float) -> void:
 		if _was_airborne:
 			_was_airborne = false
 			_squash_t = 0.22
+			Snd.play("land")
 		if Input.is_action_just_pressed("jump"):
 			velocity.y = JUMP_VELOCITY
 			_flip = 0.001
 			_was_airborne = true
+			Snd.play("jump")
 	else:
 		_was_airborne = true
 		velocity.y -= GRAVITY * delta
 
 	move_and_slide()
 
-	if dir.length() > 0.1:
+	if dir.length() > 0.1 and _attack_anim <= 0.0:
 		var yaw := atan2(dir.x, dir.z)
 		_visual.rotation.y = lerp_angle(_visual.rotation.y, yaw, minf(10.0 * delta, 1.0))
 
@@ -192,8 +198,6 @@ func net_state(pos: Vector3, yaw: float, a: String, flip: float) -> void:
 func _tick_timers(delta: float) -> void:
 	if _attack_cd > 0.0:
 		_attack_cd -= delta
-	if _attack_anim > 0.0:
-		_attack_anim -= delta
 	if _invuln > 0.0:
 		_invuln -= delta
 		_visual.visible = fmod(_invuln, 0.2) > 0.1
@@ -202,14 +206,18 @@ func _tick_timers(delta: float) -> void:
 
 
 func _do_attack() -> void:
-	_attack_cd = 0.6
+	_attack_cd = 0.55
 	_attack_anim = 0.35
+	Snd.play("swing")
+	# Рывок вперёд + спин-атака бьёт вокруг
 	var fwd := Vector3(sin(_visual.rotation.y), 0.0, cos(_visual.rotation.y))
+	velocity.x += fwd.x * 3.5
+	velocity.z += fwd.z * 3.5
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e):
 			continue
 		var to: Vector3 = e.global_position - global_position
-		if to.length() < 2.2 and to.normalized().dot(fwd) > 0.25:
+		if to.length() < 2.5 and absf(to.y) < 1.6:
 			Net.request_kill_enemy.rpc_id(1, Net.current_world, String(e.name))
 
 
@@ -229,6 +237,7 @@ func _enemy_interactions() -> void:
 func _take_damage(from: Vector3) -> void:
 	hearts -= 1
 	_invuln = 1.5
+	Snd.play("hurt")
 	var push := global_position - from
 	push.y = 0.0
 	if push.length() < 0.01:
@@ -246,6 +255,7 @@ func _fall_respawn() -> void:
 	if hearts <= 0:
 		hearts = 3
 	_invuln = 2.0
+	Snd.play("hurt")
 	place_at(_spawn_pos)
 
 
@@ -271,10 +281,23 @@ func _animate(delta: float) -> void:
 		squash_target = Vector3(1.15, 0.78, 1.15)
 	_flip_node.scale = _flip_node.scale.lerp(squash_target, minf(delta * 14.0, 1.0))
 
+	# Спин-атака: полный оборот + расходящаяся ударная волна
+	if _attack_anim > 0.0:
+		_attack_anim -= delta
+		var pr := 1.0 - maxf(_attack_anim, 0.0) / 0.35
+		_visual.rotation.y += delta * TAU / 0.35
+		_swipe.visible = true
+		_swipe.scale = Vector3(0.5 + 1.9 * pr, 1.0, 0.5 + 1.9 * pr)
+		_swipe_mat.albedo_color = Color(1.0, 1.0, 0.9, 0.55 * (1.0 - pr))
+	else:
+		_swipe.visible = false
+
 	var run_speed := 11.0 if anim_state == "run" else 2.0
 	_anim_t += delta * run_speed
 	var la := 0.0
 	var ra := 0.0
+	var laz := 0.0
+	var raz := 0.0
 	var ll := 0.0
 	var rl := 0.0
 	var bob := 0.0
@@ -291,14 +314,16 @@ func _animate(delta: float) -> void:
 			la = -2.5
 			ra = -2.5
 		"attack":
-			ra = -2.0
-			la = 0.3
+			laz = 1.4
+			raz = -1.4
 		_:
 			la = sin(_anim_t) * 0.08
 			ra = -sin(_anim_t) * 0.08
 	var k := minf(delta * 14.0, 1.0)
 	_l_arm.rotation.x = lerpf(_l_arm.rotation.x, la, k)
 	_r_arm.rotation.x = lerpf(_r_arm.rotation.x, ra, k)
+	_l_arm.rotation.z = lerpf(_l_arm.rotation.z, laz, minf(delta * 20.0, 1.0))
+	_r_arm.rotation.z = lerpf(_r_arm.rotation.z, raz, minf(delta * 20.0, 1.0))
 	_l_leg.rotation.x = lerpf(_l_leg.rotation.x, ll, k)
 	_r_leg.rotation.x = lerpf(_r_leg.rotation.x, rl, k)
 	_body.position.y = lerpf(_body.position.y, -1.0 + bob, k)
@@ -402,3 +427,22 @@ func _build_bear() -> void:
 	_r_arm = _limb(_body, Vector3(0.52, 1.06, 0), 0.52, 0.13, fur, fur_light)
 	_l_leg = _limb(_body, Vector3(-0.23, 0.5, 0), 0.5, 0.15, fur, fur_light)
 	_r_leg = _limb(_body, Vector3(0.23, 0.5, 0), 0.5, 0.15, fur, fur_light)
+
+	# Кольцо ударной волны спин-атаки
+	_swipe = MeshInstance3D.new()
+	var swipe_torus := TorusMesh.new()
+	swipe_torus.inner_radius = 0.85
+	swipe_torus.outer_radius = 1.05
+	_swipe.mesh = swipe_torus
+	_swipe.position = Vector3(0, 0.9, 0)
+	_swipe.visible = false
+	_swipe_mat = StandardMaterial3D.new()
+	_swipe_mat.albedo_color = Color(1, 1, 0.9, 0.5)
+	_swipe_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_swipe_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_swipe_mat.emission_enabled = true
+	_swipe_mat.emission = Color(1.0, 0.95, 0.6)
+	_swipe_mat.emission_energy_multiplier = 1.5
+	_swipe.material_override = _swipe_mat
+	_swipe.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_visual.add_child(_swipe)

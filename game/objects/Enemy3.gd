@@ -67,9 +67,45 @@ func _process(delta: float) -> void:
 func die_effect() -> void:
 	dying = true
 	remove_from_group("enemies")
+	Snd.play("stomp")
+	_burst_particles()
 	var tw := create_tween()
 	tw.tween_property(_visual, "scale", Vector3(1.4, 0.1, 1.4), 0.25)
 	tw.tween_callback(queue_free)
+
+
+func _burst_particles() -> void:
+	var parts := GPUParticles3D.new()
+	parts.one_shot = true
+	parts.explosiveness = 1.0
+	parts.amount = 14
+	parts.lifetime = 0.5
+	parts.emitting = true
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	pm.emission_sphere_radius = 0.3
+	pm.direction = Vector3(0, 1, 0)
+	pm.spread = 80.0
+	pm.initial_velocity_min = 2.5
+	pm.initial_velocity_max = 4.5
+	pm.gravity = Vector3(0, -7.0, 0)
+	pm.scale_min = 0.08
+	pm.scale_max = 0.16
+	pm.color = Color(0.5, 0.75, 1.0) if kind == "slime" else Color(0.9, 0.3, 0.2)
+	parts.process_material = pm
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.3, 0.3)
+	var qm := StandardMaterial3D.new()
+	qm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	qm.vertex_color_use_as_albedo = true
+	qm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	quad.material = qm
+	parts.draw_pass_1 = quad
+	var parent := get_parent()
+	if parent != null:
+		parent.add_child(parts)
+		parts.global_position = global_position + Vector3(0, 0.5, 0)
+		parts.finished.connect(parts.queue_free)
 
 
 func _mat(col: Color, rough := 0.8, emis := Color.BLACK) -> StandardMaterial3D:

@@ -115,6 +115,9 @@ func setup_sky(
 	env.glow_enabled = true
 	env.glow_intensity = 0.6
 	env.glow_bloom = 0.05
+	env.adjustment_enabled = true
+	env.adjustment_saturation = 1.12
+	env.adjustment_contrast = 1.04
 	if fog_density > 0.0:
 		env.fog_enabled = true
 		env.fog_light_color = fog_color
@@ -394,6 +397,102 @@ func add_cloud(pos: Vector3, s := 1.0, tint := Color(1, 1, 1)) -> void:
 		root.add_child(mi)
 	add_child(root)
 	_clouds.append(root)
+
+
+func add_mountain(pos: Vector3, radius: float, height: float, color: Color, cap := true) -> void:
+	var cone := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius * 0.06
+	mesh.bottom_radius = radius
+	mesh.height = height
+	cone.mesh = mesh
+	cone.position = pos + Vector3(0, height * 0.5 - 2.0, 0)
+	cone.material_override = mat(color, 0.95, 0.0, Color.BLACK, 0.15, 0.5)
+	cone.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(cone)
+	if cap:
+		var top := MeshInstance3D.new()
+		var top_mesh := CylinderMesh.new()
+		top_mesh.top_radius = 0.0
+		top_mesh.bottom_radius = radius * 0.3
+		top_mesh.height = height * 0.28
+		top.mesh = top_mesh
+		top.position = pos + Vector3(0, height - 2.0, 0)
+		top.material_override = mat(Color(0.96, 0.97, 1.0), 0.6)
+		top.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(top)
+
+
+func add_motes(
+	center: Vector3, extents: Vector3, count: int, color: Color, size := 0.09
+) -> void:
+	var parts := GPUParticles3D.new()
+	parts.amount = count
+	parts.lifetime = 7.0
+	parts.preprocess = 7.0
+	parts.position = center
+	parts.visibility_aabb = AABB(-extents - Vector3(2, 2, 2), extents * 2.0 + Vector3(4, 4, 4))
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = extents
+	pm.direction = Vector3(0, 1, 0)
+	pm.spread = 180.0
+	pm.initial_velocity_min = 0.15
+	pm.initial_velocity_max = 0.5
+	pm.gravity = Vector3(0.1, 0.05, 0.08)
+	pm.scale_min = size * 0.6
+	pm.scale_max = size
+	pm.color = color
+	parts.process_material = pm
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.35, 0.35)
+	var qm := StandardMaterial3D.new()
+	qm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	qm.vertex_color_use_as_albedo = true
+	qm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	qm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	qm.emission_enabled = true
+	qm.emission = Color(color.r, color.g, color.b)
+	qm.emission_energy_multiplier = 1.2
+	quad.material = qm
+	parts.draw_pass_1 = quad
+	add_child(parts)
+
+
+func add_leaves(center: Vector3, extents: Vector3, count: int, color: Color) -> void:
+	var parts := GPUParticles3D.new()
+	parts.amount = count
+	parts.lifetime = 6.0
+	parts.preprocess = 6.0
+	parts.position = center
+	parts.visibility_aabb = AABB(
+		-extents - Vector3(2, 10, 2), extents * 2.0 + Vector3(4, 14, 4)
+	)
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = extents
+	pm.direction = Vector3(0, -1, 0)
+	pm.spread = 30.0
+	pm.initial_velocity_min = 0.4
+	pm.initial_velocity_max = 0.9
+	pm.gravity = Vector3(0.5, -0.9, 0.2)
+	pm.angle_min = 0.0
+	pm.angle_max = 360.0
+	pm.angular_velocity_min = -120.0
+	pm.angular_velocity_max = 120.0
+	pm.scale_min = 0.5
+	pm.scale_max = 0.9
+	pm.color = color
+	parts.process_material = pm
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.22, 0.16)
+	var qm := StandardMaterial3D.new()
+	qm.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	qm.vertex_color_use_as_albedo = true
+	qm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	quad.material = qm
+	parts.draw_pass_1 = quad
+	add_child(parts)
 
 
 func add_water(pos: Vector3, size: Vector2) -> void:

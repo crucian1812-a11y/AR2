@@ -36,6 +36,20 @@ func build() -> void:
 	add_cloud(Vector3(-20, 30, 35), 2.2)
 	add_cloud(Vector3(0, 36, 0), 2.6)
 
+	# Горы на горизонте
+	var mnt := Color(0.42, 0.55, 0.62)
+	add_mountain(Vector3(-110, 0, -80), 42, 52, mnt)
+	add_mountain(Vector3(0, 0, -125), 48, 62, mnt.darkened(0.05))
+	add_mountain(Vector3(100, 0, -90), 36, 46, mnt.lightened(0.04))
+	add_mountain(Vector3(125, 0, 30), 40, 50, mnt)
+	add_mountain(Vector3(-120, 0, 55), 38, 44, mnt.darkened(0.03))
+
+	# Пыльца и падающие листья
+	add_motes(Vector3(0, 2.5, 0), Vector3(30, 2.5, 30), 70, Color(1.0, 0.98, 0.7, 0.65))
+	add_leaves(Vector3(26, 16, -44), Vector3(6, 1, 6), 24, Color(0.55, 0.75, 0.3))
+	add_leaves(Vector3(-14, 8, 20), Vector3(5, 1, 5), 16, Color(0.5, 0.7, 0.28))
+	add_leaves(Vector3(22, 7, -6), Vector3(4, 1, 4), 14, Color(0.9, 0.6, 0.3))
+
 	# Холмы по краям (декор)
 	add_decor_ball(Vector3(-34, -2, -30), Vector3(30, 12, 26), GRASS.darkened(0.08))
 	add_decor_ball(Vector3(36, -3, -24), Vector3(26, 14, 24), GRASS.darkened(0.12))

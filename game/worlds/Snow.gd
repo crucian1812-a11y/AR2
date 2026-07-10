@@ -28,6 +28,15 @@ func build() -> void:
 	add_cloud(Vector3(40, 28, 15), 2.0, Color(0.92, 0.94, 1.0))
 	add_cloud(Vector3(-18, 36, 30), 2.3, Color(0.9, 0.92, 0.98))
 
+	# Горные хребты вокруг долины
+	var mnt := Color(0.62, 0.68, 0.8)
+	add_mountain(Vector3(-75, 0, -60), 30, 44, mnt)
+	add_mountain(Vector3(-15, 0, -90), 38, 56, mnt.darkened(0.05))
+	add_mountain(Vector3(55, 0, -75), 28, 40, mnt)
+	add_mountain(Vector3(85, 0, -5), 32, 46, mnt.lightened(0.04))
+	add_mountain(Vector3(70, 0, 60), 26, 36, mnt)
+	add_mountain(Vector3(-80, 0, 45), 30, 42, mnt.darkened(0.04))
+
 	# Портал домой
 	add_portal(Vector3(0, 1.4, 30), "hub", "В деревню", Color(1.0, 0.8, 0.4))
 

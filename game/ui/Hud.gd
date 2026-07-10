@@ -102,6 +102,11 @@ func _ready() -> void:
 
 	Net.victory_happened.connect(_on_victory)
 	Net.world_changed.connect(_on_world_changed)
+	Net.quest_changed.connect(_on_quest_changed_snd)
+
+
+func _on_quest_changed_snd(_stage: int) -> void:
+	Snd.play("quest")
 
 
 func _label(parent: Node, size: int, color: Color) -> Label:
@@ -152,6 +157,7 @@ func show_loading(v: bool) -> void:
 
 
 func _on_victory() -> void:
+	Snd.play("victory")
 	_victory.visible = true
 
 

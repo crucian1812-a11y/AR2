@@ -36,6 +36,18 @@ func build() -> void:
 	add_cloud(Vector3(-15, 32, 30), 2.2)
 	add_cloud(Vector3(55, 28, -8), 2.4)
 
+	# Горы на горизонте
+	var mnt := Color(0.45, 0.52, 0.68)
+	add_mountain(Vector3(-90, 0, -70), 34, 46, mnt)
+	add_mountain(Vector3(-30, 0, -105), 40, 55, mnt.darkened(0.06))
+	add_mountain(Vector3(60, 0, -95), 30, 40, mnt)
+	add_mountain(Vector3(105, 0, -20), 36, 48, mnt.lightened(0.05))
+	add_mountain(Vector3(95, 0, 70), 28, 36, mnt)
+	add_mountain(Vector3(-100, 0, 45), 32, 42, mnt.darkened(0.04))
+
+	# Светящаяся пыльца в воздухе
+	add_motes(Vector3(0, 2.5, 0), Vector3(24, 2.5, 24), 60, Color(1.0, 0.95, 0.6, 0.7))
+
 	# Фонтан в центре
 	add_cylinder(Vector3(0, 0.4, 0), 2.6, 0.8, Color(0.7, 0.7, 0.75), 0.6)
 	add_water(Vector3(0, 0.85, 0), Vector2(4.4, 4.4))
@@ -126,3 +138,16 @@ func _house(pos: Vector3, wall: Color, yaw := 0.0) -> void:
 	add_child(roof)
 	var door_off := Vector3(0, 0.9, 2.25).rotated(Vector3.UP, deg_to_rad(yaw))
 	add_box(pos + door_off, Vector3(1.1, 1.8, 0.15), Color(0.35, 0.22, 0.12))
+	# Тёплые светящиеся окна
+	var win_mat := mat(
+		Color(1.0, 0.9, 0.55), 0.4, 0.0, Color(1.0, 0.8, 0.4)
+	)
+	for wx in [-1.55, 1.55]:
+		var win := MeshInstance3D.new()
+		var wm := BoxMesh.new()
+		wm.size = Vector3(0.9, 0.9, 0.12)
+		win.mesh = wm
+		win.position = pos + Vector3(wx, 1.7, 2.24).rotated(Vector3.UP, deg_to_rad(yaw))
+		win.rotation.y = deg_to_rad(yaw)
+		win.material_override = win_mat
+		add_child(win)

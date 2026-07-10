@@ -117,4 +117,5 @@ func _on_body_entered(body: Node3D) -> void:
 	if locked:
 		return
 	if body is BearPlayer and body.is_local:
+		Snd.play("portal")
 		Net.request_portal.rpc_id(1, target)

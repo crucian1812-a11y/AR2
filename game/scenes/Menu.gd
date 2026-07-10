@@ -8,6 +8,7 @@ var _main_box: VBoxContainer
 var _join_box: VBoxContainer
 var _servers_box: VBoxContainer
 var _ip_edit: LineEdit
+var _snd_btn: Button
 
 
 func _ready() -> void:
@@ -64,6 +65,8 @@ func _ready() -> void:
 	_main_box.add_child(_menu_button("Играть одному", _on_solo))
 	_main_box.add_child(_menu_button("Создать игру (по Wi-Fi)", _on_host))
 	_main_box.add_child(_menu_button("Присоединиться к игре", _on_join_open))
+	_snd_btn = _menu_button("Звук: выкл" if Snd.muted else "Звук: вкл", _on_toggle_sound)
+	_main_box.add_child(_snd_btn)
 
 	_join_box = VBoxContainer.new()
 	_join_box.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -132,6 +135,7 @@ func _menu_button(text: String, handler: Callable) -> Button:
 	b.custom_minimum_size = Vector2(380, 56)
 	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	b.add_theme_font_size_override("font_size", 24)
+	b.pressed.connect(func() -> void: Snd.play("click"))
 	b.pressed.connect(handler)
 	return b
 
@@ -140,6 +144,11 @@ func _save_name() -> void:
 	var n := _name_edit.text.strip_edges()
 	if n != "":
 		Net.player_name = n
+
+
+func _on_toggle_sound() -> void:
+	Snd.set_muted(not Snd.muted)
+	_snd_btn.text = "Звук: выкл" if Snd.muted else "Звук: вкл"
 
 
 func _on_solo() -> void:
