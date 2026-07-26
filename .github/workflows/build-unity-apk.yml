@@ -61,6 +61,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Unity Hub скачивает редактор по паре «версия + changeset», поэтому
+      # в ProjectVersion.txt обязателен хеш ревизии. Определяем его на лету,
+      # чтобы файл не устаревал при смене версии Unity.
+      - name: Определить changeset Unity
+        run: |
+          set -e
+          CHANGESET=$(npx --yes unity-changeset@3 "$UNITY_VERSION" | tr -d '[:space:]')
+          if ! printf '%s' "$CHANGESET" | grep -qE '^[0-9a-f]{12}$'; then
+            echo "::error::Не удалось определить changeset для $UNITY_VERSION (получено: '$CHANGESET')"
+            exit 1
+          fi
+          printf 'm_EditorVersion: %s\nm_EditorVersionWithRevision: %s (%s)\n' \
+            "$UNITY_VERSION" "$UNITY_VERSION" "$CHANGESET" \
+            > unity/ProjectSettings/ProjectVersion.txt
+          echo "ProjectVersion.txt:"
+          cat unity/ProjectSettings/ProjectVersion.txt
+
       - name: Освободить место на диске
         uses: jlumbroso/free-disk-space@main
         with:
