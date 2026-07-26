@@ -169,7 +169,9 @@ public static class BuildScript
 
     private static void CreateMainScene()
     {
-        Directory.CreateDirectory("Assets/Scenes");
+        // Application.dataPath указывает на <проект>/Assets, поэтому папка
+        // создаётся верно независимо от текущего каталога процесса Unity.
+        Directory.CreateDirectory(Path.Combine(Application.dataPath, "Scenes"));
         AssetDatabase.Refresh();
 
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
