@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 env:
-  UNITY_VERSION: "2022.3.76f1"
+  UNITY_VERSION: "6000.0.80f1"
 
 jobs:
   check-credentials:

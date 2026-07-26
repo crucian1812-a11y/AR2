@@ -1,6 +1,6 @@
 # Медвежьи Приключения — версия на Unity 🐻
 
-Порт игры на Unity 2022.3 (Built-in Render Pipeline). Godot-версия
+Порт игры на Unity 6 LTS (Built-in Render Pipeline). Godot-версия
 осталась нетронутой в папке `game/`.
 
 ## Первый запуск
