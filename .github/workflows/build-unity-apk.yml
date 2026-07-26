@@ -99,14 +99,36 @@ jobs:
 
       - name: Собрать APK
         run: |
-          set -e
           mkdir -p "$GITHUB_WORKSPACE/build"
+          LOG="$GITHUB_WORKSPACE/unity-build.log"
+
+          set +e
           "$UNITY_EDITOR_PATH" \
             -quit -batchmode -nographics \
             -projectPath "$GITHUB_WORKSPACE/unity" \
             -executeMethod BuildScript.BuildAndroid \
             -outputPath "$GITHUB_WORKSPACE/build/BearAdventure.apk" \
-            -logFile - | tail -n 400
+            -logFile "$LOG"
+          STATUS=$?
+          set -e
+
+          echo "=========== ошибки и предупреждения из лога ==========="
+          grep -nE "error CS|Error building|BuildScript:|Exception|Shader error|ERROR:" "$LOG" | head -n 120 || true
+          echo "=========== последние 250 строк лога Unity ==========="
+          tail -n 250 "$LOG" || true
+
+          if [ $STATUS -ne 0 ]; then
+            echo "::error::Unity завершился с кодом $STATUS — полный лог в артефакте unity-build-log"
+            exit $STATUS
+          fi
+
+      - name: Сохранить полный лог Unity
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-build-log
+          path: unity-build.log
+          if-no-files-found: ignore
 
       - name: Найти собранный APK
         id: findapk
