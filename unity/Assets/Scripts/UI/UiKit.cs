@@ -113,7 +113,9 @@ public static class UiKit
         cb.pressedColor = new Color(0.7f, 0.7f, 0.7f, 1f);
         cb.colorMultiplier = 1f;
         btn.colors = cb;
-        if (onClick != null) btn.onClick.AddListener(onClick);
+        // onClick приходит как System.Action, а UnityEvent ждёт UnityAction —
+        // лямбда выполняет преобразование.
+        if (onClick != null) btn.onClick.AddListener(delegate { onClick(); });
 
         Text t = MakeText(go.transform, Vector2.zero, size, label, fontSize, Color.white, TextAnchor.MiddleCenter);
         RectTransform trt = t.rectTransform;

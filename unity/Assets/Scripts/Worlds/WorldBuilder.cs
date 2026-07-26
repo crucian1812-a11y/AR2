@@ -241,7 +241,7 @@ public abstract class WorldBuilder : MonoBehaviour
         }
 
         Mesh mesh = new Mesh();
-        mesh.indexFormat = IndexFormat.UInt32;
+        mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
         mesh.vertices = verts;
         mesh.uv = uvs;
         mesh.uv2 = uv2;

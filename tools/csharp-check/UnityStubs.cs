@@ -289,10 +289,9 @@ namespace UnityEngine
         public void RecalculateNormals() { }
         public void RecalculateBounds() { }
         public void MarkDynamic() { }
-        public IndexFormat indexFormat { get; set; }
+        public Rendering.IndexFormat indexFormat { get; set; }
     }
 
-    public enum IndexFormat { UInt16, UInt32 }
 
     public class Texture : Object
     {
@@ -628,6 +627,7 @@ namespace UnityEngine
 
     namespace Rendering
     {
+        public enum IndexFormat { UInt16, UInt32 }
         public enum ShadowCastingMode { Off, On, TwoSided, ShadowsOnly }
         public enum AmbientMode { Skybox = 0, Trilight = 1, Flat = 3, Custom = 4 }
     }
@@ -689,7 +689,11 @@ namespace UnityEngine
         public class Button : Selectable
         {
             public ButtonClickedEvent onClick { get { return null; } }
-            public class ButtonClickedEvent { public void AddListener(Action a) { } public void RemoveAllListeners() { } }
+            public class ButtonClickedEvent
+            {
+                public void AddListener(UnityEngine.Events.UnityAction call) { }
+                public void RemoveAllListeners() { }
+            }
         }
 
         public class InputField : Selectable
@@ -701,7 +705,10 @@ namespace UnityEngine
             public ContentType contentType { get; set; }
             public enum ContentType { Standard, Alphanumeric, IntegerNumber, DecimalNumber }
             public OnChangeEvent onValueChanged { get { return null; } }
-            public class OnChangeEvent { public void AddListener(Action<string> a) { } }
+            public class OnChangeEvent
+            {
+                public void AddListener(UnityEngine.Events.UnityAction<string> call) { }
+            }
         }
 
         public class CanvasScaler : Behaviour
@@ -713,6 +720,12 @@ namespace UnityEngine
         }
 
         public class GraphicRaycaster : Behaviour { }
+    }
+
+    namespace Events
+    {
+        public delegate void UnityAction();
+        public delegate void UnityAction<T0>(T0 arg0);
     }
 
     namespace EventSystems
