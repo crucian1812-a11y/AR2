@@ -766,8 +766,8 @@ namespace UnityEditor
     {
         namespace Reporting
         {
-            public class BuildSummary { public BuildResult result; public ulong totalSize; }
-            public class BuildReport : Object { public BuildSummary summary { get { return null; } } }
+            public struct BuildSummary { public BuildResult result; public ulong totalSize; }
+            public class BuildReport : Object { public BuildSummary summary { get { return new BuildSummary(); } } }
             public enum BuildResult { Unknown, Succeeded, Failed, Cancelled }
         }
     }

@@ -47,21 +47,23 @@ public static class BuildScript
             Debug.Log("BuildScript: building APK to " + output);
             UnityEditor.Build.Reporting.BuildReport report = BuildPipeline.BuildPlayer(options);
 
-            if (report == null || report.summary == null)
+            if (report == null)
             {
                 Debug.LogError("BuildScript: no build report returned");
                 EditorApplication.Exit(1);
                 return;
             }
 
-            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+            // BuildSummary — структура, поэтому сравнивать её с null нельзя.
+            UnityEditor.Build.Reporting.BuildSummary summary = report.summary;
+            if (summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
             {
-                Debug.LogError("BuildScript: build result = " + report.summary.result);
+                Debug.LogError("BuildScript: build result = " + summary.result);
                 EditorApplication.Exit(1);
                 return;
             }
 
-            Debug.Log("BuildScript: build succeeded, size = " + report.summary.totalSize + " bytes");
+            Debug.Log("BuildScript: build succeeded, size = " + summary.totalSize + " bytes");
             EditorApplication.Exit(0);
         }
         catch (Exception e)
