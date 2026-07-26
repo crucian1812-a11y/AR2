@@ -497,6 +497,8 @@ namespace UnityEngine
     public static class Application
     {
         public static int targetFrameRate { get; set; }
+        public static string dataPath { get { return ""; } }
+        public static string persistentDataPath { get { return ""; } }
         public static RuntimePlatform platform { get { return RuntimePlatform.Android; } }
         public static bool isMobilePlatform { get { return false; } }
         public static bool isEditor { get { return false; } }
