@@ -36,6 +36,44 @@ jobs:
             echo "  3. Добавьте содержимое полученного .ulf в секрет UNITY_LICENSE."
           fi
 
+  # Пока секрета с лицензией нет, готовим файл активации .alf,
+  # чтобы его можно было сразу обменять на лицензию.
+  activation:
+    name: Создать файл активации (.alf)
+    needs: check-license
+    if: needs.check-license.outputs.has_license == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Запросить файл активации
+        id: alf
+        uses: game-ci/unity-request-activation-file@v2
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Unity-activation-file
+          path: ${{ steps.alf.outputs.filePath }}
+
+      - name: Инструкция
+        run: |
+          echo "================================================================"
+          echo " Файл активации Unity готов — скачайте артефакт"
+          echo " 'Unity-activation-file' внизу этой страницы."
+          echo ""
+          echo " Дальше:"
+          echo " 1. Распакуйте архив, внутри файл .alf"
+          echo " 2. Откройте https://license.unity3d.com/manual и войдите"
+          echo " 3. Загрузите .alf, выберите Unity Personal Edition"
+          echo " 4. Скачается файл .ulf — откройте его в текстовом редакторе"
+          echo " 5. Скопируйте ВСЁ содержимое"
+          echo " 6. Settings -> Secrets and variables -> Actions ->"
+          echo "    New repository secret, имя UNITY_LICENSE, вставьте текст"
+          echo ""
+          echo " После этого запустите этот workflow снова — соберётся APK."
+          echo " Подробнее: unity/LICENSE_SETUP.md"
+          echo "================================================================"
+
   build:
     name: Сборка APK
     needs: check-license
