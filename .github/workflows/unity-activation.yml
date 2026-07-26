@@ -1,0 +1,35 @@
+name: Unity — получить файл активации (шаг 1)
+
+# Запускается вручную. Создаёт файл лицензии .alf, который нужно
+# загрузить на сайт Unity, чтобы получить .ulf для сборки APK.
+# Подробная инструкция — в unity/LICENSE_SETUP.md
+
+on:
+  workflow_dispatch:
+
+jobs:
+  activation:
+    name: Создать .alf файл
+    runs-on: ubuntu-latest
+    steps:
+      - name: Запросить файл активации
+        id: getManualLicenseFile
+        uses: game-ci/unity-request-activation-file@v2
+        with:
+          unityVersion: 2022.3.76f1
+
+      - name: Выложить .alf как артефакт
+        uses: actions/upload-artifact@v4
+        with:
+          name: Unity_v2022.3.76f1.alf
+          path: ${{ steps.getManualLicenseFile.outputs.filePath }}
+
+      - name: Что делать дальше
+        run: |
+          echo "1. Скачайте артефакт Unity_v2022.3.76f1.alf со страницы этого запуска."
+          echo "2. Откройте https://license.unity3d.com/manual и загрузите .alf файл."
+          echo "3. Выберите Unity Personal / Personal Edition -> скачается файл .ulf."
+          echo "4. Откройте .ulf в текстовом редакторе, скопируйте ВСЁ содержимое."
+          echo "5. В GitHub: Settings -> Secrets and variables -> Actions -> New repository secret."
+          echo "   Имя: UNITY_LICENSE, значение: содержимое .ulf файла."
+          echo "6. После этого запустится сборка APK (workflow 'Build Unity APK')."

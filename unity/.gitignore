@@ -1,0 +1,25 @@
+Library/
+Temp/
+Obj/
+obj/
+Build/
+Builds/
+Logs/
+UserSettings/
+MemoryCaptures/
+Recordings/
+*.csproj
+*.sln
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.apk
+*.aab
+*.unitypackage
+sysinfo.txt
+crashlytics-build.properties
+# Сцена создаётся скриптом сборки, в репозитории не хранится.
+Assets/Scenes/
+Assets/Scenes.meta

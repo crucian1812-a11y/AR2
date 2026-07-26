@@ -1,0 +1,124 @@
+name: Build Unity APK
+
+on:
+  push:
+    branches:
+      - claude/super-bear-adventure-clone-twher0
+      - main
+    paths:
+      - "unity/**"
+      - ".github/workflows/build-unity-apk.yml"
+  workflow_dispatch:
+
+env:
+  UNITY_VERSION: "2022.3.76f1"
+
+jobs:
+  check-license:
+    name: Проверка лицензии Unity
+    runs-on: ubuntu-latest
+    outputs:
+      has_license: ${{ steps.check.outputs.has_license }}
+    steps:
+      - id: check
+        env:
+          LICENSE_PRESENT: ${{ secrets.UNITY_LICENSE }}
+        run: |
+          if [ -n "$LICENSE_PRESENT" ]; then
+            echo "has_license=true" >> "$GITHUB_OUTPUT"
+            echo "Лицензия Unity найдена — собираем APK."
+          else
+            echo "has_license=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Секрет UNITY_LICENSE не задан. Сборка APK пропущена."
+            echo "Чтобы включить сборку, выполните шаги из unity/LICENSE_SETUP.md:"
+            echo "  1. Запустите workflow «Unity — получить файл активации (шаг 1)»."
+            echo "  2. Скачайте .alf, загрузите на https://license.unity3d.com/manual"
+            echo "  3. Добавьте содержимое полученного .ulf в секрет UNITY_LICENSE."
+          fi
+
+  build:
+    name: Сборка APK
+    needs: check-license
+    if: needs.check-license.outputs.has_license == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Образ Unity с Android-модулем занимает десятки гигабайт,
+      # поэтому освобождаем место на раннере.
+      - name: Освободить место на диске
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+          swap-storage: true
+
+      - name: Кэш Library
+        uses: actions/cache@v4
+        with:
+          path: unity/Library
+          key: Library-Android-${{ hashFiles('unity/Assets/**', 'unity/Packages/**', 'unity/ProjectSettings/**') }}
+          restore-keys: |
+            Library-Android-
+
+      - name: Собрать APK
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: Android
+          buildMethod: BuildScript.BuildAndroid
+          buildName: BearAdventure
+          androidExportType: androidPackage
+          # Скрипт сборки создаёт сцену на лету, поэтому рабочее дерево
+          # становится "грязным" — это ожидаемо.
+          allowDirtyBuild: true
+
+      - name: Найти собранный APK
+        id: findapk
+        run: |
+          set -e
+          APK=$(find build -name '*.apk' -print -quit)
+          if [ -z "$APK" ]; then
+            echo "::error::APK не найден"
+            find build -type f | head -50 || true
+            exit 1
+          fi
+          echo "apk=$APK" >> "$GITHUB_OUTPUT"
+          ls -la "$APK"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BearAdventure-Unity-APK
+          path: ${{ steps.findapk.outputs.apk }}
+
+      - name: Опубликовать APK в релиз
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-unity
+          name: "Медвежьи Приключения (Unity) — последний APK"
+          prerelease: true
+          make_latest: false
+          body: |
+            Автоматическая сборка Unity-версии игры «Медвежьи Приключения».
+
+            **Как установить:**
+            1. Скачайте `BearAdventure.apk` ниже на телефон.
+            2. Откройте файл и разрешите установку из неизвестных источников.
+
+            Требуется 64-битный Android (arm64), версия 7.0 и новее.
+
+            **Мультиплеер:** все игроки подключаются к одному Wi-Fi.
+            Один нажимает «Создать игру», остальные — «Присоединиться»
+            (игра находится автоматически, либо введите IP хоста).
+          files: ${{ steps.findapk.outputs.apk }}
