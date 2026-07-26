@@ -64,14 +64,17 @@ public class Portal : MonoBehaviour
     public void Refresh()
     {
         NetManager net = NetManager.I;
-        if (Target == 2 && net != null) Locked = net.QuestStage < 2;
+        int required = NetManager.RequiredStage(Target);
+        if (net != null) Locked = net.QuestStage < required;
 
         if (Locked)
         {
+            int need = required >= 3 ? NetManager.QuestCoinsFinal : NetManager.QuestCoins;
+            int have = net != null ? net.CoinsTotal : 0;
             _ringMat.color = new Color(0.4f, 0.4f, 0.45f);
             _ringMat.SetColor("_EmissionColor", Color.black);
             _swirl.SetActive(false);
-            _label.Text = Label + "\n(соберите " + NetManager.QuestCoins + " монет)";
+            _label.Text = Label + "\n(монет: " + have + " / " + need + ")";
             _label.Tint = new Color(0.82f, 0.82f, 0.85f);
         }
         else

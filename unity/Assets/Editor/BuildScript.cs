@@ -22,6 +22,8 @@ public static class BuildScript
         "Bear/Water",
         "Bear/Portal",
         "Bear/Sky",
+        "Bear/Foliage",
+        "Bear/Post",
         "UI/Default",
         "Sprites/Default",
         "Legacy Shaders/Diffuse"
@@ -121,6 +123,7 @@ public static class BuildScript
 
         QualitySettings.antiAliasing = 4;
         QualitySettings.shadowDistance = 70f;
+        QualitySettings.pixelLightCount = 4;
     }
 
     private static void EnsureAlwaysIncludedShaders()

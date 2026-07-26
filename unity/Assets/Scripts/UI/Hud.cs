@@ -80,7 +80,7 @@ public class Hud : MonoBehaviour
             new Vector2(800f * s, 90f * s), "ПОБЕДА!", Mathf.RoundToInt(64f * s),
             new Color(1f, 0.85f, 0.2f), TextAnchor.MiddleCenter);
         _victoryText = UiKit.MakeText(_victoryOverlay.transform, Vector2.zero,
-            new Vector2(800f * s, 90f * s), "Вы покорили Снежные вершины!\nВозвращаемся в деревню...",
+            new Vector2(800f * s, 90f * s), "Сердце горы найдено!\nВозвращаемся в деревню...",
             Mathf.RoundToInt(26f * s), Color.white, TextAnchor.UpperCenter);
         _victoryOverlay.gameObject.SetActive(false);
 
@@ -163,10 +163,14 @@ public class Hud : MonoBehaviour
 
     private static string QuestText(NetManager net)
     {
-        if (net.VictoryReached) return "Победа! Вы покорили вершину!";
-        if (net.QuestStage >= 2) return "Портал открыт! Доберитесь до звезды на Снежной вершине";
+        if (net.VictoryReached) return "Победа! Сердце горы найдено!";
+        if (net.QuestStage >= 3)
+            return "Кристальная пещера открыта — доберитесь до золотой звезды";
+        if (net.QuestStage == 2)
+            return "Открыты каньон и вершины. Монет до пещеры: " +
+                   net.CoinsTotal + " / " + NetManager.QuestCoinsFinal;
         if (net.QuestStage == 1)
-            return "Задание: соберите монеты (" + net.CoinsTotal + "/" + NetManager.QuestCoins + ")";
+            return "Задание: соберите монеты (" + net.CoinsTotal + " / " + NetManager.QuestCoins + ")";
         return "Подойдите к старейшине в деревне";
     }
 

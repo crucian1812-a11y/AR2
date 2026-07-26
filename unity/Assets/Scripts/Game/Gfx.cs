@@ -458,15 +458,235 @@ public static class Gfx
             mr.receiveShadows = false;
         }
     }
+
+    // ---------- Материалы с подсветкой контура и листвой ----------
+
+    private static Shader _foliage;
+
+    public static Shader FoliageShader
+    {
+        get
+        {
+            if (_foliage == null)
+            {
+                _foliage = Shader.Find("Bear/Foliage");
+                if (_foliage == null) _foliage = Standard;
+            }
+            return _foliage;
+        }
+    }
+
+    public static Material FoliageMat(Color color, Color rim)
+    {
+        string key = "foliage|" + color.r + "_" + color.g + "_" + color.b + "|" + rim.r + "_" + rim.g;
+        Material cached;
+        if (_matCache.TryGetValue(key, out cached) && cached != null) return cached;
+
+        Material m = new Material(FoliageShader);
+        m.color = color;
+        m.SetFloat("_Glossiness", 0.06f);
+        m.SetColor("_RimColor", rim);
+        m.SetFloat("_RimStrength", 0.28f);
+        _matCache[key] = m;
+        return m;
+    }
+
+    // Материал с подсветкой силуэта — для персонажей и заметных объектов.
+    public static Material RimMat(Color color, Color rim, float strength, float smoothness = 0.1f)
+    {
+        string key = ("rim|" + color.r + "_" + color.g + "_" + color.b + "|" +
+                      rim.r + "_" + rim.g + "_" + rim.b + "|" + strength + "|" + smoothness);
+        Material cached;
+        if (_matCache.TryGetValue(key, out cached) && cached != null) return cached;
+
+        Material m = new Material(Standard);
+        m.color = color;
+        m.SetFloat("_Glossiness", smoothness);
+        m.SetFloat("_Metallic", 0f);
+        m.SetColor("_RimColor", rim);
+        m.SetFloat("_RimStrength", strength);
+        m.SetFloat("_RimPower", 3f);
+        _matCache[key] = m;
+        return m;
+    }
+
+    // ---------- Процедурные меши ----------
+
+    // Сфера с шумовым смещением — из неё получаются валуны и кроны,
+    // которые не выглядят одинаковыми шарами.
+    public static Mesh BlobMesh(int seed, float lumpiness, int rings = 10, int segments = 14)
+    {
+        Mesh mesh = new Mesh();
+        int vcount = (rings + 1) * (segments + 1);
+        Vector3[] verts = new Vector3[vcount];
+        Vector2[] uvs = new Vector2[vcount];
+        Color[] colors = new Color[vcount];
+        List<int> tris = new List<int>(rings * segments * 6);
+
+        float ox = (seed % 37) * 3.7f;
+        float oz = (seed % 53) * 2.3f;
+
+        for (int r = 0; r <= rings; r++)
+        {
+            float v = (float)r / rings;
+            float phi = v * Mathf.PI;
+            for (int s = 0; s <= segments; s++)
+            {
+                float u = (float)s / segments;
+                float theta = u * Mathf.PI * 2f;
+                Vector3 dir = new Vector3(
+                    Mathf.Sin(phi) * Mathf.Cos(theta),
+                    Mathf.Cos(phi),
+                    Mathf.Sin(phi) * Mathf.Sin(theta));
+
+                float n = Mathf.PerlinNoise(ox + dir.x * 2.1f + 4f, oz + dir.z * 2.1f + 4f);
+                float n2 = Mathf.PerlinNoise(ox + dir.y * 3.3f + 9f, oz + dir.x * 3.3f + 9f);
+                float radius = 0.5f * (1f + (n - 0.5f) * lumpiness + (n2 - 0.5f) * lumpiness * 0.5f);
+
+                int idx = r * (segments + 1) + s;
+                verts[idx] = dir * radius;
+                uvs[idx] = new Vector2(u, v);
+                // Вершинный цвет = запечённое затенение: снизу темнее.
+                float ao = Mathf.Lerp(0.55f, 1f, Mathf.InverseLerp(-0.5f, 0.5f, dir.y));
+                colors[idx] = new Color(ao, ao, ao, 1f);
+            }
+        }
+
+        for (int r = 0; r < rings; r++)
+        {
+            for (int s = 0; s < segments; s++)
+            {
+                int a = r * (segments + 1) + s;
+                int b = (r + 1) * (segments + 1) + s;
+                tris.Add(a); tris.Add(b); tris.Add(a + 1);
+                tris.Add(a + 1); tris.Add(b); tris.Add(b + 1);
+            }
+        }
+
+        mesh.vertices = verts;
+        mesh.uv = uvs;
+        mesh.colors = colors;
+        mesh.triangles = tris.ToArray();
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    // Гранёный кристалл: шестигранная призма с остриями сверху и снизу.
+    public static Mesh CrystalMesh(float radius, float height, int sides = 6)
+    {
+        Mesh mesh = new Mesh();
+        List<Vector3> verts = new List<Vector3>();
+        List<int> tris = new List<int>();
+        List<Vector2> uvs = new List<Vector2>();
+
+        float waist = height * 0.32f;
+        Vector3 top = new Vector3(0f, height * 0.5f, 0f);
+        Vector3 bottom = new Vector3(0f, -height * 0.5f, 0f);
+
+        for (int i = 0; i < sides; i++)
+        {
+            float a0 = (float)i / sides * Mathf.PI * 2f;
+            float a1 = (float)(i + 1) / sides * Mathf.PI * 2f;
+            Vector3 p0 = new Vector3(Mathf.Cos(a0) * radius, waist, Mathf.Sin(a0) * radius);
+            Vector3 p1 = new Vector3(Mathf.Cos(a1) * radius, waist, Mathf.Sin(a1) * radius);
+            Vector3 q0 = new Vector3(Mathf.Cos(a0) * radius, -waist, Mathf.Sin(a0) * radius);
+            Vector3 q1 = new Vector3(Mathf.Cos(a1) * radius, -waist, Mathf.Sin(a1) * radius);
+
+            int b = verts.Count;
+            verts.Add(p0); verts.Add(p1); verts.Add(q1); verts.Add(q0);
+            uvs.Add(new Vector2(0f, 1f)); uvs.Add(new Vector2(1f, 1f));
+            uvs.Add(new Vector2(1f, 0f)); uvs.Add(new Vector2(0f, 0f));
+            tris.Add(b); tris.Add(b + 1); tris.Add(b + 2);
+            tris.Add(b); tris.Add(b + 2); tris.Add(b + 3);
+
+            b = verts.Count;
+            verts.Add(top); verts.Add(p1); verts.Add(p0);
+            uvs.Add(new Vector2(0.5f, 1f)); uvs.Add(new Vector2(1f, 0.6f)); uvs.Add(new Vector2(0f, 0.6f));
+            tris.Add(b); tris.Add(b + 1); tris.Add(b + 2);
+
+            b = verts.Count;
+            verts.Add(bottom); verts.Add(q0); verts.Add(q1);
+            uvs.Add(new Vector2(0.5f, 0f)); uvs.Add(new Vector2(0f, 0.4f)); uvs.Add(new Vector2(1f, 0.4f));
+            tris.Add(b); tris.Add(b + 1); tris.Add(b + 2);
+        }
+
+        mesh.vertices = verts.ToArray();
+        mesh.uv = uvs.ToArray();
+        mesh.triangles = tris.ToArray();
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    public static GameObject Blob(Transform parent, Vector3 pos, Vector3 scale, Material mat,
+        int seed, float lumpiness, bool collide)
+    {
+        GameObject go = new GameObject("Blob");
+        if (parent != null) go.transform.SetParent(parent, false);
+        go.transform.localPosition = pos;
+        go.transform.localScale = scale;
+        go.transform.localRotation = Quaternion.Euler(0f, seed * 37f % 360f, 0f);
+        MeshFilter mf = go.AddComponent<MeshFilter>();
+        mf.mesh = BlobMesh(seed, lumpiness);
+        MeshRenderer mr = go.AddComponent<MeshRenderer>();
+        mr.sharedMaterial = mat;
+        if (collide)
+        {
+            SphereCollider sc = go.AddComponent<SphereCollider>();
+            sc.radius = 0.46f;
+        }
+        return go;
+    }
+
+    public static GameObject Crystal(Transform parent, Vector3 pos, float radius, float height,
+        Material mat, float tiltDeg)
+    {
+        GameObject go = new GameObject("Crystal");
+        if (parent != null) go.transform.SetParent(parent, false);
+        go.transform.localPosition = pos;
+        go.transform.localRotation = Quaternion.Euler(tiltDeg, Random.Range(0f, 360f), 0f);
+        MeshFilter mf = go.AddComponent<MeshFilter>();
+        mf.mesh = CrystalMesh(radius, height);
+        MeshRenderer mr = go.AddComponent<MeshRenderer>();
+        mr.sharedMaterial = mat;
+        return go;
+    }
+
+    // Точечный источник света — окна, кристаллы, костры.
+    public static Light PointLight(Transform parent, Vector3 pos, Color color, float range, float intensity)
+    {
+        GameObject go = new GameObject("Light");
+        if (parent != null) go.transform.SetParent(parent, false);
+        go.transform.localPosition = pos;
+        Light l = go.AddComponent<Light>();
+        l.type = LightType.Point;
+        l.color = color;
+        l.range = range;
+        l.intensity = intensity;
+        l.shadows = LightShadows.None;
+        return l;
+    }
 }
 
 // Поворачивает объект лицом к камере.
+// Свечений в кадре под сотню, поэтому поворот камеры берётся один раз
+// за кадр в общий кэш, а не ищется каждым билбордом отдельно.
 public class Billboard : MonoBehaviour
 {
+    private static int _frame = -1;
+    private static Quaternion _rot = Quaternion.identity;
+    private static bool _valid;
+
     private void LateUpdate()
     {
-        Camera cam = Camera.main;
-        if (cam == null) return;
-        transform.rotation = cam.transform.rotation;
+        if (_frame != Time.frameCount)
+        {
+            _frame = Time.frameCount;
+            Camera cam = Camera.main;
+            _valid = cam != null;
+            if (_valid) _rot = cam.transform.rotation;
+        }
+        if (_valid) transform.rotation = _rot;
     }
 }

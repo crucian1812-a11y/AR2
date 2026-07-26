@@ -10,6 +10,12 @@ public class GameRoot : MonoBehaviour
     public WorldBuilder World;
     public BearPlayer LocalPlayer;
 
+    // Быстрый доступ для реквизита сцены (платформы, батуты).
+    public static BearPlayer LocalBear
+    {
+        get { return I != null ? I.LocalPlayer : null; }
+    }
+
     private readonly Dictionary<int, BearPlayer> _players = new Dictionary<int, BearPlayer>();
     private Transform _worldHolder;
     private Transform _playersHolder;
@@ -89,8 +95,10 @@ public class GameRoot : MonoBehaviour
         go.transform.SetParent(_worldHolder, false);
 
         WorldBuilder wb;
-        if (worldIndex == 1) wb = go.AddComponent<MeadowWorld>();
-        else if (worldIndex == 2) wb = go.AddComponent<SnowWorld>();
+        if (worldIndex == NetManager.WorldMeadow) wb = go.AddComponent<MeadowWorld>();
+        else if (worldIndex == NetManager.WorldDesert) wb = go.AddComponent<DesertWorld>();
+        else if (worldIndex == NetManager.WorldSnow) wb = go.AddComponent<SnowWorld>();
+        else if (worldIndex == NetManager.WorldCave) wb = go.AddComponent<CaveWorld>();
         else wb = go.AddComponent<HubWorld>();
 
         wb.Construct(worldIndex);
@@ -98,6 +106,9 @@ public class GameRoot : MonoBehaviour
         _worldReady = true;
 
         PlaceAllPlayers();
+        // Камера принадлежит игроку и может появиться позже мира —
+        // настроение картинки применяем ещё раз, когда она уже есть.
+        wb.ApplyPostFx();
         if (_hud != null) _hud.ShowLoading(false);
     }
 
@@ -127,7 +138,13 @@ public class GameRoot : MonoBehaviour
             bool isLocal = kv.Key == net.MyId;
             BearPlayer p = BearPlayer.Spawn(_playersHolder, kv.Value, isLocal);
             _players[kv.Key] = p;
-            if (isLocal) LocalPlayer = p;
+            if (isLocal)
+            {
+                LocalPlayer = p;
+                // Камера создана вместе с локальным медведем — можно
+                // применить постобработку текущего мира.
+                if (World != null) World.ApplyPostFx();
+            }
             if (World != null)
             {
                 int idx = _players.Count - 1;

@@ -135,6 +135,11 @@ public class Snd : MonoBehaviour
         Add("stomp", Synth(0.22f, 300f, 80f, 1, 0.005f, 1.5f, 0.4f, 0.3f));
         Add("hurt", Synth(0.3f, 260f, 150f, 2, 0.005f, 1.4f, 0.35f, 0.2f));
         Add("portal", Synth(0.55f, 200f, 900f, 0, 0.25f, 1.2f, 0.32f, 0.25f));
+        Add("bounce", Synth(0.24f, 180f, 720f, 0, 0.005f, 1.1f, 0.42f, 0f));
+        Add("crystal", MixNotes(0.5f, new float[][] {
+            new float[] { 1318.5f, 0f, 0.2f, 0.9f },
+            new float[] { 1975.5f, 0.09f, 0.3f, 0.6f }
+        }, 0.3f));
 
         Add("coin", MixNotes(0.32f, new float[][] {
             new float[] { 1046.5f, 0f, 0.14f, 1f },

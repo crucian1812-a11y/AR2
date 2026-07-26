@@ -40,6 +40,7 @@ public class BearPlayer : MonoBehaviour
     private float _attackAnim;
     private float _attackCd;
     private float _invuln;
+    private float _bounceCd;
     private bool _wasAirborne;
     private float _camPitch = -16f;
     private float _sendAccum;
@@ -109,6 +110,26 @@ public class BearPlayer : MonoBehaviour
         _cam.nearClipPlane = 0.1f;
         _cam.farClipPlane = 400f;
         camGo.AddComponent<AudioListener>();
+        // Постобработка (bloom, насыщенность, виньетка) — настройки задаёт мир.
+        camGo.AddComponent<PostFx>();
+    }
+
+    // Сдвиг от внешней силы — например, движущейся платформы под ногами.
+    public void ExternalMove(Vector3 delta)
+    {
+        if (_cc == null || !_cc.enabled) return;
+        _cc.Move(delta);
+    }
+
+    // Подбрасывание батутом. Возвращает false, если недавно уже подбросило.
+    public bool TryBounce(float power)
+    {
+        if (_bounceCd > 0f) return false;
+        _bounceCd = 0.35f;
+        _velocity.y = power;
+        _flip = 0.0001f;
+        _wasAirborne = true;
+        return true;
     }
 
     public void PlaceAt(Vector3 pos)
@@ -262,6 +283,7 @@ public class BearPlayer : MonoBehaviour
     private void Timers(float dt)
     {
         if (_attackCd > 0f) _attackCd -= dt;
+        if (_bounceCd > 0f) _bounceCd -= dt;
         if (_invuln > 0f)
         {
             _invuln -= dt;

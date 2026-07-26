@@ -15,6 +15,9 @@ public class Bootstrap : MonoBehaviour
         Screen.sleepTimeout = SleepTimeout.NeverSleep;
         QualitySettings.antiAliasing = 4;
         QualitySettings.shadowDistance = 70f;
+        // В пещере десятки точечных источников; ограничиваем число попиксельных,
+        // остальные Unity считает по вершинам — картинка та же, нагрузка меньше.
+        QualitySettings.pixelLightCount = 4;
         Input.multiTouchEnabled = true;
 
         NetManager.Create();

@@ -149,6 +149,7 @@ namespace UnityEngine
         public static int Clamp(int v, int a, int b) { return 0; }
         public static float Clamp01(float v) { return 0f; }
         public static float Lerp(float a, float b, float t) { return 0f; }
+        public static float InverseLerp(float a, float b, float v) { return 0f; }
         public static float LerpAngle(float a, float b, float t) { return 0f; }
         public static float MoveTowards(float a, float b, float d) { return 0f; }
         public static float DeltaAngle(float a, float b) { return 0f; }
@@ -176,6 +177,7 @@ namespace UnityEngine
         public static float unscaledDeltaTime { get { return 0f; } }
         public static float fixedDeltaTime { get { return 0f; } }
         public static float timeScale { get { return 0f; } set { } }
+        public static int frameCount { get { return 0; } }
     }
 
     public static class Debug
@@ -314,6 +316,24 @@ namespace UnityEngine
         public Color GetPixel(int x, int y) { return Color.white; }
         public void Apply() { }
         public static Texture2D whiteTexture { get { return null; } }
+    }
+
+    public class RenderTexture : Texture
+    {
+        public RenderTexture(int w, int h, int depth) { }
+        public RenderTextureFormat format { get; set; }
+        public static RenderTexture GetTemporary(int w, int h, int depth) { return null; }
+        public static RenderTexture GetTemporary(int w, int h, int depth, RenderTextureFormat f) { return null; }
+        public static void ReleaseTemporary(RenderTexture rt) { }
+    }
+
+    public enum RenderTextureFormat { Default, ARGB32, RGB565, ARGBHalf, DefaultHDR }
+
+    public static class Graphics
+    {
+        public static void Blit(Texture src, RenderTexture dst) { }
+        public static void Blit(Texture src, RenderTexture dst, Material mat) { }
+        public static void Blit(Texture src, RenderTexture dst, Material mat, int pass) { }
     }
 
     public class Sprite : Object

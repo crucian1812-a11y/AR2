@@ -18,6 +18,8 @@ public class Enemy : MonoBehaviour
     private bool _hasNet;
     private float _bob;
     private float _dieT = -1f;
+    private Transform _wingL;
+    private Transform _wingR;
 
     public float Yaw { get { return _visual != null ? _visual.localEulerAngles.y : 0f; } }
 
@@ -47,7 +49,66 @@ public class Enemy : MonoBehaviour
         _visual = vis.transform;
 
         if (Kind == "slime") BuildSlime();
+        else if (Kind == "beetle") BuildBeetle();
+        else if (Kind == "bat") BuildBat();
         else BuildMushroom();
+    }
+
+    // Пустынный жук: панцирь, лапки, усики.
+    private void BuildBeetle()
+    {
+        Material shell = Gfx.RimMat(new Color(0.35f, 0.22f, 0.5f), new Color(0.8f, 0.6f, 1f), 0.45f, 0.6f);
+        Material legs = Gfx.Mat(new Color(0.16f, 0.1f, 0.2f), 0.2f);
+        Material eye = Gfx.MatFull(new Color(1f, 0.75f, 0.3f), 0.5f, 0f, new Color(0.8f, 0.5f, 0.1f), 0f, 0f);
+
+        Gfx.Ball(_visual, new Vector3(0f, 0.42f, 0f), new Vector3(1.05f, 0.62f, 1.25f), shell);
+        Gfx.Ball(_visual, new Vector3(0f, 0.5f, -0.15f), new Vector3(0.5f, 0.4f, 0.6f), legs);
+        Gfx.Ball(_visual, new Vector3(0f, 0.4f, 0.62f), new Vector3(0.52f, 0.42f, 0.42f), legs);
+        Gfx.Ball(_visual, new Vector3(-0.14f, 0.5f, 0.78f), new Vector3(0.13f, 0.14f, 0.1f), eye);
+        Gfx.Ball(_visual, new Vector3(0.14f, 0.5f, 0.78f), new Vector3(0.13f, 0.14f, 0.1f), eye);
+
+        for (int s = -1; s <= 1; s += 2)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                GameObject leg = Gfx.Cyl(_visual,
+                    new Vector3(0.5f * s, 0.2f, -0.35f + i * 0.42f),
+                    new Vector3(0.09f, 0.24f, 0.09f), legs, false);
+                leg.transform.localRotation = Quaternion.Euler(0f, 0f, 42f * s);
+            }
+        }
+        // Рожки-усики
+        for (int s = -1; s <= 1; s += 2)
+        {
+            GameObject horn = Gfx.Cyl(_visual, new Vector3(0.16f * s, 0.68f, 0.6f),
+                new Vector3(0.06f, 0.22f, 0.06f), legs, false);
+            horn.transform.localRotation = Quaternion.Euler(35f, 0f, 18f * s);
+        }
+    }
+
+    // Пещерная летучая мышь: парит над землёй, машет крыльями.
+    private void BuildBat()
+    {
+        Material body = Gfx.RimMat(new Color(0.24f, 0.18f, 0.3f), new Color(0.7f, 0.55f, 1f), 0.5f, 0.3f);
+        Material eye = Gfx.MatFull(new Color(1f, 0.4f, 0.5f), 0.6f, 0f, new Color(0.9f, 0.2f, 0.3f), 0f, 0f);
+
+        Gfx.Ball(_visual, new Vector3(0f, 0.75f, 0f), new Vector3(0.62f, 0.66f, 0.7f), body);
+        Gfx.Ball(_visual, new Vector3(-0.13f, 0.82f, 0.3f), new Vector3(0.12f, 0.13f, 0.08f), eye);
+        Gfx.Ball(_visual, new Vector3(0.13f, 0.82f, 0.3f), new Vector3(0.12f, 0.13f, 0.08f), eye);
+        Gfx.Ball(_visual, new Vector3(-0.22f, 1.06f, -0.05f), new Vector3(0.2f, 0.3f, 0.1f), body);
+        Gfx.Ball(_visual, new Vector3(0.22f, 1.06f, -0.05f), new Vector3(0.2f, 0.3f, 0.1f), body);
+
+        _wingL = new GameObject("WingL").transform;
+        _wingL.SetParent(_visual, false);
+        _wingL.localPosition = new Vector3(-0.28f, 0.78f, 0f);
+        Gfx.Box(_wingL, new Vector3(-0.42f, 0f, 0f), new Vector3(0.9f, 0.07f, 0.6f), body, false);
+
+        _wingR = new GameObject("WingR").transform;
+        _wingR.SetParent(_visual, false);
+        _wingR.localPosition = new Vector3(0.28f, 0.78f, 0f);
+        Gfx.Box(_wingR, new Vector3(0.42f, 0f, 0f), new Vector3(0.9f, 0.07f, 0.6f), body, false);
+
+        Gfx.Glow(_visual, new Vector3(0f, 0.8f, 0f), 2.2f, new Color(0.6f, 0.4f, 1f, 0.3f));
     }
 
     private void BuildMushroom()
@@ -125,10 +186,21 @@ public class Enemy : MonoBehaviour
             _visual.localRotation = Quaternion.Euler(0f, Mathf.LerpAngle(cur, _netYaw, Mathf.Min(Time.deltaTime * 10f, 1f)), 0f);
         }
 
-        _bob += Time.deltaTime * 6f;
-        Vector3 s = _visual.localScale;
-        s.y = 1f + Mathf.Sin(_bob) * 0.05f;
-        _visual.localScale = new Vector3(1f, s.y, 1f);
+        _bob += Time.deltaTime * (Kind == "bat" ? 13f : 6f);
+
+        if (_wingL != null && _wingR != null)
+        {
+            float flap = Mathf.Sin(_bob) * 42f;
+            _wingL.localRotation = Quaternion.Euler(0f, 0f, flap);
+            _wingR.localRotation = Quaternion.Euler(0f, 0f, -flap);
+            _visual.localPosition = new Vector3(0f, Mathf.Sin(_bob * 0.35f) * 0.35f, 0f);
+        }
+        else
+        {
+            Vector3 sc = _visual.localScale;
+            sc.y = 1f + Mathf.Sin(_bob) * 0.05f;
+            _visual.localScale = new Vector3(1f, sc.y, 1f);
+        }
     }
 
     public void DieEffect()
@@ -137,7 +209,11 @@ public class Enemy : MonoBehaviour
         Dying = true;
         _dieT = 0f;
         Snd.Play("stomp");
-        Color tint = Kind == "slime" ? new Color(0.5f, 0.75f, 1f) : new Color(0.9f, 0.3f, 0.2f);
+        Color tint;
+        if (Kind == "slime") tint = new Color(0.5f, 0.75f, 1f);
+        else if (Kind == "beetle") tint = new Color(0.7f, 0.5f, 1f);
+        else if (Kind == "bat") tint = new Color(0.6f, 0.4f, 0.95f);
+        else tint = new Color(0.9f, 0.3f, 0.2f);
         Transform root = transform.parent != null ? transform.parent : null;
         ParticleFx.Burst(root, transform.position + new Vector3(0f, 0.5f, 0f), 14, tint, 4.5f);
     }

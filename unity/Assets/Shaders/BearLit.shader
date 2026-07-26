@@ -12,6 +12,10 @@ Shader "Bear/Lit"
         _Glossiness ("Smoothness", Range(0,1)) = 0.15
         _Metallic ("Metallic", Range(0,1)) = 0
         _EmissionColor ("Emission", Color) = (0,0,0,1)
+        _RimColor ("Rim Color", Color) = (1,1,1,1)
+        _RimPower ("Rim Power", Range(0.5,8)) = 3
+        _RimStrength ("Rim Strength", Range(0,2)) = 0
+        _AOStrength ("Vertex AO", Range(0,1)) = 0
     }
     SubShader
     {
@@ -29,18 +33,28 @@ Shader "Bear/Lit"
         {
             float2 uv_MainTex;
             float2 uv_BumpMap;
+            float3 viewDir;
+            float4 color : COLOR;
         };
 
         half _Glossiness;
         half _Metallic;
         half _NormalScale;
+        half _RimPower;
+        half _RimStrength;
+        half _AOStrength;
         fixed4 _Color;
         fixed4 _EmissionColor;
+        fixed4 _RimColor;
 
         void surf (Input IN, inout SurfaceOutputStandard o)
         {
             fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * _Color;
-            o.Albedo = c.rgb;
+
+            // Затенение из вершинных цветов: запечённое «ambient occlusion»,
+            // которое миры проставляют на нижних частях геометрии.
+            float ao = lerp(1.0, IN.color.r, _AOStrength);
+            o.Albedo = c.rgb * ao;
 
             // Карта нормалей генерируется кодом в обычном RGB, поэтому
             // распаковываем вручную; при _NormalScale = 0 нормаль плоская.
@@ -49,7 +63,10 @@ Shader "Bear/Lit"
 
             o.Metallic = _Metallic;
             o.Smoothness = _Glossiness;
-            o.Emission = _EmissionColor.rgb;
+
+            // Подсветка контура — отделяет силуэты от фона.
+            float rim = 1.0 - saturate(dot(normalize(IN.viewDir), o.Normal));
+            o.Emission = _EmissionColor.rgb + _RimColor.rgb * pow(rim, _RimPower) * _RimStrength;
             o.Alpha = c.a;
         }
         ENDCG

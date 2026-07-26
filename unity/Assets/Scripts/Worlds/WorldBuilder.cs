@@ -99,16 +99,34 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void Tree(Vector3 pos, Color leaf, float scale)
     {
-        Material bark = Gfx.MatFull(new Color(0.42f, 0.28f, 0.15f), 0.1f, 0f, Color.black, 1.5f, 0.6f);
+        Material bark = Gfx.MatFull(new Color(0.42f, 0.28f, 0.15f), 0.05f, 0f, Color.black, 1.5f, 0.6f);
         Gfx.Cyl(transform, pos + new Vector3(0f, 1.2f * scale, 0f),
-            new Vector3(0.6f * scale, 1.2f * scale, 0.6f * scale), bark);
+            new Vector3(0.62f * scale, 1.25f * scale, 0.62f * scale), bark);
 
-        Material m1 = Gfx.Mat(leaf);
-        Material m2 = Gfx.Mat(leaf * 1.12f);
-        Material m3 = Gfx.Mat(leaf * 0.92f);
-        Gfx.Ball(transform, pos + new Vector3(0f, 3.0f * scale, 0f), new Vector3(2.6f, 2.2f, 2.6f) * scale, m1);
-        Gfx.Ball(transform, pos + new Vector3(0.9f, 2.4f, 0.4f) * scale, new Vector3(1.6f, 1.4f, 1.6f) * scale, m2);
-        Gfx.Ball(transform, pos + new Vector3(-0.8f, 2.5f, -0.5f) * scale, new Vector3(1.5f, 1.3f, 1.5f) * scale, m3);
+        // Ветви — тонкие цилиндры под углом, крона из неровных «клякс».
+        for (int i = 0; i < 3; i++)
+        {
+            float a = 40f + i * 115f;
+            GameObject branch = Gfx.Cyl(transform,
+                pos + new Vector3(Mathf.Cos(a * Mathf.Deg2Rad) * 0.45f, 2.1f, Mathf.Sin(a * Mathf.Deg2Rad) * 0.45f) * scale,
+                new Vector3(0.2f, 0.55f, 0.2f) * scale, bark, false);
+            branch.transform.localRotation = Quaternion.Euler(28f, a, 0f);
+        }
+
+        Color rim = leaf * 1.4f;
+        Material f1 = Gfx.FoliageMat(leaf, rim);
+        Material f2 = Gfx.FoliageMat(leaf * 1.12f, rim);
+        Material f3 = Gfx.FoliageMat(leaf * 0.88f, rim);
+        int seed = Mathf.Abs(Mathf.RoundToInt(pos.x * 7.3f + pos.z * 3.1f));
+
+        Gfx.Blob(transform, pos + new Vector3(0f, 3.1f, 0f) * scale,
+            new Vector3(2.9f, 2.4f, 2.9f) * scale, f1, seed, 0.45f, false);
+        Gfx.Blob(transform, pos + new Vector3(1.0f, 2.4f, 0.45f) * scale,
+            new Vector3(1.8f, 1.6f, 1.8f) * scale, f2, seed + 3, 0.5f, false);
+        Gfx.Blob(transform, pos + new Vector3(-0.9f, 2.55f, -0.55f) * scale,
+            new Vector3(1.7f, 1.5f, 1.7f) * scale, f3, seed + 7, 0.5f, false);
+        Gfx.Blob(transform, pos + new Vector3(0.2f, 4.05f, -0.3f) * scale,
+            new Vector3(1.5f, 1.3f, 1.5f) * scale, f2, seed + 11, 0.55f, false);
     }
 
     protected void Pine(Vector3 pos, bool snowy, float scale)
@@ -135,8 +153,10 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void Rock(Vector3 pos, float size, Color color)
     {
-        Material m = Gfx.MatFull(color, 0.05f, 0f, Color.black, 1.2f, 0.8f);
-        Gfx.Ball(transform, pos, new Vector3(size, size * 0.7f, size * 0.9f), m, true);
+        Material m = Gfx.MatFull(color, 0.03f, 0f, Color.black, 1.2f, 0.85f);
+        m.SetFloat("_AOStrength", 0.7f);
+        int seed = Mathf.Abs(Mathf.RoundToInt(pos.x * 11.7f + pos.z * 5.9f + size * 31f));
+        Gfx.Blob(transform, pos, new Vector3(size, size * 0.75f, size * 0.95f), m, seed, 0.7f, true);
     }
 
     protected void Bush(Vector3 pos, Color color)
@@ -191,7 +211,37 @@ public abstract class WorldBuilder : MonoBehaviour
 
     // ---------- Трава (один меш с колышущимися травинками) ----------
 
-    protected void GrassField(Vector3 center, Vector2 extents, int count, Color baseCol, Color tipCol)
+    // Настроение картинки конкретного мира: сила свечения, насыщенность,
+    // оттенок и виньетка. Применяется к камере локального игрока.
+    protected void SetPostFx(float intensity, float saturation, Color tint, float vignette)
+    {
+        _postIntensity = intensity;
+        _postSaturation = saturation;
+        _postTint = tint;
+        _postVignette = vignette;
+        _hasPostFx = true;
+        ApplyPostFx();
+    }
+
+    private bool _hasPostFx;
+    private float _postIntensity = 1f;
+    private float _postSaturation = 1.12f;
+    private Color _postTint = Color.white;
+    private float _postVignette = 0.5f;
+
+    // Камера появляется вместе с игроком, поэтому настройки применяются
+    // и при построении мира, и позже, когда камера уже существует.
+    public void ApplyPostFx()
+    {
+        if (!_hasPostFx) return;
+        Camera cam = Camera.main;
+        if (cam == null) return;
+        PostFx fx = cam.GetComponent<PostFx>();
+        if (fx != null) fx.Configure(_postIntensity, _postSaturation, _postTint, _postVignette);
+    }
+
+    protected void GrassField(Vector3 center, Vector2 extents, int count, Color baseCol, Color tipCol,
+        bool followTerrain = false)
     {
         count = Mathf.Clamp(count, 1, 12000);
         Vector3[] verts = new Vector3[count * 4];
@@ -205,6 +255,7 @@ public abstract class WorldBuilder : MonoBehaviour
         {
             Vector3 p = center + new Vector3(
                 Random.Range(-extents.x, extents.x), 0f, Random.Range(-extents.y, extents.y));
+            if (followTerrain) p.y = GroundHeight(p.x, p.z) + 0.02f;
             float yaw = Random.Range(0f, Mathf.PI);
             float w = 0.09f * Random.Range(0.7f, 1.5f);
             float h = 0.42f * Random.Range(0.7f, 1.6f);
@@ -381,6 +432,371 @@ public abstract class WorldBuilder : MonoBehaviour
         fx.LifeMin = 0.9f;
         fx.LifeMax = 1.3f;
         fx.Prewarm();
+    }
+
+    // ---------- Рельеф ----------
+
+    private bool _hasTerrain;
+    private Vector3 _terrainCenter;
+    private float _terrainAmp;
+    private float _terrainFreq;
+    private float _terrainFlat;
+    private int _terrainSeed;
+
+    private static float HeightAt(float x, float z, Vector3 center, float amp, float freq,
+        float flatRadius, int seed)
+    {
+        float ox = seed * 0.37f;
+        float oz = seed * 0.71f;
+        float h = 0f;
+        float a = 1f;
+        float f = freq;
+        float total = 0f;
+        for (int o = 0; o < 3; o++)
+        {
+            h += (Mathf.PerlinNoise(ox + x * f, oz + z * f) - 0.5f) * a;
+            total += a;
+            a *= 0.5f;
+            f *= 2.1f;
+        }
+        h = h / Mathf.Max(total, 0.0001f) * amp;
+
+        // Площадка вокруг центра остаётся ровной — там спавн и постройки.
+        if (flatRadius > 0f)
+        {
+            float d = new Vector2(x - center.x, z - center.z).magnitude;
+            float k = Mathf.Clamp01((d - flatRadius) / Mathf.Max(flatRadius * 0.8f, 0.001f));
+            h *= k * k;
+        }
+        return center.y + h;
+    }
+
+    // Ровные площадки поверх шума: озёра, площади, дно каньона.
+    // Регистрируются ДО вызова Terrain(), иначе меш их не учтёт.
+    private struct FlatSpot
+    {
+        public Vector2 Center;
+        public float Radius;
+        public float Falloff;
+        public float Level;
+    }
+
+    private readonly List<FlatSpot> _flats = new List<FlatSpot>();
+
+    protected void FlattenArea(float x, float z, float radius, float falloff = 10f, float level = 0f)
+    {
+        FlatSpot f = new FlatSpot();
+        f.Center = new Vector2(x, z);
+        f.Radius = radius;
+        f.Falloff = Mathf.Max(falloff, 0.01f);
+        f.Level = level;
+        _flats.Add(f);
+    }
+
+    // Высота земли в точке — миры расставляют по ней объекты.
+    public float GroundHeight(float x, float z)
+    {
+        if (!_hasTerrain) return 0f;
+        float h = HeightAt(x, z, _terrainCenter, _terrainAmp, _terrainFreq, _terrainFlat, _terrainSeed);
+        for (int i = 0; i < _flats.Count; i++)
+        {
+            FlatSpot f = _flats[i];
+            float d = new Vector2(x - f.Center.x, z - f.Center.y).magnitude;
+            float k = Mathf.Clamp01((d - f.Radius) / f.Falloff);
+            k = k * k * (3f - 2f * k); // плавный переход к рельефу
+            h = Mathf.Lerp(f.Level, h, k);
+        }
+        return h;
+    }
+
+    protected Vector3 OnGround(float x, float z, float lift = 0f)
+    {
+        return new Vector3(x, GroundHeight(x, z) + lift, z);
+    }
+
+    // Холмистая земля из сетки с шумом. Заменяет плоские коробки и
+    // сразу делает мир заметно живее.
+    protected void Terrain(Vector3 center, Vector2 size, int resolution, float amplitude,
+        float freq, Color lowColor, Color highColor, float flatRadius, int seed,
+        float detailTiling = 6f, float normalScale = 0.35f)
+    {
+        resolution = Mathf.Clamp(resolution, 8, 160);
+        _hasTerrain = true;
+        _terrainCenter = center;
+        _terrainAmp = amplitude;
+        _terrainFreq = freq;
+        _terrainFlat = flatRadius;
+        _terrainSeed = seed;
+
+        int side = resolution + 1;
+        Vector3[] verts = new Vector3[side * side];
+        Vector2[] uvs = new Vector2[side * side];
+        Color[] colors = new Color[side * side];
+        int[] tris = new int[resolution * resolution * 6];
+
+        for (int z = 0; z < side; z++)
+        {
+            for (int x = 0; x < side; x++)
+            {
+                float fx = (float)x / resolution;
+                float fz = (float)z / resolution;
+                float wx = center.x + (fx - 0.5f) * size.x;
+                float wz = center.z + (fz - 0.5f) * size.y;
+                // Через GroundHeight, чтобы меш и запросы высоты совпадали
+                // с учётом зарегистрированных ровных площадок.
+                float wy = GroundHeight(wx, wz);
+
+                int idx = z * side + x;
+                verts[idx] = new Vector3(wx, wy, wz);
+                uvs[idx] = new Vector2(fx * size.x * 0.1f, fz * size.y * 0.1f);
+
+                float t = Mathf.Clamp01((wy - center.y) / Mathf.Max(amplitude, 0.001f) * 0.5f + 0.5f);
+                Color c = Color.Lerp(lowColor, highColor, t);
+                colors[idx] = c;
+            }
+        }
+
+        int ti = 0;
+        for (int z = 0; z < resolution; z++)
+        {
+            for (int x = 0; x < resolution; x++)
+            {
+                int a = z * side + x;
+                int b = (z + 1) * side + x;
+                tris[ti++] = a; tris[ti++] = b; tris[ti++] = a + 1;
+                tris[ti++] = a + 1; tris[ti++] = b; tris[ti++] = b + 1;
+            }
+        }
+
+        Mesh mesh = new Mesh();
+        mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        mesh.vertices = verts;
+        mesh.uv = uvs;
+        mesh.colors = colors;
+        mesh.triangles = tris;
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+
+        GameObject go = new GameObject("Terrain");
+        go.transform.SetParent(transform, false);
+        MeshFilter mf = go.AddComponent<MeshFilter>();
+        mf.mesh = mesh;
+        MeshRenderer mr = go.AddComponent<MeshRenderer>();
+        // Цвет берётся из вершин, поэтому базовый — белый.
+        Material m = Gfx.MatFull(Color.white, 0.03f, 0f, Color.black, detailTiling, normalScale);
+        mr.sharedMaterial = m;
+        MeshCollider mc = go.AddComponent<MeshCollider>();
+        mc.sharedMesh = mesh;
+    }
+
+    // ---------- Крупный реквизит ----------
+
+    protected void Waterfall(Vector3 top, float width, float height, int particles = 90)
+    {
+        Material sheet = Gfx.MatFull(new Color(0.6f, 0.85f, 1f), 0.9f, 0.1f,
+            new Color(0.15f, 0.35f, 0.55f), 0f, 0f);
+        GameObject fall = Gfx.Box(transform, top + new Vector3(0f, -height * 0.5f, 0f),
+            new Vector3(width, height, 0.4f), sheet, false);
+        Gfx.NoShadow(fall);
+
+        ParticleFx mist = ParticleFx.Spawn(transform, top + new Vector3(0f, -height, 0f),
+            particles, new Color(0.8f, 0.93f, 1f, 0.75f));
+        mist.EmitExtents = new Vector3(width * 0.5f, 0.4f, 0.5f);
+        mist.BaseVelocity = new Vector3(0f, 1.1f, 0f);
+        mist.Gravity = new Vector3(0f, -0.5f, 0f);
+        mist.SpeedMin = 0.3f;
+        mist.SpeedMax = 1.4f;
+        mist.SizeMin = 0.12f;
+        mist.SizeMax = 0.3f;
+        mist.LifeMin = 1f;
+        mist.LifeMax = 2.2f;
+        mist.Prewarm();
+
+        ParticleFx spray = ParticleFx.Spawn(transform, top + new Vector3(0f, -height * 0.4f, 0f),
+            particles, new Color(0.9f, 0.96f, 1f, 0.6f));
+        spray.EmitExtents = new Vector3(width * 0.45f, height * 0.4f, 0.3f);
+        spray.BaseVelocity = new Vector3(0f, -6f, 0f);
+        spray.Gravity = new Vector3(0f, -3f, 0f);
+        spray.SpeedMin = 0.1f;
+        spray.SpeedMax = 0.6f;
+        spray.SizeMin = 0.08f;
+        spray.SizeMax = 0.16f;
+        spray.LifeMin = 0.6f;
+        spray.LifeMax = 1.1f;
+        spray.Prewarm();
+    }
+
+    protected void Bridge(Vector3 from, Vector3 to, float width, Color plank)
+    {
+        Vector3 dir = to - from;
+        float len = dir.magnitude;
+        if (len < 0.01f) return;
+        int planks = Mathf.Max(2, Mathf.RoundToInt(len / 0.9f));
+        Material plankMat = Gfx.MatFull(plank, 0.05f, 0f, Color.black, 2f, 0.4f);
+        Material ropeMat = Gfx.Mat(new Color(0.45f, 0.35f, 0.2f), 0.05f);
+        float yaw = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
+
+        for (int i = 0; i <= planks; i++)
+        {
+            float t = (float)i / planks;
+            Vector3 p = Vector3.Lerp(from, to, t);
+            // Лёгкий провис в середине.
+            p.y -= Mathf.Sin(t * Mathf.PI) * 0.35f;
+            GameObject board = Gfx.Box(transform, p, new Vector3(width, 0.16f, 0.62f), plankMat);
+            board.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+        }
+
+        for (int side = -1; side <= 1; side += 2)
+        {
+            for (int i = 0; i < planks; i++)
+            {
+                float t = (float)i / planks;
+                Vector3 p = Vector3.Lerp(from, to, t);
+                p.y -= Mathf.Sin(t * Mathf.PI) * 0.35f;
+                Vector3 off = Quaternion.Euler(0f, yaw, 0f) * new Vector3(width * 0.5f * side, 0.55f, 0f);
+                GameObject post = Gfx.Box(transform, p + off, new Vector3(0.1f, 0.9f, 0.1f), ropeMat, false);
+                post.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+            }
+        }
+    }
+
+    protected void Cactus(Vector3 pos, float scale)
+    {
+        Material m = Gfx.RimMat(new Color(0.25f, 0.5f, 0.28f), new Color(0.6f, 0.9f, 0.5f), 0.3f);
+        Gfx.Cyl(transform, pos + new Vector3(0f, 1.5f * scale, 0f),
+            new Vector3(0.7f * scale, 1.5f * scale, 0.7f * scale), m);
+        Gfx.Ball(transform, pos + new Vector3(0f, 3f * scale, 0f),
+            new Vector3(0.7f, 0.7f, 0.7f) * scale, m);
+
+        for (int i = -1; i <= 1; i += 2)
+        {
+            Gfx.Cyl(transform, pos + new Vector3(0.55f * i * scale, 1.9f * scale, 0f),
+                new Vector3(0.34f, 0.34f, 0.34f) * scale, m, false)
+                .transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            Gfx.Cyl(transform, pos + new Vector3(0.78f * i * scale, 2.35f * scale, 0f),
+                new Vector3(0.34f * scale, 0.55f * scale, 0.34f * scale), m, false);
+            Gfx.Ball(transform, pos + new Vector3(0.78f * i * scale, 2.9f * scale, 0f),
+                new Vector3(0.36f, 0.36f, 0.36f) * scale, m);
+        }
+    }
+
+    protected void CrystalCluster(Vector3 pos, float scale, Color color, bool light)
+    {
+        Material m = Gfx.MatFull(color, 0.92f, 0.25f, color * 0.75f, 0f, 0f);
+        Gfx.Crystal(transform, pos, 0.42f * scale, 2.4f * scale, m, Random.Range(-9f, 9f));
+        Gfx.Crystal(transform, pos + new Vector3(0.5f, -0.15f, 0.3f) * scale,
+            0.27f * scale, 1.5f * scale, m, Random.Range(-22f, 22f));
+        Gfx.Crystal(transform, pos + new Vector3(-0.45f, -0.2f, -0.25f) * scale,
+            0.22f * scale, 1.2f * scale, m, Random.Range(-22f, 22f));
+        Gfx.Glow(transform, pos + new Vector3(0f, 0.6f * scale, 0f), 4f * scale,
+            new Color(color.r, color.g, color.b, 0.5f));
+        if (light) Gfx.PointLight(transform, pos + new Vector3(0f, 1f * scale, 0f), color, 14f * scale, 1.2f);
+    }
+
+    // Каменная арка — ориентир на горизонте и заодно проходной портал-рамка.
+    protected void Arch(Vector3 pos, float width, float height, Color color)
+    {
+        Material m = Gfx.MatFull(color, 0.03f, 0f, Color.black, 1.5f, 0.7f);
+        Gfx.Box(transform, pos + new Vector3(-width * 0.5f, height * 0.5f, 0f),
+            new Vector3(width * 0.22f, height, width * 0.28f), m);
+        Gfx.Box(transform, pos + new Vector3(width * 0.5f, height * 0.5f, 0f),
+            new Vector3(width * 0.22f, height, width * 0.28f), m);
+        int steps = 7;
+        for (int i = 0; i <= steps; i++)
+        {
+            float a = Mathf.PI * i / steps;
+            Vector3 p = pos + new Vector3(-Mathf.Cos(a) * width * 0.5f,
+                height + Mathf.Sin(a) * width * 0.32f, 0f);
+            GameObject seg = Gfx.Box(transform, p,
+                new Vector3(width * 0.2f, width * 0.2f, width * 0.28f), m);
+            seg.transform.localRotation = Quaternion.Euler(0f, 0f, -a * Mathf.Rad2Deg + 90f);
+        }
+    }
+
+    protected void Windmill(Vector3 pos, Color wall, Color blade)
+    {
+        Material wallMat = Gfx.MatFull(wall, 0.05f, 0f, Color.black, 2.5f, 0.35f);
+        Gfx.Cyl(transform, pos + new Vector3(0f, 3f, 0f), new Vector3(4.4f, 3f, 4.4f), wallMat);
+        GameObject roof = Gfx.Cone(transform, pos + new Vector3(0f, 6f, 0f), 2.9f, 2.2f,
+            Gfx.Mat(new Color(0.55f, 0.25f, 0.2f), 0.05f));
+        Gfx.NoShadow(roof);
+
+        GameObject hub = new GameObject("Blades");
+        hub.transform.SetParent(transform, false);
+        hub.transform.localPosition = pos + new Vector3(0f, 5f, 2.4f);
+        Material bladeMat = Gfx.Mat(blade, 0.05f);
+        for (int i = 0; i < 4; i++)
+        {
+            GameObject b = Gfx.Box(hub.transform, Vector3.zero, new Vector3(0.5f, 5.4f, 0.16f), bladeMat, false);
+            b.transform.localRotation = Quaternion.Euler(0f, 0f, i * 45f);
+            b.transform.localPosition = b.transform.localRotation * new Vector3(0f, 2.7f, 0f);
+        }
+        Spinner sp = hub.AddComponent<Spinner>();
+        sp.Axis = Vector3.forward;
+        sp.Speed = 22f;
+    }
+
+    protected void Dock(Vector3 pos, float length, float yaw)
+    {
+        Material wood = Gfx.MatFull(new Color(0.52f, 0.38f, 0.24f), 0.05f, 0f, Color.black, 2f, 0.4f);
+        Quaternion rot = Quaternion.Euler(0f, yaw, 0f);
+        int boards = Mathf.Max(3, Mathf.RoundToInt(length / 1.2f));
+        for (int i = 0; i < boards; i++)
+        {
+            Vector3 p = pos + rot * new Vector3(0f, 0f, i * 1.2f);
+            GameObject b = Gfx.Box(transform, p, new Vector3(3f, 0.2f, 1.1f), wood);
+            b.transform.localRotation = rot;
+            if (i % 2 == 0)
+            {
+                Gfx.Cyl(transform, p + new Vector3(-1.3f, -0.7f, 0f), new Vector3(0.24f, 0.7f, 0.24f), wood, false);
+                Gfx.Cyl(transform, p + new Vector3(1.3f, -0.7f, 0f), new Vector3(0.24f, 0.7f, 0.24f), wood, false);
+            }
+        }
+    }
+
+    protected void MarketStall(Vector3 pos, Color cloth, float yaw)
+    {
+        Material wood = Gfx.Mat(new Color(0.5f, 0.36f, 0.22f), 0.05f);
+        Material clothMat = Gfx.RimMat(cloth, cloth * 1.5f, 0.2f);
+        Quaternion rot = Quaternion.Euler(0f, yaw, 0f);
+
+        GameObject table = Gfx.Box(transform, pos + new Vector3(0f, 0.9f, 0f), new Vector3(2.6f, 0.16f, 1.4f), wood);
+        table.transform.localRotation = rot;
+        for (int sx = -1; sx <= 1; sx += 2)
+        {
+            for (int sz = -1; sz <= 1; sz += 2)
+            {
+                Gfx.Cyl(transform, pos + rot * new Vector3(1.1f * sx, 0.45f, 0.55f * sz),
+                    new Vector3(0.14f, 0.45f, 0.14f), wood, false);
+                Gfx.Cyl(transform, pos + rot * new Vector3(1.1f * sx, 1.6f, 0.55f * sz),
+                    new Vector3(0.1f, 0.75f, 0.1f), wood, false);
+            }
+        }
+        GameObject canopy = Gfx.Box(transform, pos + new Vector3(0f, 2.45f, 0f),
+            new Vector3(3f, 0.14f, 1.9f), clothMat, false);
+        canopy.transform.localRotation = rot * Quaternion.Euler(-9f, 0f, 0f);
+
+        Material fruit = Gfx.RimMat(new Color(0.9f, 0.35f, 0.3f), new Color(1f, 0.7f, 0.5f), 0.3f);
+        for (int i = 0; i < 5; i++)
+        {
+            Gfx.Ball(transform, pos + rot * new Vector3(-0.9f + i * 0.45f, 1.08f, Random.Range(-0.3f, 0.3f)),
+                new Vector3(0.26f, 0.26f, 0.26f), fruit);
+        }
+    }
+
+    protected void AddMovingPlatform(Vector3 a, Vector3 b, Vector3 size, Color color, float period, float phase)
+    {
+        MovingPlatform.Create(transform, a, b, size, Gfx.Mat(color, 0.08f), period, phase);
+    }
+
+    protected void AddBouncePad(Vector3 pos, float power)
+    {
+        BouncePad.Create(transform, pos, power);
+    }
+
+    protected void AddCampfire(Vector3 pos, Color color, float range)
+    {
+        Campfire.Create(transform, pos, color, range);
     }
 
     // ---------- Игровые объекты ----------

@@ -65,9 +65,24 @@ public class NetManager : MonoBehaviour
     public const int DiscoveryPort = 8911;
     public const string DiscoveryMsg = "BEAR_DISCOVER";
     public const int QuestCoins = 15;
+    public const int QuestCoinsFinal = 40;
     public const int MaxPlayers = 8;
 
-    public static readonly string[] WorldIds = { "hub", "meadow", "snow" };
+    // 0 — деревня, 1 — луга, 2 — каньон, 3 — вершины, 4 — пещера.
+    public static readonly string[] WorldIds = { "hub", "meadow", "desert", "snow", "cave" };
+    public const int WorldHub = 0;
+    public const int WorldMeadow = 1;
+    public const int WorldDesert = 2;
+    public const int WorldSnow = 3;
+    public const int WorldCave = 4;
+
+    // Какая стадия задания нужна, чтобы портал открылся.
+    public static int RequiredStage(int world)
+    {
+        if (world == WorldDesert || world == WorldSnow) return 2;
+        if (world == WorldCave) return 3;
+        return 0;
+    }
 
     public static NetManager I;
 
@@ -136,7 +151,10 @@ public class NetManager : MonoBehaviour
         I.PlayerName = "Медведь-" + UnityEngine.Random.Range(1, 100);
     }
 
-    public string CurrentWorldId { get { return WorldIds[Mathf.Clamp(CurrentWorld, 0, 2)]; } }
+    public string CurrentWorldId
+    {
+        get { return WorldIds[Mathf.Clamp(CurrentWorld, 0, WorldIds.Length - 1)]; }
+    }
 
     // ---------- Управление сессией ----------
 
@@ -395,7 +413,7 @@ public class NetManager : MonoBehaviour
     {
         if (target < 0 || target >= WorldIds.Length) return;
         if (target == CurrentWorld) return;
-        if (target == 2 && QuestStage < 2) return;
+        if (QuestStage < RequiredStage(target)) return;
         SetWorld(target);
     }
 
@@ -416,7 +434,7 @@ public class NetManager : MonoBehaviour
 
     private void HostVictory()
     {
-        if (VictoryReached || CurrentWorld != 2) return;
+        if (VictoryReached || CurrentWorld != WorldCave) return;
         VictoryReached = true;
         if (OnVictory != null) OnVictory();
         if (Online)
@@ -430,22 +448,24 @@ public class NetManager : MonoBehaviour
 
     private void ReturnToHub()
     {
-        if (IsHost) SetWorld(0);
+        if (IsHost) SetWorld(WorldHub);
     }
 
     private void CheckQuest()
     {
-        if (QuestStage == 1 && CoinsTotal >= QuestCoins)
+        int stage = QuestStage;
+        if (stage == 1 && CoinsTotal >= QuestCoins) stage = 2;
+        if (stage == 2 && CoinsTotal >= QuestCoinsFinal) stage = 3;
+        if (stage == QuestStage) return;
+
+        QuestStage = stage;
+        ApplyQuest(stage);
+        if (Online)
         {
-            QuestStage = 2;
-            ApplyQuest(2);
-            if (Online)
-            {
-                MemoryStream ms; BinaryWriter w;
-                Begin(Msg.EvQuest, out ms, out w);
-                w.Write(QuestStage);
-                BroadcastRepeat(ms, 2);
-            }
+            MemoryStream ms; BinaryWriter w;
+            Begin(Msg.EvQuest, out ms, out w);
+            w.Write(QuestStage);
+            BroadcastRepeat(ms, 2);
         }
     }
 

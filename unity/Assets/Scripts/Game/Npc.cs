@@ -48,13 +48,17 @@ public class Npc : MonoBehaviour
     {
         NetManager net = NetManager.I;
         if (net == null) return "";
-        if (net.VictoryReached) return "Вы — настоящие герои! Вершина покорена!";
-        if (net.QuestStage >= 2)
-            return "Портал открыт! Доберитесь до золотой звезды на Снежной вершине!";
+        if (net.VictoryReached)
+            return "Вы — настоящие герои! Сердце горы снова с нами.";
+        if (net.QuestStage >= 3)
+            return "Пещера открыта! В её глубине спрятана золотая звезда — Сердце горы.";
+        if (net.QuestStage == 2)
+            return "Каньон и вершины ваши! Наберите " + NetManager.QuestCoinsFinal +
+                   " монет (" + net.CoinsTotal + "), и откроется Кристальная пещера.";
         if (net.QuestStage == 1)
-            return "Соберите " + NetManager.QuestCoins + " монет (" + net.CoinsTotal + "/" +
-                   NetManager.QuestCoins + ") — и я открою портал в Снежные вершины!";
-        return "Приветствую, медвежата! У меня есть для вас задание...";
+            return "Соберите " + NetManager.QuestCoins + " монет (" + net.CoinsTotal +
+                   ") — и я открою пути в Каньон и на Снежные вершины!";
+        return "Приветствую, медвежата! Древнее Сердце горы пропало. Поможете найти?";
     }
 
     // Проверка близости игрока; возвращает true при первом входе в зону.
