@@ -21,8 +21,8 @@ public class MeadowWorld : WorldBuilder
         FlattenArea(-26f, 26f, 13f, 10f);
         FlattenArea(-46f, -20f, 11f, 9f);
 
-        Terrain(Vector3.zero, new Vector2(180f, 180f), 130, 11f, 0.014f,
-            GrassLow, GrassHigh, 18f, 7717);
+        Terrain(Vector3.zero, new Vector2(250f, 250f), 150, 13f, 0.012f,
+            GrassLow, GrassHigh, 22f, 7717);
 
         Material rim = Gfx.MatFull(new Color(0.42f, 0.3f, 0.18f), 0.03f, 0f, Color.black, 5f, 0.7f);
         Gfx.Cone(transform, new Vector3(0f, -34f, 0f), 76f, 26f, rim);
@@ -59,15 +59,18 @@ public class MeadowWorld : WorldBuilder
         // Подъём на уступ по камням и батуту
         Rock(new Vector3(-30f, 1.5f, -14f), 4f, new Color(0.55f, 0.53f, 0.48f));
         Rock(new Vector3(-26f, 3f, -22f), 4.6f, new Color(0.55f, 0.53f, 0.48f));
-        AddBouncePad(new Vector3(-30f, 3.4f, -14f), 19f);
+        AddBouncePad(new Vector3(-30f, 3.4f, -14f), 23f);
         AddCoin(new Vector3(-30f, 9f, -18f));
 
+        // Шаг между уступами — 2.5 м, вписывается в высоту прыжка
         Platform(new Vector3(-31f, 12f, -26f), new Vector3(6f, 0.7f, 6f), Plat);
-        Platform(new Vector3(-34f, 16f, -31f), new Vector3(5f, 0.7f, 5f), Plat);
-        Platform(new Vector3(-38f, 20f, -30f), new Vector3(5f, 0.7f, 5f), Plat);
+        Platform(new Vector3(-34f, 14.5f, -31f), new Vector3(5f, 0.7f, 5f), Plat);
+        Platform(new Vector3(-38f, 17f, -30f), new Vector3(5f, 0.7f, 5f), Plat);
+        Platform(new Vector3(-42f, 19.5f, -32f), new Vector3(5f, 0.7f, 5f), Plat);
         AddCoin(new Vector3(-31f, 13.4f, -26f));
-        AddCoin(new Vector3(-34f, 17.4f, -31f));
-        AddCoin(new Vector3(-38f, 21.4f, -30f));
+        AddCoin(new Vector3(-34f, 15.9f, -31f));
+        AddCoin(new Vector3(-38f, 18.4f, -30f));
+        AddCoin(new Vector3(-42f, 20.9f, -32f));
         AddCoin(new Vector3(-46f, 24.2f, -34f));
         AddCoin(new Vector3(-52f, 24.2f, -38f));
         AddEnemy(new Vector3(-40f, 23.4f, -38f), new Vector3(-54f, 23.4f, -38f), "mushroom", 2.6f);
@@ -120,25 +123,41 @@ public class MeadowWorld : WorldBuilder
 
     private void BuildPlatformRoute()
     {
-        // Цепочка движущихся платформ над низиной
-        AddMovingPlatform(new Vector3(10f, 6f, 6f), new Vector3(10f, 6f, 20f),
-            new Vector3(4f, 0.6f, 4f), Plat, 5f, 0f);
-        AddMovingPlatform(new Vector3(18f, 9f, 20f), new Vector3(30f, 9f, 20f),
-            new Vector3(4f, 0.6f, 4f), Plat, 6f, 0.3f);
-        AddMovingPlatform(new Vector3(34f, 12f, 12f), new Vector3(34f, 12f, -2f),
-            new Vector3(4f, 0.6f, 4f), Plat, 5.5f, 0.6f);
+        // Лестница от земли: шаг по 2 метра — заведомо в пределах прыжка.
+        // Раньше первый ярус висел на шести метрах и был недосягаем.
+        for (int i = 0; i < 5; i++)
+        {
+            Vector3 p = OnGround(6f + i * 4.5f, 24f - i * 2f, 1.2f + i * 2f);
+            Platform(p, new Vector3(5f, 0.7f, 5f), Plat);
+            AddCoin(p + new Vector3(0f, 1.5f, 0f));
+        }
 
-        Platform(new Vector3(10f, 4.5f, -2f), new Vector3(6f, 0.7f, 6f), Plat);
-        Platform(new Vector3(42f, 14f, -6f), new Vector3(8f, 0.7f, 8f), Plat);
-        AddCoin(new Vector3(10f, 8f, 13f));
-        AddCoin(new Vector3(24f, 11f, 20f));
-        AddCoin(new Vector3(34f, 14f, 5f));
-        AddCoin(new Vector3(42f, 15.6f, -6f));
+        // Верх лестницы — площадка, с которой начинается цепочка платформ
+        Vector3 hub = OnGround(28f, 14f, 11f);
+        Platform(hub, new Vector3(7f, 0.8f, 7f), Plat);
+        AddCoin(hub + new Vector3(0f, 1.6f, 0f));
 
-        AddBouncePad(new Vector3(10f, 5.2f, -2f), 21f);
-        AddBouncePad(OnGround(0f, 22f, 0.3f), 17f);
-        AddCoin(new Vector3(0f, 8f, 22f));
-        AddCoin(new Vector3(0f, 11f, 22f));
+        AddMovingPlatform(hub + new Vector3(0f, 0f, -6f), hub + new Vector3(0f, 0f, -18f),
+            new Vector3(4.4f, 0.6f, 4.4f), Plat, 5f, 0f);
+        AddMovingPlatform(hub + new Vector3(-6f, 2.5f, -22f), hub + new Vector3(-18f, 2.5f, -22f),
+            new Vector3(4.4f, 0.6f, 4.4f), Plat, 6f, 0.3f);
+        AddMovingPlatform(hub + new Vector3(-24f, 5f, -16f), hub + new Vector3(-24f, 5f, -4f),
+            new Vector3(4.4f, 0.6f, 4.4f), Plat, 5.5f, 0.6f);
+
+        AddCoin(hub + new Vector3(0f, 1.6f, -12f));
+        AddCoin(hub + new Vector3(-12f, 4.1f, -22f));
+        AddCoin(hub + new Vector3(-24f, 6.6f, -10f));
+
+        Vector3 top = hub + new Vector3(-26f, 7f, 2f);
+        Platform(top, new Vector3(8f, 0.8f, 8f), new Color(0.46f, 0.7f, 0.32f));
+        AddCoin(top + new Vector3(0f, 1.6f, 0f));
+        AddBouncePad(top + new Vector3(0f, 0.5f, 0f), 20f);
+        AddCoin(top + new Vector3(0f, 6f, -3f));
+
+        // Батут у спавна — быстрый способ осмотреться сверху
+        AddBouncePad(OnGround(0f, 30f, 0.3f), 18f);
+        AddCoin(OnGround(0f, 30f, 6f));
+        AddCoin(OnGround(0f, 30f, 9f));
     }
 
     private void BuildPond()

@@ -24,8 +24,8 @@ public class DesertWorld : WorldBuilder
         FlattenArea(-12f, -40f, 28f, 14f);
         FlattenArea(6f, 30f, 13f, 10f);
 
-        Terrain(Vector3.zero, new Vector2(200f, 200f), 130, 9f, 0.011f,
-            SandLow, SandHigh, 16f, 3131);
+        Terrain(Vector3.zero, new Vector2(270f, 270f), 150, 11f, 0.0095f,
+            SandLow, SandHigh, 20f, 3131);
 
         // Основание под всем каньоном — мир «висит» над пустотой
         Gfx.Cone(transform, new Vector3(0f, -36f, 0f), 86f, 28f,

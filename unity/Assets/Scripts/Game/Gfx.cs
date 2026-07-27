@@ -323,10 +323,27 @@ public static class Gfx
         go.transform.localScale = scale;
         MeshRenderer mr = go.GetComponent<MeshRenderer>();
         if (mr != null && mat != null) mr.sharedMaterial = mat;
+
+        Collider c = go.GetComponent<Collider>();
         if (!collide)
         {
-            Collider c = go.GetComponent<Collider>();
             if (c != null) Object.Destroy(c);
+        }
+        else if (!(c is BoxCollider))
+        {
+            // Цилиндру и сфере Unity вешает капсулу и сферу, а те при
+            // неравномерном масштабе раздуваются по наибольшей оси: диск
+            // 26 x 0.06 x 26 превращается в шар радиусом 13 — невидимый
+            // купол посреди мира. Меняем на бокс по границам меша.
+            MeshFilter mf = go.GetComponent<MeshFilter>();
+            Mesh mesh = mf != null ? mf.sharedMesh : null;
+            if (mesh != null)
+            {
+                if (c != null) Object.DestroyImmediate(c);
+                BoxCollider bc = go.AddComponent<BoxCollider>();
+                bc.center = mesh.bounds.center;
+                bc.size = mesh.bounds.size;
+            }
         }
         return go;
     }

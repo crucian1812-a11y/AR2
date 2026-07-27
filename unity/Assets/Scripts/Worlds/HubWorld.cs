@@ -22,13 +22,13 @@ public class HubWorld : WorldBuilder
         FlattenArea(-30f, 14f, 10f, 9f);
 
         // Холмистый остров
-        Terrain(Vector3.zero, new Vector2(150f, 150f), 110, 7.5f, 0.012f,
-            GrassLow, GrassHigh, 34f, 1812);
+        Terrain(Vector3.zero, new Vector2(210f, 210f), 140, 9f, 0.011f,
+            GrassLow, GrassHigh, 40f, 1812);
 
         // Обрыв по краю острова, чтобы мир выглядел парящим
         Material cliff = Gfx.MatFull(new Color(0.44f, 0.31f, 0.19f), 0.03f, 0f, Color.black, 5f, 0.7f);
-        Gfx.Cyl(transform, new Vector3(0f, -9f, 0f), new Vector3(148f, 8f, 148f), cliff, false);
-        Gfx.Cone(transform, new Vector3(0f, -30f, 0f), 66f, 22f, cliff);
+        Gfx.Cyl(transform, new Vector3(0f, -9f, 0f), new Vector3(208f, 8f, 208f), cliff, false);
+        Gfx.Cone(transform, new Vector3(0f, -32f, 0f), 94f, 26f, cliff);
 
         BuildPlaza();
         BuildHouses();
@@ -38,27 +38,27 @@ public class HubWorld : WorldBuilder
 
         // Старейшина и порталы вокруг площади
         AddNpc(new Vector3(4.5f, 0f, -4.5f));
-        AddPortal(new Vector3(-20f, 1.5f, 0f), NetManager.WorldMeadow,
+        AddPortal(new Vector3(-28f, 1.5f, 0f), NetManager.WorldMeadow,
             "Солнечные луга", new Color(0.4f, 1f, 0.5f), 90f);
-        AddPortal(new Vector3(20f, 1.5f, 0f), NetManager.WorldDesert,
+        AddPortal(new Vector3(28f, 1.5f, 0f), NetManager.WorldDesert,
             "Песчаный каньон", new Color(1f, 0.72f, 0.3f), 90f);
-        AddPortal(new Vector3(0f, 1.5f, -22f), NetManager.WorldSnow,
+        AddPortal(new Vector3(0f, 1.5f, -30f), NetManager.WorldSnow,
             "Снежные вершины", new Color(0.55f, 0.82f, 1f), 0f);
-        AddPortal(new Vector3(0f, 1.5f, 24f), NetManager.WorldCave,
+        AddPortal(new Vector3(0f, 1.5f, 32f), NetManager.WorldCave,
             "Кристальная пещера", new Color(0.75f, 0.5f, 1f), 0f);
     }
 
     private void BuildPlaza()
     {
         Material stone = Gfx.MatFull(new Color(0.72f, 0.71f, 0.68f), 0.06f, 0f, Color.black, 4f, 0.3f);
-        Gfx.Cyl(transform, new Vector3(0f, 0.06f, 0f), new Vector3(26f, 0.06f, 26f), stone);
+        Gfx.Cyl(transform, new Vector3(0f, 0.06f, 0f), new Vector3(34f, 0.06f, 34f), stone);
 
         // Дорожки к порталам
         Material path = Gfx.MatFull(PathCol, 0.05f, 0f, Color.black, 4f, 0.4f);
-        Gfx.Box(transform, new Vector3(0f, 0.08f, 18f), new Vector3(4f, 0.12f, 22f), path);
-        Gfx.Box(transform, new Vector3(0f, 0.08f, -18f), new Vector3(4f, 0.12f, 22f), path);
-        Gfx.Box(transform, new Vector3(-18f, 0.08f, 0f), new Vector3(22f, 0.12f, 4f), path);
-        Gfx.Box(transform, new Vector3(18f, 0.08f, 0f), new Vector3(22f, 0.12f, 4f), path);
+        Gfx.Box(transform, new Vector3(0f, 0.08f, 24f), new Vector3(5f, 0.12f, 32f), path);
+        Gfx.Box(transform, new Vector3(0f, 0.08f, -24f), new Vector3(5f, 0.12f, 32f), path);
+        Gfx.Box(transform, new Vector3(-24f, 0.08f, 0f), new Vector3(32f, 0.12f, 5f), path);
+        Gfx.Box(transform, new Vector3(24f, 0.08f, 0f), new Vector3(32f, 0.12f, 5f), path);
 
         // Фонтан
         Material basin = Gfx.MatFull(new Color(0.75f, 0.74f, 0.72f), 0.12f, 0f, Color.black, 3f, 0.3f);
@@ -90,14 +90,14 @@ public class HubWorld : WorldBuilder
 
     private void BuildHouses()
     {
-        House(new Vector3(-15f, 0f, -14f), new Color(0.86f, 0.62f, 0.42f), 22f, 1f);
-        House(new Vector3(15f, 0f, -15f), new Color(0.62f, 0.72f, 0.9f), -24f, 1.1f);
-        House(new Vector3(-22f, 0f, 11f), new Color(0.9f, 0.82f, 0.52f), 68f, 0.95f);
-        House(new Vector3(23f, 0f, 13f), new Color(0.78f, 0.55f, 0.62f), -62f, 1.05f);
-        House(new Vector3(-8f, 0f, 22f), new Color(0.7f, 0.85f, 0.7f), 172f, 0.9f);
-        House(new Vector3(30f, 0f, -4f), new Color(0.88f, 0.7f, 0.5f), -95f, 1.15f);
+        House(new Vector3(-21f, 0f, -20f), new Color(0.86f, 0.62f, 0.42f), 22f, 1.5f);
+        House(new Vector3(21f, 0f, -21f), new Color(0.62f, 0.72f, 0.9f), -24f, 1.65f);
+        House(new Vector3(-31f, 0f, 15f), new Color(0.9f, 0.82f, 0.52f), 68f, 1.4f);
+        House(new Vector3(32f, 0f, 18f), new Color(0.78f, 0.55f, 0.62f), -62f, 1.55f);
+        House(new Vector3(-11f, 0f, 30f), new Color(0.7f, 0.85f, 0.7f), 172f, 1.35f);
+        House(new Vector3(42f, 0f, -6f), new Color(0.88f, 0.7f, 0.5f), -95f, 1.7f);
 
-        Windmill(OnGround(-34f, -26f), new Color(0.85f, 0.82f, 0.74f), new Color(0.92f, 0.9f, 0.85f));
+        Windmill(OnGround(-48f, -36f), new Color(0.85f, 0.82f, 0.74f), new Color(0.92f, 0.9f, 0.85f));
     }
 
     private void BuildLake()
@@ -130,10 +130,10 @@ public class HubWorld : WorldBuilder
     {
         // Роща по краям острова: деревья садятся на рельеф
         int seedBase = 41;
-        for (int i = 0; i < 34; i++)
+        for (int i = 0; i < 58; i++)
         {
             float ang = (i * 137.5f) * Mathf.Deg2Rad;
-            float r = 34f + (i % 7) * 4.6f;
+            float r = 46f + (i % 7) * 7.5f;
             float x = Mathf.Cos(ang) * r;
             float z = Mathf.Sin(ang) * r;
             if (Mathf.Abs(x - 34f) < 18f && Mathf.Abs(z - 30f) < 16f) continue; // не в озере
@@ -149,10 +149,10 @@ public class HubWorld : WorldBuilder
         Color[] bushCols = {
             new Color(0.2f, 0.45f, 0.2f), new Color(0.26f, 0.5f, 0.18f), new Color(0.18f, 0.42f, 0.24f)
         };
-        for (int i = 0; i < 22; i++)
+        for (int i = 0; i < 40; i++)
         {
             float ang = Random.value * Mathf.PI * 2f;
-            float r = Random.Range(20f, 52f);
+            float r = Random.Range(28f, 82f);
             Vector3 p = new Vector3(Mathf.Cos(ang) * r, 0f, Mathf.Sin(ang) * r);
             if (Mathf.Abs(p.x - 34f) < 18f && Mathf.Abs(p.z - 30f) < 16f) continue;
             Bush(OnGround(p.x, p.z), bushCols[i % 3]);
@@ -162,10 +162,10 @@ public class HubWorld : WorldBuilder
             new Color(0.95f, 0.4f, 0.45f), new Color(0.95f, 0.85f, 0.3f),
             new Color(0.6f, 0.5f, 0.95f), new Color(1f, 0.65f, 0.3f)
         };
-        for (int i = 0; i < 46; i++)
+        for (int i = 0; i < 90; i++)
         {
             float ang = Random.value * Mathf.PI * 2f;
-            float r = Random.Range(15f, 48f);
+            float r = Random.Range(20f, 88f);
             Vector3 p = new Vector3(Mathf.Cos(ang) * r, 0f, Mathf.Sin(ang) * r);
             if (Mathf.Abs(p.x - 34f) < 17f && Mathf.Abs(p.z - 30f) < 15f) continue;
             Flower(OnGround(p.x, p.z), flowers[i % 4]);
@@ -178,7 +178,7 @@ public class HubWorld : WorldBuilder
 
     private void BuildAtmosphere()
     {
-        GrassField(new Vector3(0f, 0f, 0f), new Vector2(52f, 52f), 5200,
+        GrassField(new Vector3(0f, 0f, 0f), new Vector2(78f, 78f), 8000,
             new Color(0.18f, 0.42f, 0.12f), new Color(0.55f, 0.85f, 0.3f), true);
 
         Cloud(new Vector3(-38f, 30f, -26f), 2.2f, Color.white);

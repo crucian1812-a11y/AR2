@@ -11,7 +11,7 @@ public class CaveWorld : WorldBuilder
     private static readonly Color Cyan = new Color(0.35f, 0.85f, 1f);
     private static readonly Color Rose = new Color(1f, 0.45f, 0.7f);
 
-    private const float Radius = 74f;
+    private const float Radius = 104f;
 
     protected override void Build()
     {
@@ -30,8 +30,8 @@ public class CaveWorld : WorldBuilder
         FlattenArea(0f, 52f, 11f, 9f);
         FlattenArea(34f, -19f, 13f, 10f);
 
-        Terrain(Vector3.zero, new Vector2(160f, 160f), 120, 6f, 0.016f,
-            RockCol, RockLight, 14f, 9091);
+        Terrain(Vector3.zero, new Vector2(230f, 230f), 145, 7f, 0.013f,
+            RockCol, RockLight, 18f, 9091);
 
         BuildShell();
         BuildPortal();
@@ -51,7 +51,7 @@ public class CaveWorld : WorldBuilder
         Material roof = Gfx.MatFull(RockCol * 0.7f, 0.03f, 0f, Color.black, 4f, 0.8f);
 
         // Кольцо стен из наклонных плит — «неровная» порода без дыр
-        const int segs = 26;
+        const int segs = 34;
         for (int i = 0; i < segs; i++)
         {
             float a = (float)i / segs * Mathf.PI * 2f;
@@ -223,16 +223,16 @@ public class CaveWorld : WorldBuilder
         Gfx.PointLight(transform, new Vector3(34f, 1f, -19f), new Color(1f, 0.5f, 0.25f), 32f, 1.6f);
 
         // Подъём к алтарю: движущиеся плиты и батуты над пропастью
-        AddMovingPlatform(new Vector3(34f, 12f, -34f), new Vector3(20f, 12f, -40f),
+        AddMovingPlatform(new Vector3(34f, 11f, -34f), new Vector3(20f, 11f, -40f),
             new Vector3(4.4f, 0.6f, 4.4f), new Color(0.42f, 0.34f, 0.5f), 6f, 0f);
-        AddMovingPlatform(new Vector3(10f, 16f, -40f), new Vector3(-4f, 16f, -36f),
+        AddMovingPlatform(new Vector3(10f, 13.5f, -40f), new Vector3(-4f, 13.5f, -36f),
             new Vector3(4.4f, 0.6f, 4.4f), new Color(0.42f, 0.34f, 0.5f), 6.5f, 0.35f);
-        AddMovingPlatform(new Vector3(-14f, 20f, -32f), new Vector3(-14f, 20f, -18f),
+        AddMovingPlatform(new Vector3(-14f, 16f, -32f), new Vector3(-14f, 16f, -18f),
             new Vector3(4.4f, 0.6f, 4.4f), new Color(0.42f, 0.34f, 0.5f), 5.5f, 0.7f);
 
-        AddCoin(new Vector3(27f, 14f, -37f));
-        AddCoin(new Vector3(3f, 18f, -38f));
-        AddCoin(new Vector3(-14f, 22f, -25f));
+        AddCoin(new Vector3(27f, 13f, -37f));
+        AddCoin(new Vector3(3f, 15.5f, -38f));
+        AddCoin(new Vector3(-14f, 18f, -25f));
 
         AddBouncePad(new Vector3(34f, 8.4f, -4f), 20f);
         AddCoin(new Vector3(34f, 13f, -2f));
@@ -244,7 +244,7 @@ public class CaveWorld : WorldBuilder
 
     private void BuildAltar()
     {
-        Vector3 c = new Vector3(-14f, 22f, -12f);
+        Vector3 c = new Vector3(-14f, 17f, -12f);
         Material dais = Gfx.MatFull(new Color(0.34f, 0.28f, 0.44f), 0.2f, 0.1f,
             new Color(0.1f, 0.06f, 0.18f), 2f, 0.4f);
 

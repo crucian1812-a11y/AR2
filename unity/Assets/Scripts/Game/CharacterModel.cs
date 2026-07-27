@@ -42,8 +42,23 @@ public class CharacterModel : MonoBehaviour
     {
         Renderers = GetComponentsInChildren<Renderer>();
         ApplyMaterial(id);
-        Normalize(targetHeight);
         CollectClips();
+
+        // Рост приводим не сразу: у скиненных мешей мировые границы
+        // становятся достоверными только после первого прохода анимации.
+        // Поэтому первый кадр модель спрятана, а в LateUpdate меряется
+        // и масштабируется по-настоящему.
+        _pendingHeight = targetHeight;
+    }
+
+    private float _pendingHeight;
+
+    private void LateUpdate()
+    {
+        if (_pendingHeight <= 0f) return;
+        float target = _pendingHeight;
+        _pendingHeight = 0f;
+        Normalize(target);
     }
 
     // В FBX материалы не импортируются (см. ModelImportSettings), поэтому
@@ -72,52 +87,28 @@ public class CharacterModel : MonoBehaviour
     {
         if (Renderers == null || Renderers.Length == 0 || targetHeight <= 0f) return;
 
-        // Считаем по мешам, а не по Renderer.bounds: у скиненных мешей
-        // мировые границы обновляются только после первого кадра.
         bool has = false;
-        float minY = 0f, maxY = 0f;
+        Bounds b = new Bounds(Vector3.zero, Vector3.zero);
         for (int i = 0; i < Renderers.Length; i++)
         {
-            Renderer r = Renderers[i];
-            if (r == null) continue;
-
-            Mesh mesh = null;
-            SkinnedMeshRenderer smr = r as SkinnedMeshRenderer;
-            if (smr != null) mesh = smr.sharedMesh;
-            else
-            {
-                MeshFilter mf = r.GetComponent<MeshFilter>();
-                if (mf != null) mesh = mf.sharedMesh;
-            }
-            if (mesh == null) continue;
-
-            // Границы меша переводим в пространство корня модели.
-            Matrix4x4 toRoot = transform.worldToLocalMatrix * r.transform.localToWorldMatrix;
-            Bounds mb = mesh.bounds;
-            for (int c = 0; c < 8; c++)
-            {
-                Vector3 corner = new Vector3(
-                    (c & 1) == 0 ? mb.min.x : mb.max.x,
-                    (c & 2) == 0 ? mb.min.y : mb.max.y,
-                    (c & 4) == 0 ? mb.min.z : mb.max.z);
-                float y = toRoot.MultiplyPoint3x4(corner).y;
-                if (!has) { minY = y; maxY = y; has = true; }
-                else
-                {
-                    if (y < minY) minY = y;
-                    if (y > maxY) maxY = y;
-                }
-            }
+            if (Renderers[i] == null) continue;
+            if (!has) { b = Renderers[i].bounds; has = true; }
+            else b.Encapsulate(Renderers[i].bounds);
         }
+        if (!has || b.size.y < 0.0001f) return;
 
-        float h = maxY - minY;
-        if (!has || h < 0.0001f) return;
+        // Границы мировые, а модель пока не масштабирована и стоит в
+        // родителе — считаем всё относительно него.
+        float baseY = transform.parent != null ? transform.parent.position.y : 0f;
+        float minY = b.min.y - baseY;
+        float k = targetHeight / b.size.y;
 
-        float k = targetHeight / h;
         transform.localScale = new Vector3(k, k, k);
-        // Ступни ставим в ноль родителя.
+        // Ступни ставим ровно в ноль родителя.
         transform.localPosition = new Vector3(0f, -minY * k, 0f);
         Height = targetHeight;
+        Debug.Log("CharacterModel: рост модели " + b.size.y.ToString("F2") +
+                  " → масштаб " + k.ToString("F3"));
     }
 
     // Имена клипов приводим к нижнему регистру и отрезаем префикс арматуры,

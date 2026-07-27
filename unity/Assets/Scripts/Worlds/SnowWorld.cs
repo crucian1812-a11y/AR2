@@ -27,8 +27,8 @@ public class SnowWorld : WorldBuilder
         FlattenArea(0f, -24f, 19f, 12f);
         FlattenArea(-44f, -8f, 17f, 12f);
 
-        Terrain(Vector3.zero, new Vector2(190f, 190f), 130, 8f, 0.013f,
-            SnowDeep, Snow, 20f, 5252);
+        Terrain(Vector3.zero, new Vector2(260f, 260f), 150, 10f, 0.011f,
+            SnowDeep, Snow, 24f, 5252);
 
         Gfx.Cone(transform, new Vector3(0f, -34f, 0f), 82f, 26f,
             Gfx.MatFull(RockCol * 0.7f, 0.03f, 0f, Color.black, 5f, 0.7f));
@@ -186,18 +186,19 @@ public class SnowWorld : WorldBuilder
         // Подъём на ледник по уступам
         Color step = new Color(0.8f, 0.9f, 1f);
         Platform(c + new Vector3(16f, 2.5f, 10f), new Vector3(5f, 0.7f, 5f), step, 0.4f);
-        Platform(c + new Vector3(19f, 6f, 3f), new Vector3(5f, 0.7f, 5f), step, 0.4f);
-        Platform(c + new Vector3(17f, 9.5f, -5f), new Vector3(5f, 0.7f, 5f), step, 0.4f);
-        Platform(c + new Vector3(13f, 13f, -11f), new Vector3(5f, 0.7f, 5f), step, 0.4f);
+        Platform(c + new Vector3(19f, 5.2f, 3f), new Vector3(5f, 0.7f, 5f), step, 0.4f);
+        Platform(c + new Vector3(17f, 7.9f, -5f), new Vector3(5f, 0.7f, 5f), step, 0.4f);
+        Platform(c + new Vector3(13f, 10.6f, -11f), new Vector3(5f, 0.7f, 5f), step, 0.4f);
+        Platform(c + new Vector3(8f, 13.3f, -13f), new Vector3(5f, 0.7f, 5f), step, 0.4f);
         AddCoin(c + new Vector3(16f, 4f, 10f));
-        AddCoin(c + new Vector3(19f, 7.5f, 3f));
-        AddCoin(c + new Vector3(17f, 11f, -5f));
-        AddCoin(c + new Vector3(13f, 14.5f, -11f));
+        AddCoin(c + new Vector3(19f, 6.7f, 3f));
+        AddCoin(c + new Vector3(17f, 9.4f, -5f));
+        AddCoin(c + new Vector3(13f, 12.1f, -11f));
         AddCoin(c + new Vector3(0f, 18f, 0f));
         AddCoin(c + new Vector3(-8f, 21.5f, 4f));
         AddEnemy(c + new Vector3(-6f, 16.4f, -6f), c + new Vector3(8f, 16.4f, -6f), "slime", 2.2f);
 
-        AddBouncePad(c + new Vector3(13f, 13.7f, -11f), 19f);
+        AddBouncePad(c + new Vector3(13f, 11.3f, -11f), 19f);
         AddCoin(c + new Vector3(13f, 19f, -14f));
     }
 

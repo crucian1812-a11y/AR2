@@ -8,7 +8,9 @@ public class BearPlayer : MonoBehaviour
 
     private const float Speed = 6.5f;
     private const float Accel = 12f;
-    private const float JumpVelocity = 9.5f;
+    // 11.5 при гравитации 22 даёт подъём около 3 метров — на такую высоту
+    // и рассчитаны уступы в мирах.
+    private const float JumpVelocity = 11.5f;
     private const float Gravity = 22f;
     private const float FlipTime = 0.55f;
     private const float AttackTime = 0.35f;
