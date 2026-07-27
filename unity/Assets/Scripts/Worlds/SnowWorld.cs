@@ -27,6 +27,10 @@ public class SnowWorld : WorldBuilder
         FlattenArea(0f, -24f, 19f, 12f);
         FlattenArea(-44f, -8f, 17f, 12f);
 
+        // Настоящие PBR-текстуры поверхности
+        TerrainTextures("Snow015_1K-PNG_Color", "Snow015_1K-PNG_NormalGL",
+            "brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k", 0.1f, 0.16f);
+
         Terrain(Vector3.zero, new Vector2(260f, 260f), 150, 10f, 0.011f,
             SnowDeep, Snow, 24f, 5252);
 

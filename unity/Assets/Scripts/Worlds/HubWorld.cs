@@ -22,6 +22,10 @@ public class HubWorld : WorldBuilder
         FlattenArea(-30f, 14f, 10f, 9f);
 
         // Холмистый остров
+        // Настоящие PBR-текстуры поверхности
+        TerrainTextures("Grass003_1K-PNG_Color", "Grass003_1K-PNG_NormalGL",
+            "brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k", 0.11f, 0.16f);
+
         Terrain(Vector3.zero, new Vector2(210f, 210f), 140, 9f, 0.011f,
             GrassLow, GrassHigh, 40f, 1812);
 

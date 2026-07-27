@@ -24,6 +24,10 @@ public class DesertWorld : WorldBuilder
         FlattenArea(-12f, -40f, 28f, 14f);
         FlattenArea(6f, 30f, 13f, 10f);
 
+        // Настоящие PBR-текстуры поверхности
+        TerrainTextures("brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k",
+            "brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k", 0.09f, 0.15f);
+
         Terrain(Vector3.zero, new Vector2(270f, 270f), 150, 11f, 0.0095f,
             SandLow, SandHigh, 20f, 3131);
 

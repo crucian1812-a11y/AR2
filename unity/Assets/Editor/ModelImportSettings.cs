@@ -8,6 +8,7 @@ using UnityEngine;
 public class ModelImportSettings : AssetPostprocessor
 {
     private const string ModelDir = "Assets/Resources/Models/";
+    private const string PropDir = "Assets/Resources/Models/nature/";
     private const string TextureDir = "Assets/Resources/Textures/";
 
     // Клипы, которые должны проигрываться по кругу.
@@ -23,16 +24,32 @@ public class ModelImportSettings : AssetPostprocessor
         ModelImporter mi = assetImporter as ModelImporter;
         if (mi == null) return;
 
-        // Legacy-риг: клипы лежат прямо на компоненте Animation и играются
-        // по имени из кода. Generic потребовал бы ассет AnimatorController,
-        // а весь проект принципиально собирается без ассетов.
-        mi.animationType = ModelImporterAnimationType.Legacy;
-        mi.importAnimation = true;
-        mi.animationCompression = ModelImporterAnimationCompression.KeyframeReduction;
+        bool isProp = assetPath.StartsWith(PropDir);
 
-        // Материалы делаем сами в рантайме: в FBX они ссылаются на текстуры
-        // по путям из Blender, которых у нас нет.
-        mi.materialImportMode = ModelImporterMaterialImportMode.None;
+        if (isProp)
+        {
+            // Реквизит статичный — скелет ему не нужен. Зато материалы
+            // обязательны: у моделей Kenney нет текстур, весь вид держится
+            // на именованных материалах (woodBark, leafsGreen), и без них
+            // дерево стало бы одноцветным.
+            mi.animationType = ModelImporterAnimationType.None;
+            mi.importAnimation = false;
+            mi.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
+        }
+        else
+        {
+            // Legacy-риг: клипы лежат прямо на компоненте Animation и играются
+            // по имени из кода. Generic потребовал бы ассет AnimatorController,
+            // а весь проект принципиально собирается без ассетов.
+            mi.animationType = ModelImporterAnimationType.Legacy;
+            mi.importAnimation = true;
+            mi.animationCompression = ModelImporterAnimationCompression.KeyframeReduction;
+
+            // Материалы монстров делаем сами: в FBX они ссылаются на текстуры
+            // по путям из Blender, которых у нас нет.
+            mi.materialImportMode = ModelImporterMaterialImportMode.None;
+        }
+
         mi.importCameras = false;
         mi.importLights = false;
         mi.isReadable = false;
@@ -45,6 +62,7 @@ public class ModelImportSettings : AssetPostprocessor
     private void OnPreprocessAnimation()
     {
         if (assetPath == null || !assetPath.StartsWith(ModelDir)) return;
+        if (assetPath.StartsWith(PropDir)) return;
 
         ModelImporter mi = assetImporter as ModelImporter;
         if (mi == null) return;
@@ -79,9 +97,12 @@ public class ModelImportSettings : AssetPostprocessor
 
         ti.textureType = TextureImporterType.Default;
         ti.mipmapEnabled = true;
-        ti.maxTextureSize = 512;
         ti.textureCompression = TextureImporterCompression.Compressed;
-        ti.wrapMode = TextureWrapMode.Clamp;
         ti.filterMode = FilterMode.Bilinear;
+
+        // Текстуры поверхностей тайлятся по рельефу, атласы монстров — нет.
+        bool tiling = assetPath.StartsWith(TextureDir + "world/");
+        ti.maxTextureSize = tiling ? 1024 : 512;
+        ti.wrapMode = tiling ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
     }
 }

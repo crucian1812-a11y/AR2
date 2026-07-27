@@ -29,6 +29,26 @@ public static class Heroes
         return Names[Clamp(index)];
     }
 
+    // Реквизит природы из пака Kenney Nature Kit (CC0).
+    public static readonly string[] Trees =
+        { "tree_default", "tree_oak", "tree_fat", "tree_detailed", "tree_tall", "tree_blocks" };
+    public static readonly string[] TreesFall =
+        { "tree_default_fall", "tree_oak_fall", "tree_fat_fall", "tree_detailed_fall" };
+    public static readonly string[] Pines =
+        { "tree_pineDefaultA", "tree_pineDefaultB", "tree_pineRoundA", "tree_pineTallA" };
+    public static readonly string[] RocksLarge =
+        { "rock_largeA", "rock_largeB", "rock_largeC", "rock_largeD", "rock_largeE", "rock_largeF" };
+    public static readonly string[] RocksSmall =
+        { "rock_smallA", "rock_smallB", "rock_smallC", "rock_smallD", "rock_smallE" };
+    public static readonly string[] Bushes =
+        { "plant_bush", "plant_bushDetailed", "plant_bushLarge", "plant_bushSmall" };
+
+    public static string Pick(string[] set, int index)
+    {
+        if (set == null || set.Length == 0) return null;
+        return set[Mathf.Abs(index) % set.Length];
+    }
+
     // Модель и рост для каждого типа врага.
     public static string EnemyModel(string kind)
     {

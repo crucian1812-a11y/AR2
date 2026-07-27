@@ -277,6 +277,88 @@ public static class Gfx
         return m;
     }
 
+    // Текстура поверхности из Resources. Если файла нет, откатываемся на
+    // процедурный шум — мир соберётся в любом случае.
+    private static readonly Dictionary<string, Texture2D> _worldTex =
+        new Dictionary<string, Texture2D>();
+
+    public static Texture2D WorldTexture(string name, bool normal)
+    {
+        if (string.IsNullOrEmpty(name)) return normal ? NoiseNormal() : NoiseTexture();
+        Texture2D cached;
+        if (_worldTex.TryGetValue(name, out cached))
+            return cached != null ? cached : (normal ? NoiseNormal() : NoiseTexture());
+
+        Texture2D t = Resources.Load<Texture2D>("Textures/world/" + name);
+        _worldTex[name] = t;
+        if (t == null)
+        {
+            Debug.LogWarning("Gfx: текстура не найдена — " + name);
+            return normal ? NoiseNormal() : NoiseTexture();
+        }
+        return t;
+    }
+
+    // Реквизит из пака Kenney: модель из Resources, нормированная по высоте
+    // и поставленная «ногами» в ноль. Материалы приходят из самой модели.
+    // Возвращает null, если файла нет — вызывающий код строит примитив.
+    public static GameObject Prop(Transform parent, string id, Vector3 pos,
+        float targetHeight, float yaw)
+    {
+        if (string.IsNullOrEmpty(id)) return null;
+        GameObject prefab = Resources.Load<GameObject>("Models/nature/" + id);
+        if (prefab == null) return null;
+
+        GameObject go = Object.Instantiate(prefab);
+        go.name = id;
+        if (parent != null) go.transform.SetParent(parent, false);
+        go.transform.localPosition = pos;
+        go.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+        go.transform.localScale = Vector3.one;
+
+        // Реквизит статичный, поэтому границы мешей достоверны сразу.
+        MeshFilter[] filters = go.GetComponentsInChildren<MeshFilter>();
+        bool has = false;
+        float minY = 0f, maxY = 0f;
+        for (int i = 0; i < filters.Length; i++)
+        {
+            if (filters[i] == null || filters[i].sharedMesh == null) continue;
+            Bounds b = filters[i].sharedMesh.bounds;
+            float lo = b.min.y, hi = b.max.y;
+            if (!has) { minY = lo; maxY = hi; has = true; }
+            else { if (lo < minY) minY = lo; if (hi > maxY) maxY = hi; }
+        }
+
+        if (has && maxY - minY > 0.0001f && targetHeight > 0f)
+        {
+            float k = Mathf.Clamp(targetHeight / (maxY - minY), 0.05f, 60f);
+            go.transform.localScale = new Vector3(k, k, k);
+            go.transform.localPosition = pos + new Vector3(0f, -minY * k, 0f);
+        }
+        return go;
+    }
+
+    // Материал рельефа: два PBR-слоя, трипланарная проекция, смешивание
+    // по крутизне склона.
+    public static Material TerrainMat(string flatTex, string flatNormal,
+        string slopeTex, string slopeNormal, float tiling, float slopeTiling)
+    {
+        Shader sh = Shader.Find("Bear/Terrain");
+        if (sh == null) return VertexColorMat(0.03f, 6f, 0.35f);
+
+        Material m = new Material(sh);
+        m.SetTexture("_MainTex", WorldTexture(flatTex, false));
+        m.SetTexture("_FlatNormal", WorldTexture(flatNormal, true));
+        m.SetTexture("_SlopeTex", WorldTexture(slopeTex, false));
+        m.SetTexture("_SlopeNormal", WorldTexture(slopeNormal, true));
+        m.SetFloat("_Tiling", tiling);
+        m.SetFloat("_SlopeTiling", slopeTiling);
+        m.SetFloat("_NormalScale", 1f);
+        m.SetFloat("_Glossiness", 0.04f);
+        m.SetFloat("_TintStrength", 0.75f);
+        return m;
+    }
+
     // Материал, который берёт цвет из вершинных цветов меша.
     // Нужен рельефу: он красится по высоте, а базовый цвет остаётся белым.
     public static Material VertexColorMat(float smoothness, float detailTiling, float normalScale)

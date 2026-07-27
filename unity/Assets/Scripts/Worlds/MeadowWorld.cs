@@ -21,6 +21,10 @@ public class MeadowWorld : WorldBuilder
         FlattenArea(-26f, 26f, 13f, 10f);
         FlattenArea(-46f, -20f, 11f, 9f);
 
+        // Настоящие PBR-текстуры поверхности
+        TerrainTextures("Grass006_1K-PNG_Color", "Grass006_1K-PNG_NormalGL",
+            "brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k", 0.1f, 0.16f);
+
         Terrain(Vector3.zero, new Vector2(250f, 250f), 150, 13f, 0.012f,
             GrassLow, GrassHigh, 22f, 7717);
 

@@ -30,6 +30,10 @@ public class CaveWorld : WorldBuilder
         FlattenArea(0f, 52f, 11f, 9f);
         FlattenArea(34f, -19f, 13f, 10f);
 
+        // Настоящие PBR-текстуры поверхности
+        TerrainTextures("brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k",
+            "brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k", 0.12f, 0.18f);
+
         Terrain(Vector3.zero, new Vector2(230f, 230f), 145, 7f, 0.013f,
             RockCol, RockLight, 18f, 9091);
 

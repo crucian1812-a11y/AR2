@@ -101,6 +101,12 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void Tree(Vector3 pos, Color leaf, float scale)
     {
+        // Модель из пака вместо стопки «клякс». Высота подбирается так,
+        // чтобы прежний масштаб давал примерно тот же силуэт.
+        int seedIdx = Mathf.Abs(Mathf.RoundToInt(pos.x * 7.3f + pos.z * 3.1f));
+        if (Gfx.Prop(transform, Heroes.Pick(Heroes.Trees, seedIdx), pos,
+                5.2f * scale, (seedIdx * 37) % 360) != null) return;
+
         Material bark = Gfx.MatFull(new Color(0.42f, 0.28f, 0.15f), 0.05f, 0f, Color.black, 1.5f, 0.6f);
         Gfx.Cyl(transform, pos + new Vector3(0f, 1.2f * scale, 0f),
             new Vector3(0.62f * scale, 1.25f * scale, 0.62f * scale), bark);
@@ -133,6 +139,10 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void Pine(Vector3 pos, bool snowy, float scale)
     {
+        int seedIdx = Mathf.Abs(Mathf.RoundToInt(pos.x * 5.1f + pos.z * 9.7f));
+        if (Gfx.Prop(transform, Heroes.Pick(Heroes.Pines, seedIdx), pos,
+                6f * scale, (seedIdx * 53) % 360) != null) return;
+
         Material bark = Gfx.Mat(new Color(0.35f, 0.24f, 0.14f));
         Gfx.Cyl(transform, pos + new Vector3(0f, 0.8f * scale, 0f),
             new Vector3(0.44f * scale, 0.8f * scale, 0.44f * scale), bark);
@@ -155,6 +165,23 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void Rock(Vector3 pos, float size, Color color)
     {
+        int seedIdx = Mathf.Abs(Mathf.RoundToInt(pos.x * 11.7f + pos.z * 5.9f + size * 31f));
+        string[] set = size > 2.5f ? Heroes.RocksLarge : Heroes.RocksSmall;
+        GameObject prop = Gfx.Prop(transform, Heroes.Pick(set, seedIdx), pos,
+            size * 1.1f, (seedIdx * 29) % 360);
+        if (prop != null)
+        {
+            // Камни — часть геометрии уровня, по ним можно ходить.
+            MeshFilter mf0 = prop.GetComponentInChildren<MeshFilter>();
+            if (mf0 != null)
+            {
+                MeshCollider mc = mf0.gameObject.AddComponent<MeshCollider>();
+                mc.sharedMesh = mf0.sharedMesh;
+                mc.convex = true;
+            }
+            return;
+        }
+
         Material m = Gfx.MatFull(color, 0.03f, 0f, Color.black, 1.2f, 0.85f);
         m.SetFloat("_AOStrength", 0.7f);
         int seed = Mathf.Abs(Mathf.RoundToInt(pos.x * 11.7f + pos.z * 5.9f + size * 31f));
@@ -163,6 +190,10 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void Bush(Vector3 pos, Color color)
     {
+        int seedIdx = Mathf.Abs(Mathf.RoundToInt(pos.x * 3.7f + pos.z * 13.1f));
+        if (Gfx.Prop(transform, Heroes.Pick(Heroes.Bushes, seedIdx), pos,
+                1.3f, (seedIdx * 41) % 360) != null) return;
+
         Gfx.Ball(transform, pos + new Vector3(0f, 0.35f, 0f), new Vector3(1.1f, 0.8f, 1.1f), Gfx.Mat(color));
         Gfx.Ball(transform, pos + new Vector3(0.45f, 0.28f, 0.2f), new Vector3(0.7f, 0.55f, 0.7f), Gfx.Mat(color * 1.1f));
         Gfx.Ball(transform, pos + new Vector3(-0.4f, 0.3f, -0.15f), new Vector3(0.65f, 0.5f, 0.65f), Gfx.Mat(color * 0.93f));
@@ -516,6 +547,17 @@ public abstract class WorldBuilder : MonoBehaviour
         return h;
     }
 
+    private Material _terrainMat;
+
+    // Задаётся ДО вызова Terrain(). Имена — файлы из Resources/Textures/world
+    // без расширения.
+    protected void TerrainTextures(string flatTex, string flatNormal,
+        string slopeTex, string slopeNormal, float tiling = 0.12f, float slopeTiling = 0.16f)
+    {
+        _terrainMat = Gfx.TerrainMat(flatTex, flatNormal, slopeTex, slopeNormal,
+            tiling, slopeTiling);
+    }
+
     protected Vector3 OnGround(float x, float z, float lift = 0f)
     {
         return new Vector3(x, GroundHeight(x, z) + lift, z);
@@ -589,8 +631,10 @@ public abstract class WorldBuilder : MonoBehaviour
         MeshFilter mf = go.AddComponent<MeshFilter>();
         mf.mesh = mesh;
         MeshRenderer mr = go.AddComponent<MeshRenderer>();
-        // Цвет берётся из вершин меша — материал должен это включать явно.
-        mr.sharedMaterial = Gfx.VertexColorMat(0.03f, detailTiling, normalScale);
+        // Настоящие PBR-текстуры поверхности, если мир их задал.
+        mr.sharedMaterial = _terrainMat != null
+            ? _terrainMat
+            : Gfx.VertexColorMat(0.03f, detailTiling, normalScale);
         MeshCollider mc = go.AddComponent<MeshCollider>();
         mc.sharedMesh = mesh;
     }
