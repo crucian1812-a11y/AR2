@@ -26,14 +26,24 @@ public class CharacterModel : MonoBehaviour
             return null;
         }
 
+        // Модель кладём внутрь обёртки, а масштаб и сдвиг применяем к
+        // обёртке. Клипы Legacy-анимации лежат на корне самой модели и
+        // переписывают его transform каждый кадр — наш масштаб они бы
+        // затёрли, и персонаж пропадал из виду.
+        GameObject holder = new GameObject("Model_" + id);
+        holder.transform.SetParent(parent, false);
+        holder.transform.localPosition = Vector3.zero;
+        holder.transform.localRotation = Quaternion.identity;
+        holder.transform.localScale = Vector3.one;
+
         GameObject go = Object.Instantiate(prefab);
         go.name = id;
-        go.transform.SetParent(parent, false);
+        go.transform.SetParent(holder.transform, false);
         go.transform.localPosition = Vector3.zero;
         go.transform.localRotation = Quaternion.identity;
         go.transform.localScale = Vector3.one;
 
-        CharacterModel m = go.AddComponent<CharacterModel>();
+        CharacterModel m = holder.AddComponent<CharacterModel>();
         m.Setup(id, targetHeight);
         return m;
     }
@@ -78,6 +88,13 @@ public class CharacterModel : MonoBehaviour
             if (Renderers[i] == null) continue;
             Renderers[i].sharedMaterial = m;
             Renderers[i].receiveShadows = true;
+            Renderers[i].enabled = true;
+
+            // У импортированных скиненных мешей границы часто заданы по
+            // позе привязки и не поспевают за анимацией — Unity отсекает
+            // персонажа как ушедшего за экран, и он просто пропадает.
+            SkinnedMeshRenderer smr = Renderers[i] as SkinnedMeshRenderer;
+            if (smr != null) smr.updateWhenOffscreen = true;
         }
     }
 
@@ -103,12 +120,17 @@ public class CharacterModel : MonoBehaviour
         float minY = b.min.y - baseY;
         float k = targetHeight / b.size.y;
 
+        // Страховка от абсурдных чисел: при кривых границах модель иначе
+        // схлопывается в точку или раздувается и пропадает из кадра.
+        k = Mathf.Clamp(k, 0.05f, 60f);
+        float lift = Mathf.Clamp(-minY * k, -6f, 6f);
+
         transform.localScale = new Vector3(k, k, k);
         // Ступни ставим ровно в ноль родителя.
-        transform.localPosition = new Vector3(0f, -minY * k, 0f);
+        transform.localPosition = new Vector3(0f, lift, 0f);
         Height = targetHeight;
         Debug.Log("CharacterModel: рост модели " + b.size.y.ToString("F2") +
-                  " → масштаб " + k.ToString("F3"));
+                  " → масштаб " + k.ToString("F3") + ", сдвиг " + lift.ToString("F2"));
     }
 
     // Имена клипов приводим к нижнему регистру и отрезаем префикс арматуры,

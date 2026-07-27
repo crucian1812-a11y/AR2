@@ -398,7 +398,13 @@ namespace UnityEngine
     }
 
     public class MeshRenderer : Renderer { }
-    public class SkinnedMeshRenderer : Renderer { public Mesh sharedMesh { get; set; } }
+    public class SkinnedMeshRenderer : Renderer
+    {
+        public Mesh sharedMesh { get; set; }
+        public bool updateWhenOffscreen { get; set; }
+        public Transform rootBone { get; set; }
+        public Bounds localBounds { get; set; }
+    }
 
     public enum WrapMode { Once, Loop, PingPong, Default, ClampForever, Clamp }
 
