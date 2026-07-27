@@ -49,6 +49,8 @@ public class TurtleWorld : WorldBuilder
         BuildBridges();
         BuildTown();
         BuildFerry();
+        AddCheckpoint(new Vector3(0f, ShellHeight[0] + 0.9f, 6f));
+        AddCheckpoint(new Vector3(-2f, ShellHeight[0] + 7.9f, 6f));
         BuildShore();
         BuildAtmosphere();
 

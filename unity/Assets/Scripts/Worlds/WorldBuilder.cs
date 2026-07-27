@@ -352,8 +352,19 @@ public abstract class WorldBuilder : MonoBehaviour
 
     // ---------- Вода ----------
 
+    public readonly List<Checkpoint> Checkpoints = new List<Checkpoint>();
+
+    protected void AddCheckpoint(Vector3 pos)
+    {
+        Checkpoints.Add(Checkpoint.Create(transform, pos));
+    }
+
     protected void Water(Vector3 pos, Vector2 size)
     {
+        // Плавать можно только там, где зарегистрирована зона —
+        // сама поверхность отвечает лишь за вид.
+        WaterZone.Create(transform, pos, size, 14f);
+
         const int seg = 16;
         int vcount = (seg + 1) * (seg + 1);
         Vector3[] verts = new Vector3[vcount];

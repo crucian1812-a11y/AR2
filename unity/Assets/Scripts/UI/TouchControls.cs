@@ -8,10 +8,20 @@ public static class Ctrl
     private static Vector2 _look;
     private static bool _jump;
     private static bool _attack;
+    private static bool _attackHeld;
 
     public static void AddLook(Vector2 delta) { _look += delta; }
     public static void QueueJump() { _jump = true; }
-    public static void QueueAttack() { _attack = true; }
+    public static void QueueAttack() { _attack = true; _attackHeld = true; }
+    public static void ReleaseAttack() { _attackHeld = false; }
+
+    // Удержание кнопки удара в воздухе = удар сверху.
+    public static bool ConsumeAttackHeld()
+    {
+        bool v = _attackHeld;
+        _attackHeld = false;
+        return v;
+    }
 
     public static Vector2 ConsumeLook()
     {
@@ -40,6 +50,7 @@ public static class Ctrl
         _look = Vector2.zero;
         _jump = false;
         _attack = false;
+        _attackHeld = false;
     }
 }
 

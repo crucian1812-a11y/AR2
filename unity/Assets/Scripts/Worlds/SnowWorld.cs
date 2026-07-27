@@ -44,6 +44,9 @@ public class SnowWorld : WorldBuilder
         BuildFrozenLake();
         BuildGlacier();
         BuildCamp();
+        AddCheckpoint(_peak + new Vector3(0f, 8.2f, 12f));
+        AddCheckpoint(_peak + new Vector3(0f, 18.2f, 6f));
+        AddCheckpoint(new Vector3(-44f + 16f, 3.2f, -8f + 10f));
         BuildForest();
         BuildAtmosphere();
 

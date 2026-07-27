@@ -212,6 +212,16 @@ public class GameRoot : MonoBehaviour
             if (p != null && p.TryEnter(pos)) net.RequestPortal(p.Target);
         }
 
+        for (int i = 0; i < World.Checkpoints.Count; i++)
+        {
+            Checkpoint cp = World.Checkpoints[i];
+            if (cp != null && cp.TryReach(pos) && LocalPlayer != null)
+            {
+                LocalPlayer.SetCheckpoint(cp.transform.position + new Vector3(0f, 0.4f, 0f));
+                if (_hud != null) _hud.ShowDialog("Контрольная точка");
+            }
+        }
+
         for (int i = 0; i < World.Npcs.Count; i++)
         {
             Npc npc = World.Npcs[i];

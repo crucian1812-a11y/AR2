@@ -42,6 +42,8 @@ public class DesertWorld : WorldBuilder
         BuildCanyonClimb();
         BuildOasis();
         BuildRuins();
+        AddCheckpoint(new Vector3(-12f, 3.1f, -14f));
+        AddCheckpoint(new Vector3(-16f, 10.9f, -38f));
         BuildDunes();
         BuildAtmosphere();
 

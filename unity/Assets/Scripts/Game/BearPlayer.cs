@@ -53,6 +53,11 @@ public class BearPlayer : MonoBehaviour
     private float _invuln;
     private float _bounceCd;
     private bool _wasAirborne;
+    // Двойной прыжок, удар сверху и плавание.
+    private bool _canDoubleJump;
+    private bool _pounding;
+    private float _poundCd;
+    private bool _swimming;
     private float _camPitch = -22f;
     private float _sendAccum;
     private byte _anim;
@@ -146,6 +151,12 @@ public class BearPlayer : MonoBehaviour
         _flip = 0.0001f;
         _wasAirborne = true;
         return true;
+    }
+
+    // Чекпоинт становится новой точкой возрождения.
+    public void SetCheckpoint(Vector3 pos)
+    {
+        _spawnPos = pos;
     }
 
     public void PlaceAt(Vector3 pos)
@@ -248,29 +259,91 @@ public class BearPlayer : MonoBehaviour
         _velocity.x = Mathf.Lerp(_velocity.x, dir.x * Speed, k);
         _velocity.z = Mathf.Lerp(_velocity.z, dir.z * Speed, k);
 
+        bool jumpPressed = Ctrl.ConsumeJump() || Input.GetKeyDown(KeyCode.Space);
         bool grounded = _cc.isGrounded;
-        if (grounded)
+
+        // ---------- Вода ----------
+        float surface = WaterZone.SurfaceAt(transform.position + new Vector3(0f, 0.6f, 0f));
+        bool inWater = surface > float.MinValue;
+        if (inWater)
         {
-            if (_wasAirborne)
+            if (!_swimming)
             {
-                _wasAirborne = false;
-                _squash = 0.22f;
-                Snd.Play("land", 0.8f);
+                _swimming = true;
+                _pounding = false;
+                Snd.Play("land", 0.7f);
             }
-            if (_velocity.y < 0f) _velocity.y = -2f;
-            if (Ctrl.ConsumeJump() || Input.GetKeyDown(KeyCode.Space))
-            {
-                _velocity.y = JumpVelocity;
-                _flip = 0.0001f;
-                _wasAirborne = true;
-                Snd.Play("jump", 0.85f);
-            }
+
+            // Выталкивание к поверхности плюс медленное погружение.
+            float depth = surface - (transform.position.y + 0.9f);
+            float buoyancy = Mathf.Clamp(depth * 6f, -4f, 7f);
+            _velocity.y = Mathf.Lerp(_velocity.y, buoyancy, Mathf.Min(dt * 5f, 1f));
+
+            if (jumpPressed) _velocity.y = 6.5f;
+            if (Input.GetKey(KeyCode.LeftShift)) _velocity.y -= 6f * dt;
+
+            // В воде медленнее и без инерции броска.
+            _velocity.x = Mathf.Lerp(_velocity.x, dir.x * Speed * 0.62f, Mathf.Min(dt * 6f, 1f));
+            _velocity.z = Mathf.Lerp(_velocity.z, dir.z * Speed * 0.62f, Mathf.Min(dt * 6f, 1f));
+            _canDoubleJump = true;
+            _wasAirborne = false;
         }
         else
         {
-            _wasAirborne = true;
-            _velocity.y -= Gravity * dt;
-            if (_velocity.y < -35f) _velocity.y = -35f;
+            if (_swimming)
+            {
+                _swimming = false;
+                // Выпрыгиваем из воды с небольшим толчком.
+                _velocity.y = Mathf.Max(_velocity.y, 5f);
+            }
+
+            if (grounded)
+            {
+                if (_wasAirborne)
+                {
+                    _wasAirborne = false;
+                    _squash = _pounding ? 0.4f : 0.22f;
+                    Snd.Play("land", _pounding ? 1f : 0.8f);
+                    if (_pounding) PoundImpact();
+                }
+                _pounding = false;
+                _canDoubleJump = true;
+                if (_velocity.y < 0f) _velocity.y = -2f;
+                if (jumpPressed)
+                {
+                    _velocity.y = JumpVelocity;
+                    _flip = 0.0001f;
+                    _wasAirborne = true;
+                    Snd.Play("jump", 0.85f);
+                }
+            }
+            else
+            {
+                _wasAirborne = true;
+                // Второй прыжок в воздухе — чуть слабее первого.
+                if (jumpPressed && _canDoubleJump && !_pounding)
+                {
+                    _canDoubleJump = false;
+                    _velocity.y = JumpVelocity * 0.86f;
+                    _flip = 0.0001f;
+                    Snd.Play("jump", 1.05f);
+                    ParticleFx.Burst(transform.parent, transform.position, 12,
+                        new Color(0.85f, 0.95f, 1f), 3.5f);
+                }
+
+                // Удар сверху: рывок вниз, пробивает врагов при приземлении.
+                if (!_pounding && _poundCd <= 0f &&
+                    (Ctrl.ConsumeAttackHeld() || Input.GetKey(KeyCode.LeftControl)))
+                {
+                    _pounding = true;
+                    _poundCd = 0.7f;
+                    _velocity = new Vector3(0f, -6f, 0f);
+                    Snd.Play("swing", 1.1f);
+                }
+
+                _velocity.y -= (_pounding ? Gravity * 2.6f : Gravity) * dt;
+                if (_velocity.y < -45f) _velocity.y = -45f;
+            }
         }
 
         _cc.Move(_velocity * dt);
@@ -304,6 +377,7 @@ public class BearPlayer : MonoBehaviour
     {
         if (_attackCd > 0f) _attackCd -= dt;
         if (_bounceCd > 0f) _bounceCd -= dt;
+        if (_poundCd > 0f) _poundCd -= dt;
         if (_invuln > 0f)
         {
             _invuln -= dt;
@@ -340,6 +414,23 @@ public class BearPlayer : MonoBehaviour
             if (e == null || e.Dying) continue;
             Vector3 to = e.transform.position - transform.position;
             if (to.magnitude < 2.5f && Mathf.Abs(to.y) < 1.6f)
+                NetManager.I.RequestKill(NetManager.I.CurrentWorld, kv.Key);
+        }
+    }
+
+    // Приземление после удара сверху бьёт всех врагов вокруг.
+    private void PoundImpact()
+    {
+        ParticleFx.Burst(transform.parent, transform.position, 22,
+            new Color(1f, 0.9f, 0.6f), 6f);
+        GameRoot root = GameRoot.I;
+        if (root == null || root.World == null || NetManager.I == null) return;
+        foreach (System.Collections.Generic.KeyValuePair<int, Enemy> kv in root.World.Enemies)
+        {
+            Enemy e = kv.Value;
+            if (e == null || e.Dying) continue;
+            Vector3 to = e.transform.position - transform.position;
+            if (to.magnitude < 4.5f && Mathf.Abs(to.y) < 2.5f)
                 NetManager.I.RequestKill(NetManager.I.CurrentWorld, kv.Key);
         }
     }

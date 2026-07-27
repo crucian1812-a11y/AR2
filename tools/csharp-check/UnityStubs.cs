@@ -628,7 +628,8 @@ namespace UnityEngine
 
     public enum KeyCode
     {
-        None, Space, Escape, Return, W, A, S, D, E, Q, R, LeftShift,
+        None, Space, Escape, Return, W, A, S, D, E, Q, R,
+        LeftShift, LeftControl, LeftAlt,
         UpArrow, DownArrow, LeftArrow, RightArrow, Mouse0, Mouse1
     }
 
@@ -675,6 +676,20 @@ namespace UnityEngine
         UpperLeft, UpperCenter, UpperRight,
         MiddleLeft, MiddleCenter, MiddleRight,
         LowerLeft, LowerCenter, LowerRight
+    }
+
+    public static class PlayerPrefs
+    {
+        public static void SetString(string k, string v) { }
+        public static string GetString(string k, string d) { return ""; }
+        public static void SetInt(string k, int v) { }
+        public static int GetInt(string k, int d) { return 0; }
+        public static void SetFloat(string k, float v) { }
+        public static float GetFloat(string k, float d) { return 0f; }
+        public static bool HasKey(string k) { return false; }
+        public static void DeleteKey(string k) { }
+        public static void DeleteAll() { }
+        public static void Save() { }
     }
 
     public static class Resources

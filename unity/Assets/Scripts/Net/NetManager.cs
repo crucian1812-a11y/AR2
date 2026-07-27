@@ -100,6 +100,11 @@ public class NetManager : MonoBehaviour
     public int MyId = 1;
     public int CurrentWorld;
     public int CoinsTotal;
+    // Звёзды — настоящая цель: по три спрятано в каждом мире.
+    public int StarsTotal;
+    // Куплено в лавке: сердец и открытых персонажей.
+    public int MaxHearts = 3;
+    public int UnlockedChars = 3;
     public int QuestStage;
     public bool VictoryReached;
     public string StatusMessage = "";
@@ -172,6 +177,7 @@ public class NetManager : MonoBehaviour
         _killed.Clear();
         _conns.Clear();
         CoinsTotal = 0;
+        StarsTotal = 0;
         QuestStage = 0;
         VictoryReached = false;
         CurrentWorld = 0;
@@ -194,6 +200,8 @@ public class NetManager : MonoBehaviour
         ResetSession();
         IsHost = true;
         Online = false;
+        // Продолжаем с того места, где закончили в прошлый раз.
+        SaveGame.Load(this);
         AddLocalPlayer();
         if (OnEnterGame != null) OnEnterGame();
     }
@@ -324,6 +332,29 @@ public class NetManager : MonoBehaviour
         return _killed.TryGetValue(world, out set) && set.Contains(enemyId);
     }
 
+    public Dictionary<int, HashSet<int>> ExportCollected() { return _collected; }
+    public Dictionary<int, HashSet<int>> ExportKilled() { return _killed; }
+
+    public void ImportCollected(Dictionary<int, HashSet<int>> src)
+    {
+        _collected.Clear();
+        if (src == null) return;
+        foreach (KeyValuePair<int, HashSet<int>> kv in src) _collected[kv.Key] = kv.Value;
+    }
+
+    public void ImportKilled(Dictionary<int, HashSet<int>> src)
+    {
+        _killed.Clear();
+        if (src == null) return;
+        foreach (KeyValuePair<int, HashSet<int>> kv in src) _killed[kv.Key] = kv.Value;
+    }
+
+    // Прогресс пишем только у хозяина: у клиента он приходит по сети.
+    public void SaveProgress()
+    {
+        if (IsHost) SaveGame.Save(this);
+    }
+
     private HashSet<int> CollectedSet(int world)
     {
         HashSet<int> set;
@@ -391,6 +422,7 @@ public class NetManager : MonoBehaviour
         set.Add(coinId);
         CoinsTotal++;
         ApplyCoin(world, coinId, CoinsTotal);
+        SaveProgress();
         if (Online)
         {
             MemoryStream ms; BinaryWriter w;
@@ -498,6 +530,7 @@ public class NetManager : MonoBehaviour
         CurrentWorld = world;
         VictoryReached = false;
         if (OnWorldChanged != null) OnWorldChanged(world);
+        SaveProgress();
     }
 
     private void ApplyCoin(int world, int coinId, int total)
@@ -518,6 +551,7 @@ public class NetManager : MonoBehaviour
     {
         QuestStage = stage;
         if (OnQuestChanged != null) OnQuestChanged(stage);
+        SaveProgress();
     }
 
     // ---------- Отправка локального состояния игрока ----------

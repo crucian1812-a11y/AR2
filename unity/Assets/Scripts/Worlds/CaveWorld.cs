@@ -43,6 +43,8 @@ public class CaveWorld : WorldBuilder
         BuildLake();
         BuildChasm();
         BuildAltar();
+        AddCheckpoint(new Vector3(34f, 8.7f, -4f));
+        AddCheckpoint(new Vector3(-14f, 17.9f, -12f));
         BuildFlora();
         BuildAtmosphere();
 

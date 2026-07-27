@@ -38,6 +38,9 @@ public class MeadowWorld : WorldBuilder
         BuildAncientTree();
         BuildPlatformRoute();
         BuildPond();
+        AddCheckpoint(new Vector3(-30f, 4.2f, -14f));
+        AddCheckpoint(new Vector3(-34f, 15.2f, -31f));
+        AddCheckpoint(OnGround(28f, 14f, 11.8f));
         BuildNature();
         BuildAtmosphere();
 

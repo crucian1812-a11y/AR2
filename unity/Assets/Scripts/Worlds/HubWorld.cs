@@ -37,6 +37,7 @@ public class HubWorld : WorldBuilder
         BuildPlaza();
         BuildHouses();
         BuildLake();
+        AddCheckpoint(new Vector3(0f, 0.5f, 12f));
         BuildForest();
         BuildAtmosphere();
 
