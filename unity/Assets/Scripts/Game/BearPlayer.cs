@@ -12,12 +12,20 @@ public class BearPlayer : MonoBehaviour
     private const float Gravity = 22f;
     private const float FlipTime = 0.55f;
     private const float AttackTime = 0.35f;
+    private const float HitTime = 0.5f;
+    // Высота, вокруг которой крутится сальто — примерно пояс персонажа.
+    private const float PivotHeight = 0.9f;
 
     public int PeerId = 1;
     public string DisplayName = "";
     public float Hue = 0.07f;
+    public int CharIndex;
     public bool IsLocal;
     public int Hearts = 3;
+
+    // Модель персонажа. Если её не удалось загрузить, остаётся null и
+    // игрок собирается из примитивов, как раньше.
+    private CharacterModel _model;
 
     private CharacterController _cc;
     private Transform _visual;
@@ -38,6 +46,7 @@ public class BearPlayer : MonoBehaviour
     private float _squash;
     private float _animT;
     private float _attackAnim;
+    private float _hitAnim;
     private float _attackCd;
     private float _invuln;
     private float _bounceCd;
@@ -61,6 +70,7 @@ public class BearPlayer : MonoBehaviour
         p.PeerId = info.Id;
         p.DisplayName = info.Name;
         p.Hue = info.Hue;
+        p.CharIndex = info.Char;
         p.IsLocal = isLocal;
         p.Init();
         return p;
@@ -79,7 +89,11 @@ public class BearPlayer : MonoBehaviour
         vis.transform.SetParent(transform, false);
         _visual = vis.transform;
 
-        BuildBear();
+        BuildNodes();
+        _model = CharacterModel.Spawn(_body, Heroes.Id(CharIndex), Heroes.BodyHeight);
+        if (_model == null) BuildProceduralBear();
+        BuildSwipe();
+        BuildTeamRing();
         _renderers = GetComponentsInChildren<Renderer>();
 
         WorldLabel.Attach(transform, DisplayName, new Vector3(0f, 2.35f, 0f),
@@ -149,7 +163,11 @@ public class BearPlayer : MonoBehaviour
         if (anim != _prevNetAnim)
         {
             if (_prevNetAnim == 2 && anim != 2) _squash = 0.22f;
-            if (anim == 3) _attackAnim = AttackTime;
+            if (anim == 3)
+            {
+                _attackAnim = AttackTime;
+                if (_model != null) _model.Restart("Bite_InPlace", 1.6f);
+            }
             _prevNetAnim = anim;
         }
         _anim = anim;
@@ -305,6 +323,7 @@ public class BearPlayer : MonoBehaviour
         _attackCd = 0.55f;
         _attackAnim = AttackTime;
         Snd.Play("swing", 0.9f);
+        if (_model != null) _model.Restart("Bite_InPlace", 1.6f);
 
         // Рывок вперёд, урон наносится по кругу — целиться не нужно.
         Vector3 fwd = _visual.forward;
@@ -351,7 +370,9 @@ public class BearPlayer : MonoBehaviour
     {
         Hearts--;
         _invuln = 1.5f;
+        _hitAnim = HitTime;
         Snd.Play("hurt", 0.9f);
+        if (_model != null) _model.Restart("HitRecieve", 1.2f);
         Vector3 push = transform.position - from;
         push.y = 0f;
         if (push.magnitude < 0.01f) push = -_visual.forward;
@@ -383,6 +404,7 @@ public class BearPlayer : MonoBehaviour
             _flip += dt * 360f / FlipTime;
             if (_flip >= 360f) _flip = 0f;
         }
+        if (_hitAnim > 0f) _hitAnim -= dt;
 
         float leanTarget = _anim == 1 ? 9f : 0f;
         _lean = Mathf.Lerp(_lean, leanTarget, Mathf.Min(dt * 8f, 1f));
@@ -408,6 +430,12 @@ public class BearPlayer : MonoBehaviour
                 _swipeMat.color = new Color(1f, 1f, 0.9f, 0.55f * (1f - pr));
         }
         else if (_swipe.activeSelf) _swipe.SetActive(false);
+
+        if (_model != null)
+        {
+            AnimateModel();
+            return;
+        }
 
         float runSpeed = _anim == 1 ? 11f : 2f;
         _animT += dt * runSpeed;
@@ -443,6 +471,27 @@ public class BearPlayer : MonoBehaviour
         _body.localPosition = Vector3.Lerp(_body.localPosition, new Vector3(0f, -1f + bob, 0f), k);
     }
 
+    // Клипы модели по состоянию. Удар и урон запускаются отдельно —
+    // они перебивают текущий клип и доигрывают сами.
+    private void AnimateModel()
+    {
+        if (_attackAnim > 0f || _hitAnim > 0f) return;
+
+        if (_anim == 2)
+        {
+            _model.Play("Jump", 1f, false);
+            return;
+        }
+        if (_anim == 1)
+        {
+            // Клипа бега в паке нет — ускоряем шаг по фактической скорости.
+            float v = new Vector2(_velocity.x, _velocity.z).magnitude;
+            _model.Play("Walk", Mathf.Clamp(v / 3.2f, 0.9f, 2.1f), true);
+            return;
+        }
+        _model.Play("Idle", 1f, true);
+    }
+
     private static void LerpLimb(Transform limb, float xDeg, float zDeg, float k)
     {
         Vector3 e = limb.localEulerAngles;
@@ -467,7 +516,59 @@ public class BearPlayer : MonoBehaviour
         return pivot.transform;
     }
 
-    private void BuildBear()
+    // Узлы, общие для модели и запасного медведя из примитивов:
+    // Flip крутит сальто и приседание, Body держит ступни на нуле.
+    private void BuildNodes()
+    {
+        GameObject flip = new GameObject("Flip");
+        flip.transform.SetParent(_visual, false);
+        flip.transform.localPosition = new Vector3(0f, PivotHeight, 0f);
+        _flipNode = flip.transform;
+
+        GameObject body = new GameObject("Body");
+        body.transform.SetParent(_flipNode, false);
+        body.transform.localPosition = new Vector3(0f, -PivotHeight, 0f);
+        _body = body.transform;
+    }
+
+    // Круг под ногами в цвете игрока — в мультиплеере сразу видно, кто где.
+    private void BuildTeamRing()
+    {
+        GameObject ring = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        Collider col = ring.GetComponent<Collider>();
+        if (col != null) Object.Destroy(col);
+        ring.name = "TeamRing";
+        ring.transform.SetParent(_visual, false);
+        ring.transform.localPosition = new Vector3(0f, 0.06f, 0f);
+        ring.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        ring.transform.localScale = new Vector3(1.5f, 1.5f, 1.5f);
+        Color c = Color.HSVToRGB(Hue, 0.8f, 1f);
+        MeshRenderer mr = ring.GetComponent<MeshRenderer>();
+        mr.sharedMaterial = Gfx.AdditiveMat(new Color(c.r, c.g, c.b, IsLocal ? 0.55f : 0.35f),
+            Gfx.RingTexture());
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        mr.receiveShadows = false;
+    }
+
+    private void BuildSwipe()
+    {
+        // Кольцо ударной волны спин-атаки
+        _swipe = new GameObject("Swipe");
+        _swipe.transform.SetParent(_visual, false);
+        _swipe.transform.localPosition = new Vector3(0f, 0.9f, 0f);
+        MeshFilter mf = _swipe.AddComponent<MeshFilter>();
+        mf.mesh = Gfx.TorusMesh(0.95f, 0.1f, 20, 8);
+        MeshRenderer mr = _swipe.AddComponent<MeshRenderer>();
+        _swipeMat = Gfx.AdditiveMat(new Color(1f, 1f, 0.9f, 0.5f), Gfx.WhiteTexture());
+        mr.sharedMaterial = _swipeMat;
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        mr.receiveShadows = false;
+        _swipe.SetActive(false);
+    }
+
+    // Запасной медведь из примитивов: используется, только если модель
+    // не загрузилась, чтобы игра осталась играбельной.
+    private void BuildProceduralBear()
     {
         Color furCol = Color.HSVToRGB(Hue, 0.5f, 0.55f);
         Color furLightCol = Color.HSVToRGB(Hue, 0.32f, 0.8f);
@@ -475,16 +576,6 @@ public class BearPlayer : MonoBehaviour
         Material furLight = Gfx.Mat(furLightCol, 0.1f);
         Material dark = Gfx.Mat(new Color(0.1f, 0.08f, 0.07f), 0.2f);
         Material white = Gfx.Mat(new Color(0.95f, 0.95f, 0.95f), 0.25f);
-
-        GameObject flip = new GameObject("Flip");
-        flip.transform.SetParent(_visual, false);
-        flip.transform.localPosition = new Vector3(0f, 1f, 0f);
-        _flipNode = flip.transform;
-
-        GameObject body = new GameObject("Body");
-        body.transform.SetParent(_flipNode, false);
-        body.transform.localPosition = new Vector3(0f, -1f, 0f);
-        _body = body.transform;
 
         // Туловище
         Gfx.Ball(_body, new Vector3(0f, 0.78f, 0f), new Vector3(1f, 1.15f, 0.9f), fur);
@@ -515,18 +606,5 @@ public class BearPlayer : MonoBehaviour
         _rArm = Limb(_body, new Vector3(0.52f, 1.06f, 0f), 0.52f, 0.13f, fur, furLight);
         _lLeg = Limb(_body, new Vector3(-0.23f, 0.5f, 0f), 0.5f, 0.15f, fur, furLight);
         _rLeg = Limb(_body, new Vector3(0.23f, 0.5f, 0f), 0.5f, 0.15f, fur, furLight);
-
-        // Кольцо ударной волны спин-атаки
-        _swipe = new GameObject("Swipe");
-        _swipe.transform.SetParent(_visual, false);
-        _swipe.transform.localPosition = new Vector3(0f, 0.9f, 0f);
-        MeshFilter mf = _swipe.AddComponent<MeshFilter>();
-        mf.mesh = Gfx.TorusMesh(0.95f, 0.1f, 20, 8);
-        MeshRenderer mr = _swipe.AddComponent<MeshRenderer>();
-        _swipeMat = Gfx.AdditiveMat(new Color(1f, 1f, 0.9f, 0.5f), Gfx.WhiteTexture());
-        mr.sharedMaterial = _swipeMat;
-        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        mr.receiveShadows = false;
-        _swipe.SetActive(false);
     }
 }

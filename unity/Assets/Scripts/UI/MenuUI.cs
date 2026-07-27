@@ -16,6 +16,7 @@ public class MenuUI : MonoBehaviour
     private InputField _ipField;
     private Text _searchLabel;
     private Button _soloBtn, _hostBtn, _joinBtn, _soundBtn, _connectBtn, _backBtn;
+    private Button _charBtn;
 
     private readonly List<Button> _serverButtons = new List<Button>();
     private bool _joinMode;
@@ -49,6 +50,9 @@ public class MenuUI : MonoBehaviour
             Mathf.RoundToInt(19f * s), new Color(0.8f, 0.85f, 0.95f), TextAnchor.MiddleCenter);
         _nameField = UiKit.MakeInput(c, Vector2.zero, new Vector2(380f * s, 50f * s),
             NetManager.I != null ? NetManager.I.PlayerName : "Медведь", Mathf.RoundToInt(22f * s));
+
+        _charBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(380f * s, 50f * s),
+            CharButtonText(), Mathf.RoundToInt(21f * s), OnNextChar);
 
         _soloBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(380f * s, 54f * s), "Играть одному",
             Mathf.RoundToInt(23f * s), OnSolo);
@@ -107,19 +111,20 @@ public class MenuUI : MonoBehaviour
         _title.rectTransform.anchoredPosition = new Vector2(cx, cy + 250f * s);
         _subtitle.rectTransform.anchoredPosition = new Vector2(cx, cy + 200f * s);
 
-        _nameLabel.rectTransform.anchoredPosition = new Vector2(cx, cy + 140f * s);
-        _nameField.image.rectTransform.anchoredPosition = new Vector2(cx, cy + 100f * s);
-        _soloBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy + 30f * s);
-        _hostBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 32f * s);
-        _joinBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 94f * s);
-        _soundBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 156f * s);
+        _nameLabel.rectTransform.anchoredPosition = new Vector2(cx, cy + 152f * s);
+        _nameField.image.rectTransform.anchoredPosition = new Vector2(cx, cy + 114f * s);
+        _charBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy + 56f * s);
+        _soloBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 4f * s);
+        _hostBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 64f * s);
+        _joinBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 124f * s);
+        _soundBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 184f * s);
 
         _searchLabel.rectTransform.anchoredPosition = new Vector2(cx, cy + 150f * s);
         _ipField.image.rectTransform.anchoredPosition = new Vector2(cx - 110f * s, cy - 110f * s);
         _connectBtn.image.rectTransform.anchoredPosition = new Vector2(cx + 145f * s, cy - 110f * s);
         _backBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 175f * s);
 
-        _status.rectTransform.anchoredPosition = new Vector2(cx, cy - 235f * s);
+        _status.rectTransform.anchoredPosition = new Vector2(cx, cy - 240f * s);
         LayoutServerButtons();
     }
 
@@ -141,6 +146,7 @@ public class MenuUI : MonoBehaviour
         _joinMode = join;
         _nameLabel.gameObject.SetActive(!join);
         _nameField.gameObject.SetActive(!join);
+        _charBtn.gameObject.SetActive(!join);
         _soloBtn.gameObject.SetActive(!join);
         _hostBtn.gameObject.SetActive(!join);
         _joinBtn.gameObject.SetActive(!join);
@@ -166,6 +172,23 @@ public class MenuUI : MonoBehaviour
         if (NetManager.I == null) return;
         string n = _nameField.text != null ? _nameField.text.Trim() : "";
         if (n.Length > 0) NetManager.I.PlayerName = n;
+    }
+
+    // Персонаж выбирается перебором: нажатие переключает на следующего.
+    private static string CharButtonText()
+    {
+        int i = NetManager.I != null ? NetManager.I.CharIndex : 0;
+        return "Персонаж: " + Heroes.Name(i) + "  \u25B6";
+    }
+
+    private void OnNextChar()
+    {
+        Snd.Play("click");
+        NetManager net = NetManager.I;
+        if (net == null) return;
+        net.CharIndex = (net.CharIndex + 1) % Heroes.Ids.Length;
+        Text label = _charBtn.GetComponentInChildren<Text>();
+        if (label != null) label.text = CharButtonText();
     }
 
     private void OnSolo()

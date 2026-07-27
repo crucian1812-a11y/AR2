@@ -20,6 +20,8 @@ public class Enemy : MonoBehaviour
     private float _dieT = -1f;
     private Transform _wingL;
     private Transform _wingR;
+    private CharacterModel _model;
+    private bool _flying;
 
     public float Yaw { get { return _visual != null ? _visual.localEulerAngles.y : 0f; } }
 
@@ -47,6 +49,16 @@ public class Enemy : MonoBehaviour
         GameObject vis = new GameObject("Visual");
         vis.transform.SetParent(transform, false);
         _visual = vis.transform;
+
+        _model = CharacterModel.Spawn(_visual, Heroes.EnemyModel(Kind), Heroes.EnemyHeight(Kind));
+        if (_model != null)
+        {
+            // Летающие висят над землёй, у них нет клипов ходьбы.
+            _flying = Heroes.Flies(Kind);
+            if (_flying) _visual.localPosition = new Vector3(0f, 0.9f, 0f);
+            _model.Play(_model.Pick("Walk", "Flying", "Idle"), 1f, true);
+            return;
+        }
 
         if (Kind == "slime") BuildSlime();
         else if (Kind == "beetle") BuildBeetle();
@@ -168,6 +180,12 @@ public class Enemy : MonoBehaviour
         if (_dieT >= 0f)
         {
             _dieT += Time.deltaTime;
+            // С моделью проигрывается её клип смерти, примитивы схлопываются.
+            if (_model != null)
+            {
+                if (_dieT >= 0.9f) Object.Destroy(gameObject);
+                return;
+            }
             float k = Mathf.Clamp01(_dieT / 0.25f);
             _visual.localScale = new Vector3(1f + k * 0.4f, 1f - k * 0.9f, 1f + k * 0.4f);
             if (k >= 1f) Object.Destroy(gameObject);
@@ -187,6 +205,14 @@ public class Enemy : MonoBehaviour
         }
 
         _bob += Time.deltaTime * (Kind == "bat" ? 13f : 6f);
+
+        if (_model != null)
+        {
+            // Модель анимируется сама; вручную добавляем только парение.
+            if (_flying)
+                _visual.localPosition = new Vector3(0f, 0.9f + Mathf.Sin(_bob * 0.35f) * 0.3f, 0f);
+            return;
+        }
 
         if (_wingL != null && _wingR != null)
         {
@@ -209,6 +235,7 @@ public class Enemy : MonoBehaviour
         Dying = true;
         _dieT = 0f;
         Snd.Play("stomp");
+        if (_model != null) _model.Restart("Death", 1.1f);
         Color tint;
         if (Kind == "slime") tint = new Color(0.5f, 0.75f, 1f);
         else if (Kind == "beetle") tint = new Color(0.7f, 0.5f, 1f);

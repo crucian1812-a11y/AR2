@@ -34,6 +34,7 @@ public class PlayerInfo
     public int Id;
     public string Name = "";
     public float Hue;
+    public int Char;
     public Vector3 Pos;
     public float Yaw;
     public byte Anim;
@@ -88,6 +89,8 @@ public class NetManager : MonoBehaviour
 
     // --- Состояние сессии ---
     public string PlayerName = "Медведь";
+    // Выбранный в меню персонаж (индекс в Heroes.Ids).
+    public int CharIndex;
     public bool IsHost = true;
     public bool Online;
     public int MyId = 1;
@@ -268,6 +271,7 @@ public class NetManager : MonoBehaviour
         p.Id = 1;
         p.Name = Trim16(PlayerName);
         p.Hue = HueFor(0);
+        p.Char = CharIndex;
         p.LastSeen = Time.time;
         Players[1] = p;
         MyId = 1;
@@ -632,6 +636,7 @@ public class NetManager : MonoBehaviour
             case Msg.Join:
                 {
                     string name = r.ReadString();
+                    int joinChar = r.ReadInt32();
                     if (conn == null)
                     {
                         if (_conns.Count + 1 >= MaxPlayers) return;
@@ -645,6 +650,7 @@ public class NetManager : MonoBehaviour
                         p.Id = conn.Id;
                         p.Name = Trim16(name);
                         p.Hue = HueFor(Players.Count);
+                        p.Char = joinChar;
                         p.LastSeen = Time.time;
                         Players[conn.Id] = p;
                         if (OnPlayersChanged != null) OnPlayersChanged();
@@ -798,6 +804,7 @@ public class NetManager : MonoBehaviour
             w.Write(kv.Key);
             w.Write(kv.Value.Name);
             w.Write(kv.Value.Hue);
+            w.Write(kv.Value.Char);
         }
         BroadcastToClients(ms);
     }
@@ -833,6 +840,7 @@ public class NetManager : MonoBehaviour
             int id = r.ReadInt32();
             string name = r.ReadString();
             float hue = r.ReadSingle();
+            int ch = r.ReadInt32();
             seen.Add(id);
             PlayerInfo p;
             if (!Players.TryGetValue(id, out p))
@@ -844,6 +852,7 @@ public class NetManager : MonoBehaviour
             }
             p.Name = name;
             p.Hue = hue;
+            p.Char = ch;
         }
         List<int> stale = new List<int>();
         foreach (KeyValuePair<int, PlayerInfo> kv in Players)
@@ -912,6 +921,7 @@ public class NetManager : MonoBehaviour
         MemoryStream ms; BinaryWriter w;
         Begin(Msg.Join, out ms, out w);
         w.Write(Trim16(PlayerName));
+        w.Write(CharIndex);
         SendToHost(ms);
     }
 

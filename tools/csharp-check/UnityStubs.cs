@@ -120,6 +120,18 @@ namespace UnityEngine
     {
         public Vector3 center, size, extents, min, max;
         public Bounds(Vector3 c, Vector3 s) { center = c; size = s; extents = s; min = c; max = c; }
+        public void Encapsulate(Bounds b) { }
+        public void Encapsulate(Vector3 p) { }
+        public bool Contains(Vector3 p) { return false; }
+    }
+
+    public struct Matrix4x4
+    {
+        public static Matrix4x4 identity { get { return new Matrix4x4(); } }
+        public Vector3 MultiplyPoint3x4(Vector3 p) { return p; }
+        public Vector3 MultiplyPoint(Vector3 p) { return p; }
+        public Vector3 MultiplyVector(Vector3 v) { return v; }
+        public static Matrix4x4 operator *(Matrix4x4 a, Matrix4x4 b) { return a; }
     }
 
     public static class Mathf
@@ -217,6 +229,8 @@ namespace UnityEngine
 
     public class Transform : Component, IEnumerable
     {
+        public Matrix4x4 worldToLocalMatrix { get { return Matrix4x4.identity; } }
+        public Matrix4x4 localToWorldMatrix { get { return Matrix4x4.identity; } }
         public Vector3 position { get; set; }
         public Vector3 localPosition { get; set; }
         public Quaternion rotation { get; set; }
@@ -379,6 +393,38 @@ namespace UnityEngine
     }
 
     public class MeshRenderer : Renderer { }
+    public class SkinnedMeshRenderer : Renderer { public Mesh sharedMesh { get; set; } }
+
+    public enum WrapMode { Once, Loop, PingPong, Default, ClampForever, Clamp }
+
+    public class AnimationClip : Object { public bool legacy { get; set; } public WrapMode wrapMode { get; set; } }
+
+    public class AnimationState
+    {
+        public string name { get; set; }
+        public float speed { get; set; }
+        public float time { get; set; }
+        public float length { get { return 0f; } }
+        public WrapMode wrapMode { get; set; }
+        public bool enabled { get; set; }
+        public float weight { get; set; }
+    }
+
+    public class Animation : Behaviour, System.Collections.IEnumerable
+    {
+        public AnimationClip clip { get; set; }
+        public bool playAutomatically { get; set; }
+        public WrapMode wrapMode { get; set; }
+        public AnimationState this[string name] { get { return null; } }
+        public bool Play(string name) { return false; }
+        public bool Play() { return false; }
+        public void CrossFade(string name) { }
+        public void CrossFade(string name, float fade) { }
+        public void Stop() { }
+        public bool IsPlaying(string name) { return false; }
+        public void AddClip(AnimationClip c, string name) { }
+        public System.Collections.IEnumerator GetEnumerator() { return null; }
+    }
     public class MeshFilter : Component { public Mesh mesh { get; set; } public Mesh sharedMesh { get; set; } }
 
     public class Collider : Component
@@ -763,6 +809,58 @@ namespace UnityEditor
     using UnityEngine;
 
     public static class EditorApplication { public static void Exit(int code) { } }
+
+    public class AssetImporter : Object { public string assetPath { get; set; } }
+
+    public enum ModelImporterAnimationType { None, Legacy, Generic, Human }
+    public enum ModelImporterAnimationCompression { Off, KeyframeReduction, KeyframeReductionAndCompression, Optimal }
+    public enum ModelImporterMaterialImportMode { None, ImportStandard, ImportViaMaterialDescription }
+    public enum ModelImporterMeshCompression { Off, Low, Medium, High }
+    public enum ModelImporterNormals { Import, Calculate, None }
+
+    public class ModelImporterClipAnimation
+    {
+        public string name { get; set; }
+        public bool loopTime { get; set; }
+        public UnityEngine.WrapMode wrapMode { get; set; }
+        public float firstFrame { get; set; }
+        public float lastFrame { get; set; }
+    }
+
+    public class ModelImporter : AssetImporter
+    {
+        public ModelImporterAnimationType animationType { get; set; }
+        public bool importAnimation { get; set; }
+        public ModelImporterAnimationCompression animationCompression { get; set; }
+        public ModelImporterMaterialImportMode materialImportMode { get; set; }
+        public bool importCameras { get; set; }
+        public bool importLights { get; set; }
+        public bool isReadable { get; set; }
+        public ModelImporterMeshCompression meshCompression { get; set; }
+        public ModelImporterNormals importNormals { get; set; }
+        public float globalScale { get; set; }
+        public ModelImporterClipAnimation[] defaultClipAnimations { get { return null; } }
+        public ModelImporterClipAnimation[] clipAnimations { get; set; }
+    }
+
+    public enum TextureImporterType { Default, NormalMap, Sprite, GUI }
+    public enum TextureImporterCompression { Uncompressed, Compressed, CompressedHQ, CompressedLQ }
+
+    public class TextureImporter : AssetImporter
+    {
+        public TextureImporterType textureType { get; set; }
+        public bool mipmapEnabled { get; set; }
+        public int maxTextureSize { get; set; }
+        public TextureImporterCompression textureCompression { get; set; }
+        public UnityEngine.TextureWrapMode wrapMode { get; set; }
+        public UnityEngine.FilterMode filterMode { get; set; }
+    }
+
+    public class AssetPostprocessor
+    {
+        public string assetPath { get { return ""; } }
+        public AssetImporter assetImporter { get { return null; } }
+    }
 
     public class BuildPlayerOptions
     {
