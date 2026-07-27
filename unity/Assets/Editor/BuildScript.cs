@@ -26,9 +26,11 @@ public static class BuildScript
         "Bear/Sky",
         "Bear/Foliage",
         "UI/Default",
-        "Sprites/Default",
-        "Universal Render Pipeline/Lit",
-        "Universal Render Pipeline/Unlit"
+        "Sprites/Default"
+        // Universal Render Pipeline/Lit сюда добавлять нельзя: у него
+        // 1.18 млн вариантов, и принудительное включение обрушивает сборку.
+        // Как запасной вариант в Gfx он всё равно не нужен — Bear/Lit есть
+        // всегда, а Shader.Find найдёт URP-шейдер и без always-include.
     };
 
     public static void BuildAndroid()

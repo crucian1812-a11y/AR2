@@ -293,5 +293,7 @@ Shader "Bear/Lit"
             ENDHLSL
         }
     }
-    FallBack "Universal Render Pipeline/Lit"
+    // Запасной шейдер не задаём: наши SubShader поддерживаются всегда,
+    // а ссылка на URP/Lit затащила бы в сборку все его варианты.
+    FallBack Off
 }
