@@ -154,7 +154,13 @@ public static class BuildScript
         pipeline.shadowCascadeCount = 3;
         pipeline.shadowDepthBias = 0.6f;
         pipeline.shadowNormalBias = 0.6f;
-        pipeline.supportsSoftShadows = true;
+
+        // Мягкие тени доступны только через сериализованное поле —
+        // публичное свойство у ассета доступно лишь для чтения.
+        SerializedObject shadowSo = new SerializedObject(pipeline);
+        SerializedProperty soft = shadowSo.FindProperty("m_SoftShadowsSupported");
+        if (soft != null) soft.boolValue = true;
+        shadowSo.ApplyModifiedProperties();
 
         EditorUtility.SetDirty(renderer);
         EditorUtility.SetDirty(pipeline);

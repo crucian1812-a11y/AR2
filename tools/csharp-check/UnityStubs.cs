@@ -810,7 +810,7 @@ namespace UnityEngine
                 public int shadowCascadeCount { get; set; }
                 public float shadowDepthBias { get; set; }
                 public float shadowNormalBias { get; set; }
-                public bool supportsSoftShadows { get; set; }
+                public bool supportsSoftShadows { get { return false; } }
             }
         }
 
