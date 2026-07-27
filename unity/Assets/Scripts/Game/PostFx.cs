@@ -1,35 +1,71 @@
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
-// Постобработка кадра: bloom, цветокоррекция, виньетка.
-// Вешается на камеру локального игрока. Размытие считается в четверть
-// разрешения — на телефоне это почти бесплатно.
+// Постобработка кадра через URP-Volume: ACES-тонмаппинг, bloom,
+// цветокоррекция и виньетка. Профиль собирается кодом — ассетов в
+// проекте нет принципиально.
+// Вешается на камеру локального игрока, настройки задаёт текущий мир.
 public class PostFx : MonoBehaviour
 {
-    // Порог высокий намеренно: светиться должны источники света и блики,
-    // а не любая освещённая поверхность — иначе кадр выцветает.
-    public float Threshold = 0.9f;
-    public float SoftKnee = 0.35f;
     public float Intensity = 1.05f;
-    public int BlurIterations = 3;
-    public float BlurSpread = 1.35f;
     public float Vignette = 0.55f;
     public float Saturation = 1.12f;
     public float Contrast = 1.06f;
     public Color Tint = new Color(1.02f, 1.0f, 0.98f);
 
-    private Material _mat;
-    private bool _failed;
+    private Volume _volume;
+    private Bloom _bloom;
+    private ColorAdjustments _grade;
+    private Vignette _vignette;
 
     private void Awake()
     {
-        Shader shader = Shader.Find("Bear/Post");
-        if (shader == null)
+        Camera cam = GetComponent<Camera>();
+        if (cam != null)
         {
-            _failed = true;
-            Debug.LogWarning("PostFx: shader Bear/Post not found, effect disabled");
-            return;
+            UniversalAdditionalCameraData data = cam.GetUniversalAdditionalCameraData();
+            if (data != null)
+            {
+                data.renderPostProcessing = true;
+                // FXAA — на телефоне дешевле SMAA и достаточно на такой картинке.
+                data.antialiasing = AntialiasingMode.FastApproximateAntialiasing;
+                data.renderShadows = true;
+            }
         }
-        _mat = new Material(shader);
+
+        BuildProfile();
+        Apply();
+    }
+
+    private void BuildProfile()
+    {
+        VolumeProfile profile = ScriptableObject.CreateInstance<VolumeProfile>();
+
+        // Тонмаппинг — главное, ради чего затевался URP: яркие места
+        // перестают выгорать в белое и держат цвет.
+        Tonemapping tone = profile.Add<Tonemapping>(true);
+        tone.mode.Override(TonemappingMode.ACES);
+
+        _bloom = profile.Add<Bloom>(true);
+        _bloom.threshold.Override(1.1f);
+        _bloom.scatter.Override(0.7f);
+        _bloom.intensity.Override(Intensity);
+
+        _grade = profile.Add<ColorAdjustments>(true);
+        _grade.postExposure.Override(0.15f);
+        _grade.saturation.Override(0f);
+        _grade.contrast.Override(0f);
+
+        _vignette = profile.Add<Vignette>(true);
+        _vignette.intensity.Override(0.25f);
+        _vignette.smoothness.Override(0.6f);
+
+        _volume = gameObject.AddComponent<Volume>();
+        _volume.isGlobal = true;
+        _volume.priority = 100f;
+        _volume.weight = 1f;
+        _volume.profile = profile;
     }
 
     // Позволяет мирам менять настроение картинки (снег холоднее, пещера темнее).
@@ -39,48 +75,20 @@ public class PostFx : MonoBehaviour
         Saturation = saturation;
         Tint = tint;
         Vignette = vignette;
+        Apply();
     }
 
-    private void OnRenderImage(RenderTexture src, RenderTexture dst)
+    private void Apply()
     {
-        if (_failed || _mat == null)
-        {
-            Graphics.Blit(src, dst);
-            return;
-        }
+        if (_bloom == null) return;
+        _bloom.intensity.Override(Mathf.Max(Intensity - 0.4f, 0f));
 
-        int w = Mathf.Max(2, src.width / 4);
-        int h = Mathf.Max(2, src.height / 4);
+        // Насыщенность и контраст в URP задаются в процентах от -100 до 100,
+        // а миры присылают множитель около единицы.
+        _grade.saturation.Override(Mathf.Clamp((Saturation - 1f) * 100f, -100f, 100f));
+        _grade.contrast.Override(Mathf.Clamp((Contrast - 1f) * 100f, -100f, 100f));
+        _grade.colorFilter.Override(Tint);
 
-        _mat.SetFloat("_Threshold", Threshold);
-        _mat.SetFloat("_SoftKnee", SoftKnee);
-        _mat.SetFloat("_Intensity", Intensity);
-        _mat.SetFloat("_Vignette", Vignette);
-        _mat.SetFloat("_Saturation", Saturation);
-        _mat.SetFloat("_Contrast", Contrast);
-        _mat.SetVector("_Tint", new Vector4(Tint.r, Tint.g, Tint.b, 1f));
-
-        RenderTexture bright = RenderTexture.GetTemporary(w, h, 0, src.format);
-        RenderTexture temp = RenderTexture.GetTemporary(w, h, 0, src.format);
-        bright.filterMode = FilterMode.Bilinear;
-        temp.filterMode = FilterMode.Bilinear;
-
-        Graphics.Blit(src, bright, _mat, 0);
-
-        int iterations = Mathf.Clamp(BlurIterations, 1, 6);
-        for (int i = 0; i < iterations; i++)
-        {
-            float spread = BlurSpread * (1f + i * 0.6f);
-            _mat.SetVector("_BlurDir", new Vector4(spread, 0f, 0f, 0f));
-            Graphics.Blit(bright, temp, _mat, 1);
-            _mat.SetVector("_BlurDir", new Vector4(0f, spread, 0f, 0f));
-            Graphics.Blit(temp, bright, _mat, 1);
-        }
-
-        _mat.SetTexture("_BloomTex", bright);
-        Graphics.Blit(src, dst, _mat, 2);
-
-        RenderTexture.ReleaseTemporary(bright);
-        RenderTexture.ReleaseTemporary(temp);
+        _vignette.intensity.Override(Mathf.Clamp01(Vignette * 0.45f));
     }
 }

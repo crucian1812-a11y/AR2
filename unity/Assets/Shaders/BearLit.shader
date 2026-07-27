@@ -1,6 +1,7 @@
-// Основной освещённый шейдер игры. Свой, а не встроенный Standard: даёт
-// предсказуемый набор вариантов и не зависит от того, какие шейдеры Unity
-// решит оставить в сборке.
+// Основной освещённый шейдер игры под URP. Полный PBR через
+// UniversalFragmentPBR: тени, дополнительные источники, SSAO, туман.
+// Проходы DepthOnly и DepthNormals обязательны — на них опираются
+// SSAO и глубина резкости.
 Shader "Bear/Lit"
 {
     Properties
@@ -18,64 +19,279 @@ Shader "Bear/Lit"
         _AOStrength ("Vertex AO", Range(0,1)) = 0
         _VertexTint ("Vertex Color Tint", Range(0,1)) = 0
     }
+
     SubShader
     {
-        Tags { "RenderType"="Opaque" }
-        LOD 200
+        Tags { "RenderType"="Opaque" "RenderPipeline"="UniversalPipeline" "Queue"="Geometry" }
+        LOD 300
 
-        CGPROGRAM
-        #pragma surface surf Standard fullforwardshadows
-        #pragma target 3.0
+        HLSLINCLUDE
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-        sampler2D _MainTex;
-        sampler2D _BumpMap;
+        CBUFFER_START(UnityPerMaterial)
+            float4 _MainTex_ST;
+            float4 _BumpMap_ST;
+            half4 _Color;
+            half4 _EmissionColor;
+            half4 _RimColor;
+            half _NormalScale;
+            half _Glossiness;
+            half _Metallic;
+            half _RimPower;
+            half _RimStrength;
+            half _AOStrength;
+            half _VertexTint;
+        CBUFFER_END
+        ENDHLSL
 
-        struct Input
+        Pass
         {
-            float2 uv_MainTex;
-            float2 uv_BumpMap;
-            float3 viewDir;
-            float4 color : COLOR;
-        };
+            Name "ForwardLit"
+            Tags { "LightMode"="UniversalForward" }
 
-        half _Glossiness;
-        half _Metallic;
-        half _NormalScale;
-        half _RimPower;
-        half _RimStrength;
-        half _AOStrength;
-        half _VertexTint;
-        fixed4 _Color;
-        fixed4 _EmissionColor;
-        fixed4 _RimColor;
+            HLSLPROGRAM
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #pragma target 3.0
 
-        void surf (Input IN, inout SurfaceOutputStandard o)
-        {
-            fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * _Color;
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
+            #pragma multi_compile_fog
+            #pragma multi_compile_instancing
 
-            // Цвет из вершин: рельеф красится по высоте (трава внизу, камень
-            // наверху) — без этого меш рисуется базовым белым.
-            float3 vtint = lerp(float3(1, 1, 1), IN.color.rgb, _VertexTint);
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
-            // Затенение из вершинных цветов: запечённое «ambient occlusion»,
-            // которое миры проставляют на нижних частях геометрии.
-            float ao = lerp(1.0, IN.color.r, _AOStrength);
-            o.Albedo = c.rgb * vtint * ao;
+            TEXTURE2D(_MainTex);    SAMPLER(sampler_MainTex);
+            TEXTURE2D(_BumpMap);    SAMPLER(sampler_BumpMap);
 
-            // Карта нормалей генерируется кодом в обычном RGB, поэтому
-            // распаковываем вручную; при _NormalScale = 0 нормаль плоская.
-            float3 n = tex2D(_BumpMap, IN.uv_BumpMap).xyz * 2.0 - 1.0;
-            o.Normal = normalize(lerp(float3(0, 0, 1), n, saturate(_NormalScale)));
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS   : NORMAL;
+                float4 tangentOS  : TANGENT;
+                float2 uv         : TEXCOORD0;
+                float4 color      : COLOR;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
 
-            o.Metallic = _Metallic;
-            o.Smoothness = _Glossiness;
+            struct Varyings
+            {
+                float4 positionCS  : SV_POSITION;
+                float2 uv          : TEXCOORD0;
+                float3 positionWS  : TEXCOORD1;
+                float3 normalWS    : TEXCOORD2;
+                float4 tangentWS   : TEXCOORD3;
+                float4 color       : TEXCOORD4;
+                float4 shadowCoord : TEXCOORD5;
+                float fogFactor    : TEXCOORD6;
+                float4 screenPos   : TEXCOORD7;
+            };
 
-            // Подсветка контура — отделяет силуэты от фона.
-            float rim = 1.0 - saturate(dot(normalize(IN.viewDir), o.Normal));
-            o.Emission = _EmissionColor.rgb + _RimColor.rgb * pow(rim, _RimPower) * _RimStrength;
-            o.Alpha = c.a;
+            Varyings Vert (Attributes IN)
+            {
+                Varyings OUT = (Varyings)0;
+                UNITY_SETUP_INSTANCE_ID(IN);
+
+                VertexPositionInputs pos = GetVertexPositionInputs(IN.positionOS.xyz);
+                VertexNormalInputs nrm = GetVertexNormalInputs(IN.normalOS, IN.tangentOS);
+
+                OUT.positionCS = pos.positionCS;
+                OUT.positionWS = pos.positionWS;
+                OUT.screenPos = ComputeScreenPos(pos.positionCS);
+                OUT.normalWS = nrm.normalWS;
+                OUT.tangentWS = float4(nrm.tangentWS, IN.tangentOS.w * GetOddNegativeScale());
+                OUT.uv = TRANSFORM_TEX(IN.uv, _MainTex);
+                OUT.color = IN.color;
+                OUT.shadowCoord = GetShadowCoord(pos);
+                OUT.fogFactor = ComputeFogFactor(pos.positionCS.z);
+                return OUT;
+            }
+
+            half4 Frag (Varyings IN) : SV_Target
+            {
+                half4 tex = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, IN.uv) * _Color;
+
+                // Цвет из вершин: рельеф красится по высоте.
+                half3 vtint = lerp(half3(1, 1, 1), IN.color.rgb, _VertexTint);
+                // Запечённое затенение из вершинного цвета.
+                half ao = lerp(1.0h, IN.color.r, _AOStrength);
+
+                SurfaceData surface = (SurfaceData)0;
+                surface.albedo = tex.rgb * vtint * ao;
+                surface.metallic = _Metallic;
+                surface.smoothness = _Glossiness;
+                surface.occlusion = 1.0h;
+                surface.alpha = 1.0h;
+
+                // Карта нормалей генерируется кодом в обычном RGB,
+                // поэтому распаковываем вручную.
+                half3 nTS = half3(0, 0, 1);
+                if (_NormalScale > 0.001h)
+                {
+                    half3 raw = SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap,
+                        TRANSFORM_TEX(IN.uv, _BumpMap)).xyz * 2.0h - 1.0h;
+                    nTS = normalize(lerp(half3(0, 0, 1), raw, saturate(_NormalScale)));
+                }
+                surface.normalTS = nTS;
+
+                InputData inputData = (InputData)0;
+                inputData.positionWS = IN.positionWS;
+
+                float sgn = IN.tangentWS.w;
+                float3 bitangent = sgn * cross(IN.normalWS.xyz, IN.tangentWS.xyz);
+                half3x3 tbn = half3x3(IN.tangentWS.xyz, bitangent.xyz, IN.normalWS.xyz);
+                inputData.normalWS = normalize(mul(nTS, tbn));
+
+                inputData.viewDirectionWS = SafeNormalize(GetCameraPositionWS() - IN.positionWS);
+                inputData.shadowCoord = IN.shadowCoord;
+                inputData.fogCoord = IN.fogFactor;
+                inputData.bakedGI = SampleSH(inputData.normalWS);
+                inputData.normalizedScreenSpaceUV = IN.screenPos.xy / max(IN.screenPos.w, 0.0001);
+                inputData.shadowMask = half4(1, 1, 1, 1);
+
+                // Подсветка контура отделяет силуэты от фона.
+                half rim = 1.0h - saturate(dot(inputData.viewDirectionWS, inputData.normalWS));
+                surface.emission = _EmissionColor.rgb +
+                                   _RimColor.rgb * pow(rim, _RimPower) * _RimStrength;
+
+                half4 color = UniversalFragmentPBR(inputData, surface);
+                color.rgb = MixFog(color.rgb, inputData.fogCoord);
+                return color;
+            }
+            ENDHLSL
         }
-        ENDCG
+
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode"="ShadowCaster" }
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Cull Back
+
+            HLSLPROGRAM
+            #pragma vertex ShadowVert
+            #pragma fragment ShadowFrag
+            #pragma target 3.0
+            #pragma multi_compile_instancing
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+
+            float3 _LightDirection;
+            float3 _LightPosition;
+
+            struct ShadowAttributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS   : NORMAL;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            struct ShadowVaryings
+            {
+                float4 positionCS : SV_POSITION;
+            };
+
+            ShadowVaryings ShadowVert (ShadowAttributes IN)
+            {
+                ShadowVaryings OUT;
+                UNITY_SETUP_INSTANCE_ID(IN);
+                float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
+                float3 normalWS = TransformObjectToWorldNormal(IN.normalOS);
+                float4 clip = TransformWorldToHClip(
+                    ApplyShadowBias(positionWS, normalWS, _LightDirection));
+                #if UNITY_REVERSED_Z
+                    clip.z = min(clip.z, UNITY_NEAR_CLIP_VALUE);
+                #else
+                    clip.z = max(clip.z, UNITY_NEAR_CLIP_VALUE);
+                #endif
+                OUT.positionCS = clip;
+                return OUT;
+            }
+
+            half4 ShadowFrag (ShadowVaryings IN) : SV_Target { return 0; }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "DepthOnly"
+            Tags { "LightMode"="DepthOnly" }
+            ZWrite On
+            ColorMask R
+
+            HLSLPROGRAM
+            #pragma vertex DepthVert
+            #pragma fragment DepthFrag
+            #pragma target 3.0
+            #pragma multi_compile_instancing
+
+            struct DepthAttributes
+            {
+                float4 positionOS : POSITION;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+            struct DepthVaryings
+            {
+                float4 positionCS : SV_POSITION;
+            };
+
+            DepthVaryings DepthVert (DepthAttributes IN)
+            {
+                DepthVaryings OUT;
+                UNITY_SETUP_INSTANCE_ID(IN);
+                OUT.positionCS = TransformObjectToHClip(IN.positionOS.xyz);
+                return OUT;
+            }
+
+            half4 DepthFrag (DepthVaryings IN) : SV_Target { return 0; }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode"="DepthNormals" }
+            ZWrite On
+
+            HLSLPROGRAM
+            #pragma vertex DepthNormalsVert
+            #pragma fragment DepthNormalsFrag
+            #pragma target 3.0
+            #pragma multi_compile_instancing
+
+            struct DNAttributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS   : NORMAL;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+            struct DNVaryings
+            {
+                float4 positionCS : SV_POSITION;
+                float3 normalWS   : TEXCOORD0;
+            };
+
+            DNVaryings DepthNormalsVert (DNAttributes IN)
+            {
+                DNVaryings OUT;
+                UNITY_SETUP_INSTANCE_ID(IN);
+                OUT.positionCS = TransformObjectToHClip(IN.positionOS.xyz);
+                OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
+                return OUT;
+            }
+
+            half4 DepthNormalsFrag (DNVaryings IN) : SV_Target
+            {
+                return half4(normalize(IN.normalWS) * 0.5 + 0.5, 0);
+            }
+            ENDHLSL
+        }
     }
-    Fallback "Diffuse"
+    FallBack "Universal Render Pipeline/Lit"
 }

@@ -30,8 +30,8 @@ public static class Gfx
             if (_standard == null)
             {
                 _standard = Shader.Find("Bear/Lit");
-                if (_standard == null) _standard = Shader.Find("Standard");
-                if (_standard == null) _standard = Shader.Find("Diffuse");
+                if (_standard == null) _standard = Shader.Find("Universal Render Pipeline/Lit");
+                if (_standard == null) _standard = Shader.Find("Universal Render Pipeline/Unlit");
             }
             return _standard;
         }

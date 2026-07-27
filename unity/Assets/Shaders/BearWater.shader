@@ -1,5 +1,6 @@
-// Вода: волны в вершинном шейдере + две скользящие карты нормалей для ряби.
-// Нормаль распакована вручную (текстура генерируется кодом в обычном RGB).
+// Вода под URP: волны в вершинном шейдере, две скользящие карты нормалей
+// для ряби и френель между мелкой и глубокой водой. Нормаль распакована
+// вручную — текстура генерируется кодом в обычном RGB.
 Shader "Bear/Water"
 {
     Properties
@@ -12,53 +13,123 @@ Shader "Bear/Water"
         _Glossiness ("Smoothness", Range(0,1)) = 0.9
         _Alpha ("Alpha", Range(0,1)) = 0.85
     }
+
     SubShader
     {
-        Tags { "Queue"="Transparent" "RenderType"="Transparent" }
+        Tags { "RenderType"="Transparent" "RenderPipeline"="UniversalPipeline" "Queue"="Transparent" }
         LOD 200
 
-        CGPROGRAM
-        #pragma surface surf Standard alpha:fade vertex:vert
-        #pragma target 3.0
-
-        sampler2D _BumpMap;
-        float4 _BumpMap_ST;
-        fixed4 _ShallowColor;
-        fixed4 _DeepColor;
-        half _WaveHeight;
-        half _WaveSpeed;
-        half _Glossiness;
-        half _Alpha;
-
-        struct Input
+        Pass
         {
-            float2 uv_BumpMap;
-            float3 viewDir;
-        };
+            Name "ForwardLit"
+            Tags { "LightMode"="UniversalForward" }
+            Blend SrcAlpha OneMinusSrcAlpha
+            ZWrite Off
+            Cull Off
 
-        void vert (inout appdata_full v)
-        {
-            float w = sin(_Time.y * _WaveSpeed + v.vertex.x * 0.9 + v.vertex.z * 0.4)
-                    + cos(_Time.y * _WaveSpeed * 0.7 + v.vertex.z * 1.1);
-            v.vertex.y += w * _WaveHeight * 0.5;
+            HLSLPROGRAM
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #pragma target 3.0
+
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            #pragma multi_compile_fog
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+
+            CBUFFER_START(UnityPerMaterial)
+                float4 _BumpMap_ST;
+                half4 _ShallowColor;
+                half4 _DeepColor;
+                half _WaveHeight;
+                half _WaveSpeed;
+                half _Glossiness;
+                half _Alpha;
+            CBUFFER_END
+
+            TEXTURE2D(_BumpMap);  SAMPLER(sampler_BumpMap);
+
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS   : NORMAL;
+                float2 uv         : TEXCOORD0;
+            };
+
+            struct Varyings
+            {
+                float4 positionCS  : SV_POSITION;
+                float2 uv          : TEXCOORD0;
+                float3 positionWS  : TEXCOORD1;
+                float3 normalWS    : TEXCOORD2;
+                float4 shadowCoord : TEXCOORD3;
+                float fogFactor    : TEXCOORD4;
+            };
+
+            Varyings Vert (Attributes IN)
+            {
+                Varyings OUT = (Varyings)0;
+                float3 p = IN.positionOS.xyz;
+                float t = _TimeParameters.x;
+                float w = sin(t * _WaveSpeed + p.x * 0.9 + p.z * 0.4)
+                        + cos(t * _WaveSpeed * 0.7 + p.z * 1.1);
+                p.y += w * _WaveHeight * 0.5;
+
+                VertexPositionInputs pos = GetVertexPositionInputs(p);
+                OUT.positionCS = pos.positionCS;
+                OUT.positionWS = pos.positionWS;
+                OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
+                OUT.uv = TRANSFORM_TEX(IN.uv, _BumpMap);
+                OUT.shadowCoord = GetShadowCoord(pos);
+                OUT.fogFactor = ComputeFogFactor(pos.positionCS.z);
+                return OUT;
+            }
+
+            half4 Frag (Varyings IN) : SV_Target
+            {
+                float t = _TimeParameters.x;
+                float2 uvA = IN.uv + float2(t * 0.04, t * 0.03);
+                float2 uvB = IN.uv * 1.7 - float2(t * 0.05, -t * 0.02);
+                half3 nA = SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, uvA).xyz * 2.0h - 1.0h;
+                half3 nB = SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, uvB).xyz * 2.0h - 1.0h;
+                half3 nTS = normalize(nA + nB);
+
+                // Плоскость воды горизонтальна, поэтому касательный базис
+                // сводится к перестановке осей — матрица не нужна.
+                float3 n = normalize(float3(nTS.x, 1.0, nTS.y) *
+                                     float3(1.0, max(IN.normalWS.y, 0.2), 1.0));
+
+                float3 viewDir = SafeNormalize(GetCameraPositionWS() - IN.positionWS);
+                half fres = pow(1.0h - saturate(dot(viewDir, n)), 3.0h);
+
+                SurfaceData surface = (SurfaceData)0;
+                surface.albedo = lerp(_DeepColor.rgb, _ShallowColor.rgb, fres);
+                surface.metallic = 0.1h;
+                surface.smoothness = _Glossiness;
+                surface.occlusion = 1.0h;
+                surface.alpha = _Alpha;
+                surface.emission = _ShallowColor.rgb * fres * 0.15h;
+                surface.normalTS = half3(0, 0, 1);
+
+                InputData inputData = (InputData)0;
+                inputData.positionWS = IN.positionWS;
+                inputData.normalWS = n;
+                inputData.viewDirectionWS = viewDir;
+                inputData.shadowCoord = IN.shadowCoord;
+                inputData.fogCoord = IN.fogFactor;
+                inputData.bakedGI = SampleSH(n);
+                inputData.shadowMask = half4(1, 1, 1, 1);
+
+                half4 color = UniversalFragmentPBR(inputData, surface);
+                color.rgb = MixFog(color.rgb, inputData.fogCoord);
+                color.a = _Alpha;
+                return color;
+            }
+            ENDHLSL
         }
-
-        void surf (Input IN, inout SurfaceOutputStandard o)
-        {
-            float2 uvA = IN.uv_BumpMap + float2(_Time.y * 0.04, _Time.y * 0.03);
-            float2 uvB = IN.uv_BumpMap * 1.7 - float2(_Time.y * 0.05, -_Time.y * 0.02);
-            float3 nA = tex2D(_BumpMap, uvA).xyz * 2.0 - 1.0;
-            float3 nB = tex2D(_BumpMap, uvB).xyz * 2.0 - 1.0;
-            o.Normal = normalize(nA + nB);
-
-            float fres = pow(1.0 - saturate(dot(normalize(IN.viewDir), float3(0, 0, 1))), 3.0);
-            o.Albedo = lerp(_DeepColor.rgb, _ShallowColor.rgb, fres);
-            o.Emission = _ShallowColor.rgb * fres * 0.15;
-            o.Smoothness = _Glossiness;
-            o.Metallic = 0.1;
-            o.Alpha = _Alpha;
-        }
-        ENDCG
     }
-    Fallback "Transparent/Diffuse"
+    FallBack "Universal Render Pipeline/Unlit"
 }

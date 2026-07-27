@@ -4,6 +4,8 @@ using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 
 // Сборка Android APK из командной строки.
@@ -23,10 +25,10 @@ public static class BuildScript
         "Bear/Portal",
         "Bear/Sky",
         "Bear/Foliage",
-        "Bear/Post",
         "UI/Default",
         "Sprites/Default",
-        "Legacy Shaders/Diffuse"
+        "Universal Render Pipeline/Lit",
+        "Universal Render Pipeline/Unlit"
     };
 
     public static void BuildAndroid()
@@ -93,9 +95,115 @@ public static class BuildScript
 
     private static void Prepare()
     {
+        EnsureUrpPipeline();
         ConfigurePlayerSettings();
         EnsureAlwaysIncludedShaders();
         CreateMainScene();
+    }
+
+    // URP-ассеты тоже создаются кодом: в репозитории нет ни одного
+    // бинарного или сериализованного ассета Unity.
+    private static void EnsureUrpPipeline()
+    {
+        Directory.CreateDirectory(Path.Combine(Application.dataPath, "Settings"));
+        AssetDatabase.Refresh();
+
+        const string rendererPath = "Assets/Settings/BearRenderer.asset";
+        const string pipelinePath = "Assets/Settings/BearPipeline.asset";
+
+        UniversalRendererData renderer =
+            AssetDatabase.LoadAssetAtPath<UniversalRendererData>(rendererPath);
+        if (renderer == null)
+        {
+            renderer = ScriptableObject.CreateInstance<UniversalRendererData>();
+            renderer.name = "BearRenderer";
+            AssetDatabase.CreateAsset(renderer, rendererPath);
+        }
+
+        // Глубина и нормали нужны для SSAO и глубины резкости.
+        renderer.depthPrimingMode = DepthPrimingMode.Disabled;
+        AddAmbientOcclusion(renderer, rendererPath);
+
+        UniversalRenderPipelineAsset pipeline =
+            AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(pipelinePath);
+        if (pipeline == null)
+        {
+            pipeline = ScriptableObject.CreateInstance<UniversalRenderPipelineAsset>();
+            pipeline.name = "BearPipeline";
+            AssetDatabase.CreateAsset(pipeline, pipelinePath);
+        }
+
+        SerializedObject so = new SerializedObject(pipeline);
+        SerializedProperty list = so.FindProperty("m_RendererDataList");
+        if (list != null)
+        {
+            list.arraySize = 1;
+            list.GetArrayElementAtIndex(0).objectReferenceValue = renderer;
+        }
+        SerializedProperty index = so.FindProperty("m_DefaultRendererIndex");
+        if (index != null) index.intValue = 0;
+        so.ApplyModifiedProperties();
+
+        // HDR — то, ради чего всё затевалось: свет считается за пределами
+        // единицы, а тонмаппинг сводит его в кадр без выгорания в белое.
+        pipeline.supportsHDR = true;
+        pipeline.msaaSampleCount = 4;
+        pipeline.supportsCameraDepthTexture = true;
+        pipeline.supportsCameraOpaqueTexture = false;
+        pipeline.shadowDistance = 90f;
+        pipeline.shadowCascadeCount = 3;
+        pipeline.shadowDepthBias = 0.6f;
+        pipeline.shadowNormalBias = 0.6f;
+        pipeline.supportsSoftShadows = true;
+
+        EditorUtility.SetDirty(renderer);
+        EditorUtility.SetDirty(pipeline);
+        AssetDatabase.SaveAssets();
+
+        GraphicsSettings.defaultRenderPipeline = pipeline;
+        QualitySettings.renderPipeline = pipeline;
+        AssetDatabase.SaveAssets();
+        Debug.Log("BuildScript: URP pipeline asset assigned");
+    }
+
+    // SSAO — отдельная возможность рендерера. Настройки приватные, поэтому
+    // хватает значений по умолчанию; при неудаче сборка продолжается без него.
+    private static void AddAmbientOcclusion(UniversalRendererData renderer, string rendererPath)
+    {
+        try
+        {
+            for (int i = 0; i < renderer.rendererFeatures.Count; i++)
+                if (renderer.rendererFeatures[i] is ScreenSpaceAmbientOcclusion) return;
+
+            ScreenSpaceAmbientOcclusion ssao =
+                ScriptableObject.CreateInstance<ScreenSpaceAmbientOcclusion>();
+            ssao.name = "ScreenSpaceAmbientOcclusion";
+            renderer.rendererFeatures.Add(ssao);
+            AssetDatabase.AddObjectToAsset(ssao, rendererPath);
+
+            // Список идентификаторов должен совпадать со списком возможностей,
+            // иначе рендерер считает данные повреждёнными и игнорирует их.
+            SerializedObject rso = new SerializedObject(renderer);
+            SerializedProperty map = rso.FindProperty("m_RendererFeatureMap");
+            if (map != null)
+            {
+                map.arraySize = renderer.rendererFeatures.Count;
+                for (int i = 0; i < renderer.rendererFeatures.Count; i++)
+                {
+                    long id;
+                    string guid;
+                    AssetDatabase.TryGetGUIDAndLocalFileIdentifier(
+                        renderer.rendererFeatures[i], out guid, out id);
+                    map.GetArrayElementAtIndex(i).longValue = id;
+                }
+                rso.ApplyModifiedProperties();
+            }
+            Debug.Log("BuildScript: SSAO renderer feature added");
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning("BuildScript: SSAO не добавлен — " + e.Message);
+        }
     }
 
     private static void ConfigurePlayerSettings()
@@ -103,7 +211,8 @@ public static class BuildScript
         PlayerSettings.companyName = "Crucian";
         PlayerSettings.productName = "Медвежьи Приключения";
         PlayerSettings.bundleVersion = "1.0";
-        PlayerSettings.colorSpace = ColorSpace.Gamma;
+        // Линейное пространство обязательно для HDR и ACES-тонмаппинга.
+        PlayerSettings.colorSpace = ColorSpace.Linear;
 
         PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "com.crucian.bearadventure");
         PlayerSettings.SetScriptingBackend(BuildTargetGroup.Android, ScriptingImplementation.IL2CPP);
@@ -121,8 +230,7 @@ public static class BuildScript
         PlayerSettings.allowedAutorotateToLandscapeLeft = true;
         PlayerSettings.allowedAutorotateToLandscapeRight = true;
 
-        QualitySettings.antiAliasing = 4;
-        QualitySettings.shadowDistance = 70f;
+        // Сглаживание, тени и лимит источников теперь берутся из URP-ассета.
         QualitySettings.pixelLightCount = 4;
     }
 

@@ -199,6 +199,11 @@ namespace UnityEngine
         public static void LogError(object o) { }
     }
 
+    public class ScriptableObject : Object
+    {
+        public static T CreateInstance<T>() where T : ScriptableObject { return null; }
+    }
+
     public class Object
     {
         public string name { get; set; }
@@ -558,6 +563,7 @@ namespace UnityEngine
         public static float shadowDistance { get; set; }
         public static ShadowResolution shadowResolution { get; set; }
         public static int pixelLightCount { get; set; }
+        public static Rendering.RenderPipelineAsset renderPipeline { get; set; }
     }
 
     public enum ShadowResolution { Low, Medium, High, VeryHigh }
@@ -696,6 +702,118 @@ namespace UnityEngine
 
     namespace Rendering
     {
+        using UnityEngine;
+
+        public class VolumeParameter<T> { public void Override(T v) { } public T value { get; set; } }
+        public class ClampedFloatParameter : VolumeParameter<float> { }
+        public class MinFloatParameter : VolumeParameter<float> { }
+        public class FloatParameter : VolumeParameter<float> { }
+        public class BoolParameter : VolumeParameter<bool> { }
+        public class ColorParameter : VolumeParameter<Color> { }
+
+        public class VolumeComponent : ScriptableObject { public bool active { get; set; } }
+
+        public class VolumeProfile : ScriptableObject
+        {
+            public T Add<T>(bool overrides) where T : VolumeComponent { return null; }
+            public T Add<T>() where T : VolumeComponent { return null; }
+        }
+
+        public class Volume : Behaviour
+        {
+            public bool isGlobal { get; set; }
+            public float priority { get; set; }
+            public float weight { get; set; }
+            public VolumeProfile profile { get; set; }
+        }
+
+        public class RenderPipelineAsset : ScriptableObject { }
+
+        public static class GraphicsSettings
+        {
+            public static RenderPipelineAsset defaultRenderPipeline { get; set; }
+        }
+
+        namespace Universal
+        {
+            using UnityEngine;
+            using UnityEngine.Rendering;
+
+            public enum TonemappingMode { None, Neutral, ACES }
+            public class TonemappingModeParameter : VolumeParameter<TonemappingMode> { }
+
+            public class Tonemapping : VolumeComponent { public TonemappingModeParameter mode; }
+
+            public class Bloom : VolumeComponent
+            {
+                public MinFloatParameter threshold;
+                public MinFloatParameter intensity;
+                public ClampedFloatParameter scatter;
+                public ColorParameter tint;
+            }
+
+            public class ColorAdjustments : VolumeComponent
+            {
+                public FloatParameter postExposure;
+                public ClampedFloatParameter contrast;
+                public ColorParameter colorFilter;
+                public ClampedFloatParameter hueShift;
+                public ClampedFloatParameter saturation;
+            }
+
+            public class Vignette : VolumeComponent
+            {
+                public ClampedFloatParameter intensity;
+                public ClampedFloatParameter smoothness;
+                public ColorParameter color;
+            }
+
+            public enum AntialiasingMode { None, FastApproximateAntialiasing, SubpixelMorphologicalAntiAliasing, TemporalAntiAliasing }
+            public enum AntialiasingQuality { Low, Medium, High }
+            public enum DepthPrimingMode { Disabled, Auto, Forced }
+
+            public class UniversalAdditionalCameraData : Component
+            {
+                public bool renderPostProcessing { get; set; }
+                public bool renderShadows { get; set; }
+                public AntialiasingMode antialiasing { get; set; }
+                public AntialiasingQuality antialiasingQuality { get; set; }
+            }
+
+            public static class CameraExtensions
+            {
+                public static UniversalAdditionalCameraData GetUniversalAdditionalCameraData(this Camera cam)
+                { return null; }
+            }
+
+            public class ScriptableRendererFeature : ScriptableObject { }
+            public class ScreenSpaceAmbientOcclusion : ScriptableRendererFeature { }
+
+            public class ScriptableRendererData : ScriptableObject
+            {
+                public System.Collections.Generic.List<ScriptableRendererFeature> rendererFeatures
+                { get { return null; } }
+            }
+
+            public class UniversalRendererData : ScriptableRendererData
+            {
+                public DepthPrimingMode depthPrimingMode { get; set; }
+            }
+
+            public class UniversalRenderPipelineAsset : RenderPipelineAsset
+            {
+                public bool supportsHDR { get; set; }
+                public int msaaSampleCount { get; set; }
+                public bool supportsCameraDepthTexture { get; set; }
+                public bool supportsCameraOpaqueTexture { get; set; }
+                public float shadowDistance { get; set; }
+                public int shadowCascadeCount { get; set; }
+                public float shadowDepthBias { get; set; }
+                public float shadowNormalBias { get; set; }
+                public bool supportsSoftShadows { get; set; }
+            }
+        }
+
         public enum IndexFormat { UInt16, UInt32 }
         public enum ShadowCastingMode { Off, On, TwoSided, ShadowsOnly }
         public enum AmbientMode { Skybox = 0, Trilight = 1, Flat = 3, Custom = 4 }
@@ -929,6 +1047,10 @@ namespace UnityEditor
     {
         public int arraySize { get; set; }
         public Object objectReferenceValue { get; set; }
+        public int intValue { get; set; }
+        public long longValue { get; set; }
+        public float floatValue { get; set; }
+        public bool boolValue { get; set; }
         public SerializedProperty GetArrayElementAtIndex(int i) { return null; }
         public void InsertArrayElementAtIndex(int i) { }
     }
@@ -962,6 +1084,16 @@ namespace UnityEditor
         public static void SaveAssets() { }
         public static bool IsValidFolder(string p) { return false; }
         public static string CreateFolder(string parent, string name) { return ""; }
+        public static T LoadAssetAtPath<T>(string p) where T : Object { return null; }
+        public static void CreateAsset(Object o, string path) { }
+        public static void AddObjectToAsset(Object o, string path) { }
+        public static bool TryGetGUIDAndLocalFileIdentifier(Object o, out string guid, out long id)
+        { guid = ""; id = 0; return false; }
+    }
+
+    public static class EditorUtility
+    {
+        public static void SetDirty(Object o) { }
     }
 
     namespace SceneManagement
