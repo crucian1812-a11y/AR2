@@ -52,6 +52,10 @@ public class TurtleWorld : WorldBuilder
         AddCheckpoint(new Vector3(0f, ShellHeight[0] + 0.9f, 6f));
         AddCheckpoint(new Vector3(-2f, ShellHeight[0] + 7.9f, 6f));
         BuildShore();
+        // Звёзды — цель мира
+        AddStarPickup(Shells[0] + new Vector3(0f, ShellHeight[0] + 10.6f, 0f));
+        AddStarPickup(Shells[2] + new Vector3(0f, ShellHeight[2] + 2.5f, 0f));
+        AddStarPickup(new Vector3(0f, 1.6f, 80f));
         BuildAtmosphere();
 
         AddPortal(new Vector3(0f, ShellHeight[0] + 1.6f, -14f), NetManager.WorldHub,

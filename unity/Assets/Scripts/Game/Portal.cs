@@ -69,14 +69,14 @@ public class Portal : MonoBehaviour
 
         if (Locked)
         {
-            int need = NetManager.QuestCoins;
-            if (required == 3) need = NetManager.QuestCoinsCity;
-            else if (required >= 4) need = NetManager.QuestCoinsFinal;
-            int have = net != null ? net.CoinsTotal : 0;
+            int need = NetManager.QuestStars;
+            if (required == 3) need = NetManager.QuestStarsCity;
+            else if (required >= 4) need = NetManager.QuestStarsFinal;
+            int have = net != null ? net.StarsTotal : 0;
             _ringMat.color = new Color(0.4f, 0.4f, 0.45f);
             _ringMat.SetColor("_EmissionColor", Color.black);
             _swirl.SetActive(false);
-            _label.Text = Label + "\n(монет: " + have + " / " + need + ")";
+            _label.Text = Label + "\n(звёзд: " + have + " / " + need + ")";
             _label.Tint = new Color(0.82f, 0.82f, 0.85f);
         }
         else

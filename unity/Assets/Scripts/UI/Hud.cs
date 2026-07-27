@@ -165,15 +165,15 @@ public class Hud : MonoBehaviour
     {
         if (net.VictoryReached) return "Победа! Сердце горы найдено!";
         if (net.QuestStage >= 4)
-            return "Кристальная пещера открыта — доберитесь до золотой звезды";
+            return "Кристальная пещера открыта — доберитесь до Сердца горы";
         if (net.QuestStage == 3)
-            return "Черепахоград всплыл! Монет до пещеры: " +
-                   net.CoinsTotal + " / " + NetManager.QuestCoinsFinal;
+            return "Черепахоград всплыл! Звёзд до пещеры: " +
+                   net.StarsTotal + " / " + NetManager.QuestStarsFinal;
         if (net.QuestStage == 2)
-            return "Открыты каньон и вершины. Монет до Черепахограда: " +
-                   net.CoinsTotal + " / " + NetManager.QuestCoinsCity;
+            return "Открыты каньон и вершины. Звёзд до Черепахограда: " +
+                   net.StarsTotal + " / " + NetManager.QuestStarsCity;
         if (net.QuestStage == 1)
-            return "Задание: соберите монеты (" + net.CoinsTotal + " / " + NetManager.QuestCoins + ")";
+            return "Задание: найдите звёзды (" + net.StarsTotal + " / " + NetManager.QuestStars + ")";
         return "Подойдите к старейшине в деревне";
     }
 

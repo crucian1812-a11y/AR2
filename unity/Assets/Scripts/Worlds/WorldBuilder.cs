@@ -17,6 +17,7 @@ public abstract class WorldBuilder : MonoBehaviour
     public StarGoal Star;
 
     private int _coinCounter;
+    private int _starCounter;
     private int _enemyCounter;
     private readonly List<EnemyState> _stateScratch = new List<EnemyState>();
 
@@ -870,10 +871,26 @@ public abstract class WorldBuilder : MonoBehaviour
         Coins[id] = c;
     }
 
+    // Звезда — цель мира. Идентификаторы идут с 10000, поэтому сеть и
+    // сохранение отличают их от монет без отдельного списка.
+    protected void AddStarPickup(Vector3 pos)
+    {
+        int id = NetManager.StarIdBase + _starCounter++;
+        Coin c = Coin.Spawn(transform, pos, id);
+        Coins[id] = c;
+    }
+
     protected void AddEnemy(Vector3 a, Vector3 b, string kind, float speed)
     {
         int id = _enemyCounter++;
         Enemy e = Enemy.Spawn(transform, a, b, kind, speed, id);
+        Enemies[id] = e;
+    }
+
+    protected void AddBoss(Vector3 a, Vector3 b, string kind, float speed, int hp, float scale)
+    {
+        int id = _enemyCounter++;
+        Enemy e = Enemy.SpawnBoss(transform, a, b, kind, speed, id, hp, scale);
         Enemies[id] = e;
     }
 
@@ -895,6 +912,15 @@ public abstract class WorldBuilder : MonoBehaviour
     {
         Npc n = Npc.Spawn(transform, pos, title, modelId, height);
         n.CustomLine = line;
+        Npcs.Add(n);
+    }
+
+    // Торговка открывает лавку вместо реплики.
+    protected void AddShopkeeper(Vector3 pos, string title, string modelId, float height)
+    {
+        Npc n = Npc.Spawn(transform, pos, title, modelId, height);
+        n.IsShop = true;
+        n.CustomLine = "Загляни в лавку — монеты тут не лежат без дела.";
         Npcs.Add(n);
     }
 

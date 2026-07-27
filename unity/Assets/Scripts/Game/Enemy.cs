@@ -10,6 +10,9 @@ public class Enemy : MonoBehaviour
     public Vector3 PointA;
     public Vector3 PointB;
     public bool Dying;
+    // Боссы держат несколько ударов; обычный враг умирает с одного.
+    public int Hp = 1;
+    public bool IsBoss;
 
     private Transform _visual;
     private Vector3 _target;
@@ -24,6 +27,18 @@ public class Enemy : MonoBehaviour
     private bool _flying;
 
     public float Yaw { get { return _visual != null ? _visual.localEulerAngles.y : 0f; } }
+
+    public static Enemy SpawnBoss(Transform parent, Vector3 a, Vector3 b, string kind,
+        float speed, int id, int hp, float scale)
+    {
+        Enemy e = Spawn(parent, a, b, kind, speed, id);
+        e.IsBoss = true;
+        e.Hp = hp;
+        e.transform.localScale = new Vector3(scale, scale, scale);
+        WorldLabel.Attach(e.transform, "Босс", new Vector3(0f, 3.2f, 0f),
+            new Color(1f, 0.5f, 0.4f), 24);
+        return e;
+    }
 
     public static Enemy Spawn(Transform parent, Vector3 a, Vector3 b, string kind, float speed, int id)
     {
@@ -227,6 +242,22 @@ public class Enemy : MonoBehaviour
             sc.y = 1f + Mathf.Sin(_bob) * 0.05f;
             _visual.localScale = new Vector3(1f, sc.y, 1f);
         }
+    }
+
+    // Попадание по боссу. Возвращает true, если он погиб.
+    public bool TakeHit()
+    {
+        if (Dying) return true;
+        Hp--;
+        if (Hp > 0)
+        {
+            Snd.Play("stomp", 0.7f);
+            if (_model != null) _model.Restart("HitRecieve", 1.3f);
+            ParticleFx.Burst(transform.parent, transform.position + new Vector3(0f, 1.2f, 0f),
+                10, new Color(1f, 0.6f, 0.4f), 4f);
+            return false;
+        }
+        return true;
     }
 
     public void DieEffect()

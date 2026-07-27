@@ -186,7 +186,8 @@ public class MenuUI : MonoBehaviour
         Snd.Play("click");
         NetManager net = NetManager.I;
         if (net == null) return;
-        net.CharIndex = (net.CharIndex + 1) % Heroes.Ids.Length;
+        int limit = Mathf.Clamp(net.UnlockedChars, 1, Heroes.Ids.Length);
+        net.CharIndex = (net.CharIndex + 1) % limit;
         Text label = _charBtn.GetComponentInChildren<Text>();
         if (label != null) label.text = CharButtonText();
     }

@@ -39,6 +39,9 @@ public class HubWorld : WorldBuilder
         BuildLake();
         AddCheckpoint(new Vector3(0f, 0.5f, 12f));
         BuildForest();
+        // Звёзды — цель мира
+        AddStarPickup(OnGround(-40f, 34f, 6.5f));
+        AddStarPickup(new Vector3(34f, 1.6f, 30f));
         BuildAtmosphere();
 
         // Старейшина и порталы вокруг площади
@@ -57,8 +60,7 @@ public class HubWorld : WorldBuilder
         // Жители деревни — сюжет и подсказки
         AddVillager(new Vector3(-8f, 0f, -7f), "Пекарь", "Pig", 1.6f,
             "Сердце горы пропало в ту же ночь, когда потухли все печи в деревне.\nСовпадение? Старейшина говорит, что нет.");
-        AddVillager(new Vector3(10f, 0f, 5f), "Торговка", "Chicken", 1.4f,
-            "Монеты у нас не простые — они помнят дорогу домой.\nЧем больше соберёшь, тем больше путей откроется.");
+        AddShopkeeper(new Vector3(10f, 0f, 5f), "Торговка", "Chicken", 1.4f);
         AddVillager(new Vector3(-13f, 0f, 9f), "Путешественник", "Cyclops", 2.1f,
             "Я видел город на спинах спящих черепах.\nОн всплывает, только когда в деревне снова становится тепло.");
     }

@@ -20,6 +20,7 @@ public class GameRoot : MonoBehaviour
     private Transform _worldHolder;
     private Transform _playersHolder;
     private Hud _hud;
+    private ShopUI _shop;
     private float _enemySendAccum;
     private bool _worldReady;
 
@@ -44,6 +45,7 @@ public class GameRoot : MonoBehaviour
 
         _hud = Hud.Create();
         _hud.transform.SetParent(transform, false);
+        _shop = ShopUI.Create(transform);
 
         NetManager net = NetManager.I;
         net.OnWorldChanged += LoadWorld;
@@ -232,6 +234,7 @@ public class GameRoot : MonoBehaviour
             {
                 // Задание двигает только старейшина, остальные просто говорят.
                 if (npc == World.Elder) net.RequestQuest();
+                if (npc.IsShop && _shop != null) _shop.Open();
                 if (_hud != null) _hud.ShowDialog(npc.DialogText());
             }
             else if (left && _hud != null) _hud.HideDialog();

@@ -59,6 +59,8 @@ public static class Heroes
         if (kind == "skull") return "Skull";
         if (kind == "bee") return "Bee";
         if (kind == "crab") return "Crab";
+        if (kind == "dragon") return "YellowDragon";
+        if (kind == "cthulhu") return "Cthulhu";
         return "Mushroom";
     }
 
@@ -70,12 +72,15 @@ public static class Heroes
         if (kind == "ghost") return 1.5f;
         if (kind == "skull") return 1.5f;
         if (kind == "crab") return 1.2f;
+        if (kind == "dragon") return 2.6f;
+        if (kind == "cthulhu") return 2.8f;
         return 1.35f;
     }
 
     // Летающие держатся над землёй и не «шагают».
     public static bool Flies(string kind)
     {
-        return kind == "bat" || kind == "bee" || kind == "ghost";
+        return kind == "bat" || kind == "bee" || kind == "ghost" ||
+               kind == "dragon" || kind == "cthulhu";
     }
 }

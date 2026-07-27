@@ -42,6 +42,10 @@ public class MeadowWorld : WorldBuilder
         AddCheckpoint(new Vector3(-34f, 15.2f, -31f));
         AddCheckpoint(OnGround(28f, 14f, 11.8f));
         BuildNature();
+        // Звёзды — цель мира
+        AddStarPickup(new Vector3(-42f, 21.5f, -32f));
+        AddStarPickup(new Vector3(-26f, 1.4f, 26f));
+        AddStarPickup(OnGround(38f, -30f) + new Vector3(0f, 22.5f, 0f));
         BuildAtmosphere();
 
         AddVillager(OnGround(-6f, 40f), "Пасечница", "Bee", 1.2f,

@@ -44,7 +44,14 @@ public class DesertWorld : WorldBuilder
         BuildRuins();
         AddCheckpoint(new Vector3(-12f, 3.1f, -14f));
         AddCheckpoint(new Vector3(-16f, 10.9f, -38f));
+        // Босс каньона стережёт верхнюю площадку
+        AddBoss(new Vector3(-52f, 25.5f, -24f), new Vector3(-52f, 25.5f, -12f),
+            "dragon", 4f, 4, 1.6f);
         BuildDunes();
+        // Звёзды — цель мира
+        AddStarPickup(new Vector3(-52f, 24.6f, -18f));
+        AddStarPickup(OnGround(46f, -34f, 29f));
+        AddStarPickup(new Vector3(30f, 3.6f, 6f));
         BuildAtmosphere();
 
         AddVillager(OnGround(24f, 14f), "Хранитель оазиса", "Cactus", 1.8f,

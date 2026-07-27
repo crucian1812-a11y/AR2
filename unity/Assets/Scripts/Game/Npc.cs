@@ -77,6 +77,7 @@ public class Npc : MonoBehaviour
     }
 
     public string CustomLine = "";
+    public bool IsShop;
 
     public string DialogText()
     {
@@ -88,13 +89,14 @@ public class Npc : MonoBehaviour
         if (net.QuestStage >= 4)
             return "Пещера открыта! В её глубине спрятана золотая звезда — Сердце горы.";
         if (net.QuestStage == 3)
-            return "Черепахоград ждёт вас. Соберите " + NetManager.QuestCoinsFinal +
-                   " монет (" + net.CoinsTotal + ") — и откроется Кристальная пещера.";
+            return "Черепахоград ждёт вас. Найдите " + NetManager.QuestStarsFinal +
+                   " звёзд (" + net.StarsTotal + ") — и откроется Кристальная пещера.";
         if (net.QuestStage == 2)
-            return "Каньон и вершины ваши! Наберите " + NetManager.QuestCoinsCity +
-                   " монет (" + net.CoinsTotal + "), и всплывёт Черепахоград.";
+            return "Каньон и вершины ваши! Найдите " + NetManager.QuestStarsCity +
+                   " звёзд (" + net.StarsTotal + "), и всплывёт Черепахоград.";
         if (net.QuestStage == 1)
-            return "Соберите " + NetManager.QuestCoins + " монет (" + net.CoinsTotal +
+            return "В каждом мире спрятано по три звезды. Принесите " +
+                   NetManager.QuestStars + " (" + net.StarsTotal +
                    ") — и я открою пути в Каньон и на Снежные вершины!";
         return "Приветствую, медвежата! Древнее Сердце горы пропало. Поможете найти?";
     }

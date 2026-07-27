@@ -48,6 +48,10 @@ public class SnowWorld : WorldBuilder
         AddCheckpoint(_peak + new Vector3(0f, 18.2f, 6f));
         AddCheckpoint(new Vector3(-44f + 16f, 3.2f, -8f + 10f));
         BuildForest();
+        // Звёзды — цель мира
+        AddStarPickup(_peak + new Vector3(0f, 33f, 0f));
+        AddStarPickup(new Vector3(38f, 2.6f, 22f));
+        AddStarPickup(new Vector3(-44f, 22f, -4f));
         BuildAtmosphere();
 
         AddVillager(OnGround(-12f, 38f), "Смотритель лагеря", "Yeti", 2.2f,

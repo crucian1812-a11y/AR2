@@ -45,7 +45,14 @@ public class CaveWorld : WorldBuilder
         BuildAltar();
         AddCheckpoint(new Vector3(34f, 8.7f, -4f));
         AddCheckpoint(new Vector3(-14f, 17.9f, -12f));
+        // Босс пещеры кружит над алтарём
+        AddBoss(new Vector3(-14f, 20f, -18f), new Vector3(-14f, 20f, -6f),
+            "cthulhu", 4.5f, 6, 1.8f);
         BuildFlora();
+        // Звёзды — цель мира
+        AddStarPickup(new Vector3(-34f, 1.9f, -16f));
+        AddStarPickup(new Vector3(34f, 10.6f, -19f));
+        AddStarPickup(new Vector3(0f, 1.4f, 20f));
         BuildAtmosphere();
 
         AddVillager(new Vector3(6f, 0.2f, 46f), "Отшельник", "Skull", 1.7f,

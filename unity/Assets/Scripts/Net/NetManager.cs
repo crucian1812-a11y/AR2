@@ -65,6 +65,16 @@ public class NetManager : MonoBehaviour
     public const int GamePort = 8910;
     public const int DiscoveryPort = 8911;
     public const string DiscoveryMsg = "BEAR_DISCOVER";
+    // Звёзды живут в том же наборе собранного, что и монеты, но с
+    // идентификаторами от 10000 — так их синхронизация достаётся даром.
+    public const int StarIdBase = 10000;
+    public static bool IsStarId(int id) { return id >= StarIdBase; }
+
+    // Звёзды открывают миры, монеты тратятся в лавке.
+    public const int QuestStars = 2;
+    public const int QuestStarsCity = 6;
+    public const int QuestStarsFinal = 11;
+
     public const int QuestCoins = 15;
     public const int QuestCoinsCity = 40;
     public const int QuestCoinsFinal = 70;
@@ -350,6 +360,16 @@ public class NetManager : MonoBehaviour
     }
 
     // Прогресс пишем только у хозяина: у клиента он приходит по сети.
+    // Покупка в лавке. Возвращает false, если не хватает монет.
+    public bool Spend(int amount)
+    {
+        if (amount <= 0 || CoinsTotal < amount) return false;
+        CoinsTotal -= amount;
+        if (OnCoinsChanged != null) OnCoinsChanged(CoinsTotal);
+        SaveProgress();
+        return true;
+    }
+
     public void SaveProgress()
     {
         if (IsHost) SaveGame.Save(this);
@@ -420,14 +440,14 @@ public class NetManager : MonoBehaviour
         HashSet<int> set = CollectedSet(world);
         if (set.Contains(coinId)) return;
         set.Add(coinId);
-        CoinsTotal++;
-        ApplyCoin(world, coinId, CoinsTotal);
+        if (IsStarId(coinId)) StarsTotal++; else CoinsTotal++;
+        ApplyCoin(world, coinId, CoinsTotal, StarsTotal);
         SaveProgress();
         if (Online)
         {
             MemoryStream ms; BinaryWriter w;
             Begin(Msg.EvCoin, out ms, out w);
-            w.Write(world); w.Write(coinId); w.Write(CoinsTotal);
+            w.Write(world); w.Write(coinId); w.Write(CoinsTotal); w.Write(StarsTotal);
             BroadcastRepeat(ms, 2);
         }
         CheckQuest();
@@ -435,6 +455,17 @@ public class NetManager : MonoBehaviour
 
     private void HostKill(int world, int enemyId)
     {
+        // Босс переживает несколько попаданий: удаляем его только когда
+        // здоровье кончилось, иначе рассылаем лишь эффект попадания.
+        if (world == CurrentWorld && GameRoot.I != null && GameRoot.I.World != null)
+        {
+            Enemy e;
+            if (GameRoot.I.World.Enemies.TryGetValue(enemyId, out e) && e != null && e.IsBoss)
+            {
+                if (!e.TakeHit()) return;
+            }
+        }
+
         if (world != CurrentWorld) return;
         HashSet<int> set = KilledSet(world);
         if (set.Contains(enemyId)) return;
@@ -494,9 +525,9 @@ public class NetManager : MonoBehaviour
     private void CheckQuest()
     {
         int stage = QuestStage;
-        if (stage == 1 && CoinsTotal >= QuestCoins) stage = 2;
-        if (stage == 2 && CoinsTotal >= QuestCoinsCity) stage = 3;
-        if (stage == 3 && CoinsTotal >= QuestCoinsFinal) stage = 4;
+        if (stage == 1 && StarsTotal >= QuestStars) stage = 2;
+        if (stage == 2 && StarsTotal >= QuestStarsCity) stage = 3;
+        if (stage == 3 && StarsTotal >= QuestStarsFinal) stage = 4;
         if (stage == QuestStage) return;
 
         QuestStage = stage;
@@ -533,10 +564,11 @@ public class NetManager : MonoBehaviour
         SaveProgress();
     }
 
-    private void ApplyCoin(int world, int coinId, int total)
+    private void ApplyCoin(int world, int coinId, int total, int stars)
     {
         CollectedSet(world).Add(coinId);
         CoinsTotal = total;
+        StarsTotal = stars;
         if (OnCoinRemoved != null) OnCoinRemoved(world, coinId);
         if (OnCoinsChanged != null) OnCoinsChanged(total);
     }
@@ -785,8 +817,9 @@ public class NetManager : MonoBehaviour
                 }
             case Msg.EvCoin:
                 {
-                    int world = r.ReadInt32(); int coin = r.ReadInt32(); int total = r.ReadInt32();
-                    if (!IsCollected(world, coin)) ApplyCoin(world, coin, total);
+                    int world = r.ReadInt32(); int coin = r.ReadInt32();
+                    int total = r.ReadInt32(); int stars = r.ReadInt32();
+                    if (!IsCollected(world, coin)) ApplyCoin(world, coin, total, stars);
                     break;
                 }
             case Msg.EvKill:
@@ -837,6 +870,7 @@ public class NetManager : MonoBehaviour
         w.Write((ushort)kil.Count);
         foreach (int id in kil) w.Write(id);
 
+        w.Write(StarsTotal);
         w.Write((byte)Players.Count);
         foreach (KeyValuePair<int, PlayerInfo> kv in Players)
         {
@@ -871,6 +905,7 @@ public class NetManager : MonoBehaviour
             if (kil.Add(id) && world == CurrentWorld && OnEnemyRemoved != null) OnEnemyRemoved(world, id);
         }
 
+        StarsTotal = r.ReadInt32();
         int pCount = r.ReadByte();
         HashSet<int> seen = new HashSet<int>();
         bool changed = false;

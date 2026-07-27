@@ -106,6 +106,8 @@ public class BearPlayer : MonoBehaviour
         WorldLabel.Attach(transform, DisplayName, new Vector3(0f, 2.35f, 0f),
             IsLocal ? new Color(0.75f, 1f, 0.75f) : Color.white, 20);
 
+        if (NetManager.I != null) Hearts = NetManager.I.MaxHearts;
+
         _netPos = transform.position;
         _spawnPos = transform.position;
 
@@ -473,7 +475,7 @@ public class BearPlayer : MonoBehaviour
         _velocity = new Vector3(push.x, 6f, push.z);
         if (Hearts <= 0)
         {
-            Hearts = 3;
+            Hearts = NetManager.I != null ? NetManager.I.MaxHearts : 3;
             _invuln = 2f;
             PlaceAt(_spawnPos);
         }
@@ -482,7 +484,7 @@ public class BearPlayer : MonoBehaviour
     private void FallRespawn()
     {
         Hearts--;
-        if (Hearts <= 0) Hearts = 3;
+        if (Hearts <= 0) Hearts = NetManager.I != null ? NetManager.I.MaxHearts : 3;
         _invuln = 2f;
         Snd.Play("hurt", 0.9f);
         PlaceAt(_spawnPos);

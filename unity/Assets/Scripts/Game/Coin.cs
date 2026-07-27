@@ -4,6 +4,7 @@ using UnityEngine;
 public class Coin : MonoBehaviour
 {
     public int Id;
+    public bool IsStar;
 
     private Transform _visual;
     private float _baseY;
@@ -19,8 +20,30 @@ public class Coin : MonoBehaviour
         go.transform.localPosition = pos;
         Coin c = go.AddComponent<Coin>();
         c.Id = id;
-        c.BuildVisual();
+        c.IsStar = NetManager.IsStarId(id);
+        if (c.IsStar) c.BuildStar(); else c.BuildVisual();
         return c;
+    }
+
+    // Звезда — главная награда мира: крупнее, ярче и со своим светом.
+    private void BuildStar()
+    {
+        GameObject vis = new GameObject("Visual");
+        vis.transform.SetParent(transform, false);
+        _visual = vis.transform;
+
+        Material star = Gfx.MatFull(new Color(1f, 0.9f, 0.35f), 0.85f, 0.55f,
+            new Color(1f, 0.72f, 0.15f), 0f, 0f);
+        // Пять лучей из вытянутых кристаллов.
+        for (int i = 0; i < 5; i++)
+        {
+            GameObject ray = Gfx.Crystal(_visual, Vector3.zero, 0.2f, 1.5f, star, 0f);
+            ray.transform.localRotation = Quaternion.Euler(0f, 0f, i * 72f);
+        }
+        Gfx.Ball(_visual, Vector3.zero, new Vector3(0.44f, 0.44f, 0.44f), star);
+        Gfx.Glow(transform, Vector3.zero, 5f, new Color(1f, 0.88f, 0.4f, 0.75f));
+        Gfx.PointLight(transform, Vector3.zero, new Color(1f, 0.85f, 0.4f), 14f, 1.6f);
+        _baseY = transform.localPosition.y;
     }
 
     private void BuildVisual()
