@@ -56,10 +56,12 @@ public abstract class WorldBuilder : MonoBehaviour
             RenderSettings.skybox = sky;
         }
 
+        // Заливающий свет держим умеренным: при высоком ambient картинка
+        // становится плоской и выцветшей, тени пропадают.
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-        RenderSettings.ambientSkyColor = top * 0.9f;
-        RenderSettings.ambientEquatorColor = horizon * 0.8f;
-        RenderSettings.ambientGroundColor = ground * 0.7f;
+        RenderSettings.ambientSkyColor = top * 0.6f;
+        RenderSettings.ambientEquatorColor = horizon * 0.5f;
+        RenderSettings.ambientGroundColor = ground * 0.42f;
 
         RenderSettings.fog = fogDensity > 0f;
         if (fogDensity > 0f)
@@ -77,7 +79,7 @@ public abstract class WorldBuilder : MonoBehaviour
         sun.intensity = sunIntensity;
         sun.color = new Color(1f, 0.97f, 0.9f);
         sun.shadows = LightShadows.Soft;
-        sun.shadowStrength = 0.75f;
+        sun.shadowStrength = 0.85f;
         sun.shadowNormalBias = 0.05f;
     }
 
@@ -582,9 +584,8 @@ public abstract class WorldBuilder : MonoBehaviour
         MeshFilter mf = go.AddComponent<MeshFilter>();
         mf.mesh = mesh;
         MeshRenderer mr = go.AddComponent<MeshRenderer>();
-        // Цвет берётся из вершин, поэтому базовый — белый.
-        Material m = Gfx.MatFull(Color.white, 0.03f, 0f, Color.black, detailTiling, normalScale);
-        mr.sharedMaterial = m;
+        // Цвет берётся из вершин меша — материал должен это включать явно.
+        mr.sharedMaterial = Gfx.VertexColorMat(0.03f, detailTiling, normalScale);
         MeshCollider mc = go.AddComponent<MeshCollider>();
         mc.sharedMesh = mesh;
     }

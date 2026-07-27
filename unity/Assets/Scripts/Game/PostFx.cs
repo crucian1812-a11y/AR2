@@ -5,7 +5,9 @@ using UnityEngine;
 // разрешения — на телефоне это почти бесплатно.
 public class PostFx : MonoBehaviour
 {
-    public float Threshold = 0.72f;
+    // Порог высокий намеренно: светиться должны источники света и блики,
+    // а не любая освещённая поверхность — иначе кадр выцветает.
+    public float Threshold = 0.9f;
     public float SoftKnee = 0.35f;
     public float Intensity = 1.05f;
     public int BlurIterations = 3;

@@ -19,7 +19,8 @@ public class SnowWorld : WorldBuilder
         SetupSky(new Color(0.36f, 0.5f, 0.78f), new Color(0.86f, 0.9f, 0.98f),
             new Color(0.55f, 0.6f, 0.72f), new Vector3(24f, 55f, 0f), 1.05f,
             0.0035f, new Color(0.84f, 0.89f, 0.97f));
-        SetPostFx(1.35f, 1.02f, new Color(0.94f, 0.98f, 1.08f), 0.6f);
+        // Снег и так почти белый — свечение держим слабым, иначе засветка.
+        SetPostFx(0.85f, 1.04f, new Color(0.94f, 0.98f, 1.08f), 0.6f);
 
         // Ровные места: чаша замёрзшего озера и подножие пика
         FlattenArea(38f, 22f, 17f, 12f);

@@ -16,6 +16,7 @@ Shader "Bear/Lit"
         _RimPower ("Rim Power", Range(0.5,8)) = 3
         _RimStrength ("Rim Strength", Range(0,2)) = 0
         _AOStrength ("Vertex AO", Range(0,1)) = 0
+        _VertexTint ("Vertex Color Tint", Range(0,1)) = 0
     }
     SubShader
     {
@@ -43,6 +44,7 @@ Shader "Bear/Lit"
         half _RimPower;
         half _RimStrength;
         half _AOStrength;
+        half _VertexTint;
         fixed4 _Color;
         fixed4 _EmissionColor;
         fixed4 _RimColor;
@@ -51,10 +53,14 @@ Shader "Bear/Lit"
         {
             fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * _Color;
 
+            // Цвет из вершин: рельеф красится по высоте (трава внизу, камень
+            // наверху) — без этого меш рисуется базовым белым.
+            float3 vtint = lerp(float3(1, 1, 1), IN.color.rgb, _VertexTint);
+
             // Затенение из вершинных цветов: запечённое «ambient occlusion»,
             // которое миры проставляют на нижних частях геометрии.
             float ao = lerp(1.0, IN.color.r, _AOStrength);
-            o.Albedo = c.rgb * ao;
+            o.Albedo = c.rgb * vtint * ao;
 
             // Карта нормалей генерируется кодом в обычном RGB, поэтому
             // распаковываем вручную; при _NormalScale = 0 нормаль плоская.

@@ -18,9 +18,11 @@ public class CaveWorld : WorldBuilder
         SpawnPoint = new Vector3(0f, 2f, 52f);
 
         // «Небо» пещеры — почти чёрное, весь свет идёт от кристаллов.
-        SetupSky(new Color(0.05f, 0.04f, 0.1f), new Color(0.12f, 0.08f, 0.2f),
-            new Color(0.04f, 0.03f, 0.07f), new Vector3(70f, 20f, 0f), 0.22f,
-            0.014f, new Color(0.09f, 0.06f, 0.16f));
+        // Ambient считается от цветов неба, поэтому для пещеры он приподнят —
+        // иначе вне пятен от кристаллов совсем ничего не видно.
+        SetupSky(new Color(0.11f, 0.09f, 0.2f), new Color(0.2f, 0.14f, 0.34f),
+            new Color(0.09f, 0.07f, 0.15f), new Vector3(70f, 20f, 0f), 0.25f,
+            0.012f, new Color(0.1f, 0.07f, 0.18f));
         SetPostFx(1.9f, 1.25f, new Color(0.94f, 0.92f, 1.12f), 0.85f);
 
         // Ровные места: подземное озеро, площадка входа и края пропасти

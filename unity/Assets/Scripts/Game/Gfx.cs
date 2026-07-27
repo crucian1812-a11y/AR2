@@ -277,6 +277,31 @@ public static class Gfx
         return m;
     }
 
+    // Материал, который берёт цвет из вершинных цветов меша.
+    // Нужен рельефу: он красится по высоте, а базовый цвет остаётся белым.
+    public static Material VertexColorMat(float smoothness, float detailTiling, float normalScale)
+    {
+        Material m = new Material(Standard);
+        m.color = Color.white;
+        m.SetFloat("_Glossiness", smoothness);
+        m.SetFloat("_Metallic", 0f);
+        m.SetColor("_EmissionColor", Color.black);
+        m.SetFloat("_VertexTint", 1f);
+        if (detailTiling > 0f)
+        {
+            m.mainTexture = NoiseTexture();
+            m.SetTextureScale("_MainTex", new Vector2(detailTiling, detailTiling));
+        }
+        if (normalScale > 0f)
+        {
+            m.SetTexture("_BumpMap", NoiseNormal());
+            m.SetFloat("_NormalScale", Mathf.Clamp01(normalScale));
+            float tile = Mathf.Max(detailTiling, 1f);
+            m.SetTextureScale("_BumpMap", new Vector2(tile, tile));
+        }
+        return m;
+    }
+
     public static Material AdditiveMat(Color tint, Texture2D tex)
     {
         Material m = new Material(Additive);
