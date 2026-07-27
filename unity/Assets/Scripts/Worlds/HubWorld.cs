@@ -54,11 +54,12 @@ public class HubWorld : WorldBuilder
         Gfx.Cyl(transform, new Vector3(0f, 0.06f, 0f), new Vector3(34f, 0.06f, 34f), stone);
 
         // Дорожки к порталам
+        // Тени от плоских дорожек ложились на холмы тёмными полосами.
         Material path = Gfx.MatFull(PathCol, 0.05f, 0f, Color.black, 4f, 0.4f);
-        Gfx.Box(transform, new Vector3(0f, 0.08f, 24f), new Vector3(5f, 0.12f, 32f), path);
-        Gfx.Box(transform, new Vector3(0f, 0.08f, -24f), new Vector3(5f, 0.12f, 32f), path);
-        Gfx.Box(transform, new Vector3(-24f, 0.08f, 0f), new Vector3(32f, 0.12f, 5f), path);
-        Gfx.Box(transform, new Vector3(24f, 0.08f, 0f), new Vector3(32f, 0.12f, 5f), path);
+        Gfx.NoShadow(Gfx.Box(transform, new Vector3(0f, 0.08f, 24f), new Vector3(5f, 0.12f, 32f), path));
+        Gfx.NoShadow(Gfx.Box(transform, new Vector3(0f, 0.08f, -24f), new Vector3(5f, 0.12f, 32f), path));
+        Gfx.NoShadow(Gfx.Box(transform, new Vector3(-24f, 0.08f, 0f), new Vector3(32f, 0.12f, 5f), path));
+        Gfx.NoShadow(Gfx.Box(transform, new Vector3(24f, 0.08f, 0f), new Vector3(32f, 0.12f, 5f), path));
 
         // Фонтан
         Material basin = Gfx.MatFull(new Color(0.75f, 0.74f, 0.72f), 0.12f, 0f, Color.black, 3f, 0.3f);
@@ -178,7 +179,7 @@ public class HubWorld : WorldBuilder
 
     private void BuildAtmosphere()
     {
-        GrassField(new Vector3(0f, 0f, 0f), new Vector2(78f, 78f), 8000,
+        GrassField(new Vector3(0f, 0f, 0f), new Vector2(78f, 78f), 15200,
             new Color(0.18f, 0.42f, 0.12f), new Color(0.55f, 0.85f, 0.3f), true);
 
         Cloud(new Vector3(-38f, 30f, -26f), 2.2f, Color.white);

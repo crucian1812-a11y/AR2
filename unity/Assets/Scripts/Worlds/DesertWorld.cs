@@ -162,7 +162,7 @@ public class DesertWorld : WorldBuilder
             Vector3 p = c + new Vector3(Mathf.Cos(a) * 13.5f, 0.2f, Mathf.Sin(a) * 11.5f);
             Bush(p, new Color(0.24f, 0.46f, 0.2f));
         }
-        GrassField(c, new Vector2(15f, 13f), 1800,
+        GrassField(c, new Vector2(15f, 13f), 3420,
             new Color(0.22f, 0.44f, 0.14f), new Color(0.62f, 0.86f, 0.34f));
 
         Palm(c + new Vector3(-11f, 0f, 7f), 1.15f);

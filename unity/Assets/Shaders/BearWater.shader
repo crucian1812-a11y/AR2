@@ -12,6 +12,9 @@ Shader "Bear/Water"
         _WaveSpeed ("Wave Speed", Float) = 1.6
         _Glossiness ("Smoothness", Range(0,1)) = 0.9
         _Alpha ("Alpha", Range(0,1)) = 0.85
+        _DepthFade ("Depth Fade", Float) = 2.5
+        _FoamWidth ("Foam Width", Float) = 0.6
+        _FoamColor ("Foam", Color) = (1,1,1,1)
     }
 
     SubShader
@@ -39,6 +42,7 @@ Shader "Bear/Water"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BumpMap_ST;
@@ -48,6 +52,9 @@ Shader "Bear/Water"
                 half _WaveSpeed;
                 half _Glossiness;
                 half _Alpha;
+                half _DepthFade;
+                half _FoamWidth;
+                half4 _FoamColor;
             CBUFFER_END
 
             TEXTURE2D(_BumpMap);  SAMPLER(sampler_BumpMap);
@@ -67,6 +74,7 @@ Shader "Bear/Water"
                 float3 normalWS    : TEXCOORD2;
                 float4 shadowCoord : TEXCOORD3;
                 float fogFactor    : TEXCOORD4;
+                float4 screenPos   : TEXCOORD5;
             };
 
             Varyings Vert (Attributes IN)
@@ -85,6 +93,7 @@ Shader "Bear/Water"
                 OUT.uv = TRANSFORM_TEX(IN.uv, _BumpMap);
                 OUT.shadowCoord = GetShadowCoord(pos);
                 OUT.fogFactor = ComputeFogFactor(pos.positionCS.z);
+                OUT.screenPos = ComputeScreenPos(pos.positionCS);
                 return OUT;
             }
 
@@ -105,12 +114,29 @@ Shader "Bear/Water"
                 float3 viewDir = SafeNormalize(GetCameraPositionWS() - IN.positionWS);
                 half fres = pow(1.0h - saturate(dot(viewDir, n)), 3.0h);
 
+                // Глубина под поверхностью: у берега дно близко, и вода
+                // становится прозрачной, а на кромке появляется пена.
+                float2 screenUV = IN.screenPos.xy / max(IN.screenPos.w, 0.0001);
+                float rawDepth = SampleSceneDepth(screenUV);
+                float sceneEye = LinearEyeDepth(rawDepth, _ZBufferParams);
+                float surfaceEye = IN.screenPos.w;
+                float waterDepth = max(sceneEye - surfaceEye, 0.0);
+
+                half depthT = saturate(waterDepth / max(_DepthFade, 0.01h));
+                half foam = 1.0h - saturate(waterDepth / max(_FoamWidth, 0.01h));
+                // Кромка пены рваная — подмешиваем рябь из карты нормалей.
+                foam = saturate(foam + nTS.x * 0.25h - 0.12h);
+                foam = smoothstep(0.25h, 0.9h, foam);
+
                 SurfaceData surface = (SurfaceData)0;
-                surface.albedo = lerp(_DeepColor.rgb, _ShallowColor.rgb, fres);
+                half3 body = lerp(_ShallowColor.rgb, _DeepColor.rgb, depthT);
+                surface.albedo = lerp(body, _ShallowColor.rgb, fres);
+                surface.albedo = lerp(surface.albedo, _FoamColor.rgb, foam);
                 surface.metallic = 0.1h;
                 surface.smoothness = _Glossiness;
                 surface.occlusion = 1.0h;
-                surface.alpha = _Alpha;
+                // У самого берега вода почти прозрачная, пена — плотная.
+                surface.alpha = max(lerp(0.15h, _Alpha, depthT), foam);
                 surface.emission = _ShallowColor.rgb * fres * 0.15h;
                 surface.normalTS = half3(0, 0, 1);
 
@@ -125,7 +151,7 @@ Shader "Bear/Water"
 
                 half4 color = UniversalFragmentPBR(inputData, surface);
                 color.rgb = MixFog(color.rgb, inputData.fogCoord);
-                color.a = _Alpha;
+                color.a = surface.alpha;
                 return color;
             }
             ENDHLSL

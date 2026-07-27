@@ -231,9 +231,9 @@ public class MeadowWorld : WorldBuilder
 
     private void BuildAtmosphere()
     {
-        GrassField(new Vector3(0f, 0f, 10f), new Vector2(52f, 46f), 6400,
+        GrassField(new Vector3(0f, 0f, 10f), new Vector2(52f, 46f), 12160,
             new Color(0.2f, 0.46f, 0.11f), new Color(0.66f, 0.92f, 0.32f), true);
-        GrassField(new Vector3(30f, 0f, 26f), new Vector2(26f, 24f), 2200,
+        GrassField(new Vector3(30f, 0f, 26f), new Vector2(26f, 24f), 4180,
             new Color(0.22f, 0.5f, 0.12f), new Color(0.7f, 0.95f, 0.34f), true);
 
         Cloud(new Vector3(-44f, 32f, -28f), 2.6f, Color.white);

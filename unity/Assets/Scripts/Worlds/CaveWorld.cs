@@ -300,9 +300,9 @@ public class CaveWorld : WorldBuilder
         }
 
         // Мох на полу — трава с холодным свечением
-        GrassField(new Vector3(0f, 0f, 20f), new Vector2(34f, 26f), 3000,
+        GrassField(new Vector3(0f, 0f, 20f), new Vector2(34f, 26f), 5700,
             new Color(0.1f, 0.24f, 0.22f), new Color(0.3f, 0.85f, 0.75f), true);
-        GrassField(new Vector3(-30f, 0f, 20f), new Vector2(18f, 16f), 1200,
+        GrassField(new Vector3(-30f, 0f, 20f), new Vector2(18f, 16f), 2280,
             new Color(0.12f, 0.2f, 0.3f), new Color(0.35f, 0.7f, 1f), true);
 
         // Валуны

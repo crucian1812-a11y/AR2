@@ -53,7 +53,7 @@ public class BearPlayer : MonoBehaviour
     private float _invuln;
     private float _bounceCd;
     private bool _wasAirborne;
-    private float _camPitch = -16f;
+    private float _camPitch = -22f;
     private float _sendAccum;
     private byte _anim;
     private byte _prevNetAnim;
@@ -111,7 +111,7 @@ public class BearPlayer : MonoBehaviour
     {
         GameObject yaw = new GameObject("CamYaw");
         yaw.transform.SetParent(transform, false);
-        yaw.transform.localPosition = new Vector3(0f, 1.5f, 0f);
+        yaw.transform.localPosition = new Vector3(0f, 1.75f, 0f);
         _camYaw = yaw.transform;
 
         GameObject arm = new GameObject("CamArm");
@@ -122,7 +122,7 @@ public class BearPlayer : MonoBehaviour
         camGo.tag = "MainCamera";
         camGo.transform.SetParent(_camArm, false);
         _cam = camGo.AddComponent<Camera>();
-        _cam.fieldOfView = 73f;
+        _cam.fieldOfView = 60f;
         _cam.nearClipPlane = 0.1f;
         _cam.farClipPlane = 400f;
         camGo.AddComponent<AudioListener>();
@@ -219,7 +219,7 @@ public class BearPlayer : MonoBehaviour
         _camArm.localRotation = Quaternion.Euler(-_camPitch, 0f, 0f);
 
         // Пружинная рука камеры: не даём ей уйти внутрь геометрии.
-        float desired = 5.5f;
+        float desired = 6.8f;
         Vector3 origin = _camYaw.position;
         Vector3 dir = -_camArm.forward;
         RaycastHit hit;

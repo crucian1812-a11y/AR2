@@ -259,18 +259,23 @@ public abstract class WorldBuilder : MonoBehaviour
                 Random.Range(-extents.x, extents.x), 0f, Random.Range(-extents.y, extents.y));
             if (followTerrain) p.y = GroundHeight(p.x, p.z) + 0.02f;
             float yaw = Random.Range(0f, Mathf.PI);
-            float w = 0.09f * Random.Range(0.7f, 1.5f);
-            float h = 0.42f * Random.Range(0.7f, 1.6f);
+            float w = 0.055f * Random.Range(0.7f, 1.5f);
+            float h = 0.55f * Random.Range(0.6f, 1.7f);
             float phase = Random.value;
 
             Vector3 side = new Vector3(Mathf.Cos(yaw) * w, 0f, Mathf.Sin(yaw) * w);
-            Vector3 up = new Vector3(0f, h, 0f);
+            // Травинка сужается кверху и слегка заваливается — плоские
+            // прямоугольники читались как пластиковые карточки.
+            float lean = Random.Range(0.1f, 0.35f);
+            float leanYaw = Random.Range(0f, Mathf.PI * 2f);
+            Vector3 up = new Vector3(Mathf.Cos(leanYaw) * lean * h, h,
+                                     Mathf.Sin(leanYaw) * lean * h);
 
             int v = i * 4;
             verts[v] = p - side;
             verts[v + 1] = p + side;
-            verts[v + 2] = p + side + up;
-            verts[v + 3] = p - side + up;
+            verts[v + 2] = p + side * 0.18f + up;
+            verts[v + 3] = p - side * 0.18f + up;
 
             uvs[v] = new Vector2(0f, 0f);
             uvs[v + 1] = new Vector2(1f, 0f);
