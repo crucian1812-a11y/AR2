@@ -410,6 +410,9 @@ namespace UnityEngine
         public float weight { get; set; }
     }
 
+    // Внимание: Animation, AnimationState и AnimationClip живут в модуле
+    // com.unity.modules.animation. Он должен быть в Packages/manifest.json,
+    // иначе Unity падает с CS1069, хотя эта проверка проходит.
     public class Animation : Behaviour, System.Collections.IEnumerable
     {
         public AnimationClip clip { get; set; }
