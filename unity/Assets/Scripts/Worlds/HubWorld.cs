@@ -24,7 +24,7 @@ public class HubWorld : WorldBuilder
         // Холмистый остров
         // Настоящие PBR-текстуры поверхности
         TerrainTextures("Grass003_1K-PNG_Color", "Grass003_1K-PNG_NormalGL",
-            "brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k", 0.11f, 0.16f);
+            "marble_rock_03_diff_1k", "marble_rock_03_nor_gl_1k", 0.11f, 0.14f);
 
         Terrain(Vector3.zero, new Vector2(210f, 210f), 140, 9f, 0.011f,
             GrassLow, GrassHigh, 40f, 1812);
@@ -50,6 +50,16 @@ public class HubWorld : WorldBuilder
             "Снежные вершины", new Color(0.55f, 0.82f, 1f), 0f);
         AddPortal(new Vector3(0f, 1.5f, 32f), NetManager.WorldCave,
             "Кристальная пещера", new Color(0.75f, 0.5f, 1f), 0f);
+        AddPortal(new Vector3(-20f, 1.5f, 22f), NetManager.WorldTurtle,
+            "Черепахоград", new Color(0.4f, 0.9f, 0.75f), 45f);
+
+        // Жители деревни — сюжет и подсказки
+        AddVillager(new Vector3(-8f, 0f, -7f), "Пекарь", "Pig", 1.6f,
+            "Сердце горы пропало в ту же ночь, когда потухли все печи в деревне.\nСовпадение? Старейшина говорит, что нет.");
+        AddVillager(new Vector3(10f, 0f, 5f), "Торговка", "Chicken", 1.4f,
+            "Монеты у нас не простые — они помнят дорогу домой.\nЧем больше соберёшь, тем больше путей откроется.");
+        AddVillager(new Vector3(-13f, 0f, 9f), "Путешественник", "Cyclops", 2.1f,
+            "Я видел город на спинах спящих черепах.\nОн всплывает, только когда в деревне снова становится тепло.");
     }
 
     private void BuildPlaza()

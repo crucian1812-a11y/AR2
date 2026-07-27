@@ -29,7 +29,7 @@ public class SnowWorld : WorldBuilder
 
         // Настоящие PBR-текстуры поверхности
         TerrainTextures("Snow015_1K-PNG_Color", "Snow015_1K-PNG_NormalGL",
-            "brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k", 0.1f, 0.16f);
+            "marble_rock_03_diff_1k", "marble_rock_03_nor_gl_1k", 0.1f, 0.14f);
 
         Terrain(Vector3.zero, new Vector2(260f, 260f), 150, 10f, 0.011f,
             SnowDeep, Snow, 24f, 5252);
@@ -46,6 +46,11 @@ public class SnowWorld : WorldBuilder
         BuildCamp();
         BuildForest();
         BuildAtmosphere();
+
+        AddVillager(OnGround(-12f, 38f), "Смотритель лагеря", "Yeti", 2.2f,
+            "Костёр здесь не гаснет триста лет. Говорят, его зажгли\nот того самого Сердца горы.");
+        AddVillager(OnGround(20f, 44f), "Ледоруб", "Penguin", 1.5f,
+            "Тоннель в леднике прорубили не мы. Он был здесь раньше\nи ведёт куда-то глубже, чем видно.");
     }
 
     // ---------- Пик и восхождение ----------

@@ -66,22 +66,26 @@ public class NetManager : MonoBehaviour
     public const int DiscoveryPort = 8911;
     public const string DiscoveryMsg = "BEAR_DISCOVER";
     public const int QuestCoins = 15;
-    public const int QuestCoinsFinal = 40;
+    public const int QuestCoinsCity = 40;
+    public const int QuestCoinsFinal = 70;
     public const int MaxPlayers = 8;
 
     // 0 — деревня, 1 — луга, 2 — каньон, 3 — вершины, 4 — пещера.
-    public static readonly string[] WorldIds = { "hub", "meadow", "desert", "snow", "cave" };
+    public static readonly string[] WorldIds =
+        { "hub", "meadow", "desert", "snow", "cave", "turtle" };
     public const int WorldHub = 0;
     public const int WorldMeadow = 1;
     public const int WorldDesert = 2;
     public const int WorldSnow = 3;
     public const int WorldCave = 4;
+    public const int WorldTurtle = 5;
 
     // Какая стадия задания нужна, чтобы портал открылся.
     public static int RequiredStage(int world)
     {
         if (world == WorldDesert || world == WorldSnow) return 2;
-        if (world == WorldCave) return 3;
+        if (world == WorldTurtle) return 3;
+        if (world == WorldCave) return 4;
         return 0;
     }
 
@@ -459,7 +463,8 @@ public class NetManager : MonoBehaviour
     {
         int stage = QuestStage;
         if (stage == 1 && CoinsTotal >= QuestCoins) stage = 2;
-        if (stage == 2 && CoinsTotal >= QuestCoinsFinal) stage = 3;
+        if (stage == 2 && CoinsTotal >= QuestCoinsCity) stage = 3;
+        if (stage == 3 && CoinsTotal >= QuestCoinsFinal) stage = 4;
         if (stage == QuestStage) return;
 
         QuestStage = stage;

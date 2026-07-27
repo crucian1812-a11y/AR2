@@ -13,6 +13,7 @@ public abstract class WorldBuilder : MonoBehaviour
     public readonly List<Portal> Portals = new List<Portal>();
 
     public Npc Elder;
+    public readonly List<Npc> Npcs = new List<Npc>();
     public StarGoal Star;
 
     private int _coinCounter;
@@ -874,6 +875,16 @@ public abstract class WorldBuilder : MonoBehaviour
     protected void AddNpc(Vector3 pos)
     {
         Elder = Npc.Spawn(transform, pos);
+        Npcs.Add(Elder);
+    }
+
+    // Житель для атмосферы и сюжета: своя реплика, своя модель.
+    protected void AddVillager(Vector3 pos, string title, string modelId,
+        float height, string line)
+    {
+        Npc n = Npc.Spawn(transform, pos, title, modelId, height);
+        n.CustomLine = line;
+        Npcs.Add(n);
     }
 
     protected void AddStar(Vector3 pos)

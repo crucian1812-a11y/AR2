@@ -32,7 +32,7 @@ public class CaveWorld : WorldBuilder
 
         // Настоящие PBR-текстуры поверхности
         TerrainTextures("brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k",
-            "brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k", 0.12f, 0.18f);
+            "marble_rock_03_diff_1k", "marble_rock_03_nor_gl_1k", 0.12f, 0.15f);
 
         Terrain(Vector3.zero, new Vector2(230f, 230f), 145, 7f, 0.013f,
             RockCol, RockLight, 18f, 9091);
@@ -45,6 +45,9 @@ public class CaveWorld : WorldBuilder
         BuildAltar();
         BuildFlora();
         BuildAtmosphere();
+
+        AddVillager(new Vector3(6f, 0.2f, 46f), "Отшельник", "Skull", 1.7f,
+            "Ты дошёл. Сердце горы на алтаре — но оно не вещь,\nа обещание вернуться. Возьмёшь — станешь должен.");
     }
 
     // ---------- Оболочка зала: стены, свод, сталактиты ----------

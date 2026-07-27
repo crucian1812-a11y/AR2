@@ -58,6 +58,7 @@ public static class Heroes
         if (kind == "ghost") return "Ghost";
         if (kind == "skull") return "Skull";
         if (kind == "bee") return "Bee";
+        if (kind == "crab") return "Crab";
         return "Mushroom";
     }
 
@@ -68,6 +69,7 @@ public static class Heroes
         if (kind == "beetle") return 1.7f;
         if (kind == "ghost") return 1.5f;
         if (kind == "skull") return 1.5f;
+        if (kind == "crab") return 1.2f;
         return 1.35f;
     }
 

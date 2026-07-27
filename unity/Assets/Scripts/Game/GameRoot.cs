@@ -99,6 +99,7 @@ public class GameRoot : MonoBehaviour
         else if (worldIndex == NetManager.WorldDesert) wb = go.AddComponent<DesertWorld>();
         else if (worldIndex == NetManager.WorldSnow) wb = go.AddComponent<SnowWorld>();
         else if (worldIndex == NetManager.WorldCave) wb = go.AddComponent<CaveWorld>();
+        else if (worldIndex == NetManager.WorldTurtle) wb = go.AddComponent<TurtleWorld>();
         else wb = go.AddComponent<HubWorld>();
 
         wb.Construct(worldIndex);
@@ -211,14 +212,17 @@ public class GameRoot : MonoBehaviour
             if (p != null && p.TryEnter(pos)) net.RequestPortal(p.Target);
         }
 
-        if (World.Elder != null)
+        for (int i = 0; i < World.Npcs.Count; i++)
         {
+            Npc npc = World.Npcs[i];
+            if (npc == null) continue;
             bool left;
-            bool entered = World.Elder.UpdateProximity(pos, out left);
+            bool entered = npc.UpdateProximity(pos, out left);
             if (entered)
             {
-                net.RequestQuest();
-                if (_hud != null) _hud.ShowDialog(World.Elder.DialogText());
+                // Задание двигает только старейшина, остальные просто говорят.
+                if (npc == World.Elder) net.RequestQuest();
+                if (_hud != null) _hud.ShowDialog(npc.DialogText());
             }
             else if (left && _hud != null) _hud.HideDialog();
         }

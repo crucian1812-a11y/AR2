@@ -25,8 +25,8 @@ public class DesertWorld : WorldBuilder
         FlattenArea(6f, 30f, 13f, 10f);
 
         // Настоящие PBR-текстуры поверхности
-        TerrainTextures("brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k",
-            "brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k", 0.09f, 0.15f);
+        TerrainTextures("aerial_beach_01_diff_1k", "aerial_beach_01_nor_gl_1k",
+            "marble_rock_03_diff_1k", "marble_rock_03_nor_gl_1k", 0.08f, 0.13f);
 
         Terrain(Vector3.zero, new Vector2(270f, 270f), 150, 11f, 0.0095f,
             SandLow, SandHigh, 20f, 3131);
@@ -44,6 +44,11 @@ public class DesertWorld : WorldBuilder
         BuildRuins();
         BuildDunes();
         BuildAtmosphere();
+
+        AddVillager(OnGround(24f, 14f), "Хранитель оазиса", "Cactus", 1.8f,
+            "Руины старше деревни. На алтаре когда-то лежало\nвторое сердце — но его унесли ещё до меня.");
+        AddVillager(OnGround(-6f, 44f), "Погонщик", "Alien_Tall", 2.2f,
+            "В каньоне ветер поёт по ночам. Не ходи туда без дела —\nа с делом иди смело.");
     }
 
     // ---------- Столовые горы и арки ----------

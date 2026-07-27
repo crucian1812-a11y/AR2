@@ -23,7 +23,7 @@ public class MeadowWorld : WorldBuilder
 
         // Настоящие PBR-текстуры поверхности
         TerrainTextures("Grass006_1K-PNG_Color", "Grass006_1K-PNG_NormalGL",
-            "brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k", 0.1f, 0.16f);
+            "marble_rock_03_diff_1k", "marble_rock_03_nor_gl_1k", 0.1f, 0.14f);
 
         Terrain(Vector3.zero, new Vector2(250f, 250f), 150, 13f, 0.012f,
             GrassLow, GrassHigh, 22f, 7717);
@@ -40,6 +40,11 @@ public class MeadowWorld : WorldBuilder
         BuildPond();
         BuildNature();
         BuildAtmosphere();
+
+        AddVillager(OnGround(-6f, 40f), "Пасечница", "Bee", 1.2f,
+            "Древнее дерево перестало цвести в ту же ночь.\nОно чувствует Сердце горы лучше любого из нас.");
+        AddVillager(OnGround(30f, -18f), "Лесник", "Deer", 2f,
+            "Тропа наверх идёт по ветвям. Дерево само её вырастило —\nзначит, кого-то ждёт.");
     }
 
     private void BuildWaterfall()
