@@ -308,17 +308,54 @@ public static class Gfx
         return Prop(parent, id, pos, targetHeight, yaw, 0f);
     }
 
+    // Собственный ассет из Resources/Models/custom с коллайдером по мешу —
+    // по такой модели можно ходить, как по обычной геометрии уровня.
+    public static GameObject CustomProp(Transform parent, string id, Vector3 pos,
+        float targetHeight, float yaw)
+    {
+        GameObject go = LoadProp(parent, "Models/custom/" + id, pos, targetHeight, yaw);
+        if (go == null) return null;
+        MeshFilter[] filters = go.GetComponentsInChildren<MeshFilter>();
+        for (int i = 0; i < filters.Length; i++)
+        {
+            if (filters[i] == null || filters[i].sharedMesh == null) continue;
+            MeshCollider mc = filters[i].gameObject.AddComponent<MeshCollider>();
+            mc.sharedMesh = filters[i].sharedMesh;
+        }
+        return go;
+    }
+
     // trunkRadius > 0 добавляет капсулу у основания: камера перестаёт
     // уезжать внутрь кроны, а сквозь ствол нельзя пройти насквозь.
     public static GameObject Prop(Transform parent, string id, Vector3 pos,
         float targetHeight, float yaw, float trunkRadius)
     {
-        if (string.IsNullOrEmpty(id)) return null;
-        GameObject prefab = Resources.Load<GameObject>("Models/nature/" + id);
+        GameObject go = LoadProp(parent, "Models/nature/" + id, pos, targetHeight, yaw);
+        if (go == null) return null;
+
+        if (trunkRadius > 0f && targetHeight > 0f)
+        {
+            GameObject trunk = new GameObject("Trunk");
+            trunk.transform.SetParent(go.transform.parent, false);
+            trunk.transform.localPosition = pos + new Vector3(0f, targetHeight * 0.45f, 0f);
+            CapsuleCollider cap = trunk.AddComponent<CapsuleCollider>();
+            cap.radius = trunkRadius;
+            cap.height = targetHeight * 0.9f;
+            cap.direction = 1;
+        }
+        return go;
+    }
+
+    // Загрузка и нормировка модели по высоте, общая для любого реквизита.
+    private static GameObject LoadProp(Transform parent, string path, Vector3 pos,
+        float targetHeight, float yaw)
+    {
+        if (string.IsNullOrEmpty(path)) return null;
+        GameObject prefab = Resources.Load<GameObject>(path);
         if (prefab == null) return null;
 
         GameObject go = Object.Instantiate(prefab);
-        go.name = id;
+        go.name = path.Substring(path.LastIndexOf('/') + 1);
         if (parent != null) go.transform.SetParent(parent, false);
         go.transform.localPosition = pos;
         go.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
@@ -342,17 +379,6 @@ public static class Gfx
             float k = Mathf.Clamp(targetHeight / (maxY - minY), 0.05f, 60f);
             go.transform.localScale = new Vector3(k, k, k);
             go.transform.localPosition = pos + new Vector3(0f, -minY * k, 0f);
-        }
-
-        if (trunkRadius > 0f && targetHeight > 0f)
-        {
-            GameObject trunk = new GameObject("Trunk");
-            trunk.transform.SetParent(go.transform.parent, false);
-            trunk.transform.localPosition = pos + new Vector3(0f, targetHeight * 0.45f, 0f);
-            CapsuleCollider cap = trunk.AddComponent<CapsuleCollider>();
-            cap.radius = trunkRadius;
-            cap.height = targetHeight * 0.9f;
-            cap.direction = 1;
         }
         return go;
     }

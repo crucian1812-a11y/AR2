@@ -60,6 +60,11 @@ public class HubWorld : WorldBuilder
         AddPortal(new Vector3(-20f, 1.5f, 22f), NetManager.WorldTurtle,
             "Черепахоград", new Color(0.4f, 0.9f, 0.75f), 45f);
 
+        // Указатели у развилок — собственный ассет из tools/blender
+        Gfx.CustomProp(transform, "signpost", new Vector3(-6f, 0.1f, 18f), 2.6f, 20f);
+        Gfx.CustomProp(transform, "signpost", new Vector3(7f, 0.1f, -16f), 2.6f, -150f);
+        Gfx.CustomProp(transform, "treasure_chest", new Vector3(13f, 0.1f, 6f), 1.3f, -25f);
+
         // Жители деревни — сюжет и подсказки
         AddVillager(new Vector3(-8f, 0f, -7f), "Пекарь", "Pig", 1.6f,
             "Сердце горы пропало в ту же ночь, когда потухли все печи в деревне.\nСовпадение? Старейшина говорит, что нет.");

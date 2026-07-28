@@ -9,6 +9,8 @@ public class ModelImportSettings : AssetPostprocessor
 {
     private const string ModelDir = "Assets/Resources/Models/";
     private const string PropDir = "Assets/Resources/Models/nature/";
+    // Собственные ассеты из tools/blender — тоже статичный реквизит.
+    private const string CustomDir = "Assets/Resources/Models/custom/";
     private const string TextureDir = "Assets/Resources/Textures/";
 
     // Клипы, которые должны проигрываться по кругу.
@@ -24,7 +26,7 @@ public class ModelImportSettings : AssetPostprocessor
         ModelImporter mi = assetImporter as ModelImporter;
         if (mi == null) return;
 
-        bool isProp = assetPath.StartsWith(PropDir);
+        bool isProp = assetPath.StartsWith(PropDir) || assetPath.StartsWith(CustomDir);
 
         if (isProp)
         {
@@ -63,7 +65,7 @@ public class ModelImportSettings : AssetPostprocessor
     private void OnPreprocessAnimation()
     {
         if (assetPath == null || !assetPath.StartsWith(ModelDir)) return;
-        if (assetPath.StartsWith(PropDir)) return;
+        if (assetPath.StartsWith(PropDir) || assetPath.StartsWith(CustomDir)) return;
 
         ModelImporter mi = assetImporter as ModelImporter;
         if (mi == null) return;

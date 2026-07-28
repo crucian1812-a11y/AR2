@@ -83,21 +83,32 @@ public class TurtleWorld : WorldBuilder
         Material skin = Gfx.RimMat(new Color(0.45f, 0.58f, 0.38f),
             new Color(0.75f, 0.95f, 0.6f), 0.3f);
 
-        // Купол панциря — приплюснутая «клякса», по ней и ходят.
-        GameObject dome = Gfx.Blob(transform, c + new Vector3(0f, height * 0.45f, 0f),
-            new Vector3(radius * 2f, height * 1.5f, radius * 1.9f), shell,
-            index * 17 + 3, 0.18f, false);
-        MeshFilter domeMf = dome.GetComponent<MeshFilter>();
-        if (domeMf != null)
+        // Собственная модель черепахи из tools/blender: осознанная форма
+        // вместо случайной шумовой сферы. По панцирю можно ходить.
+        float dirYaw = index * 72f;
+        bool modelled = Gfx.CustomProp(transform, "turtle_giant", c,
+            height * 1.55f, dirYaw) != null;
+
+        if (!modelled)
         {
-            MeshCollider mc = dome.AddComponent<MeshCollider>();
-            mc.sharedMesh = domeMf.sharedMesh;
+            GameObject dome = Gfx.Blob(transform, c + new Vector3(0f, height * 0.45f, 0f),
+                new Vector3(radius * 2f, height * 1.5f, radius * 1.9f), shell,
+                index * 17 + 3, 0.18f, false);
+            MeshFilter domeMf = dome.GetComponent<MeshFilter>();
+            if (domeMf != null)
+            {
+                MeshCollider mc = dome.AddComponent<MeshCollider>();
+                mc.sharedMesh = domeMf.sharedMesh;
+            }
         }
 
         // Плоская площадка на макушке, чтобы город стоял ровно.
         Gfx.Cyl(transform, c + new Vector3(0f, height, 0f),
             new Vector3(radius * 1.25f, 0.35f, radius * 1.25f), plate);
 
+        if (modelled) return;
+
+        // Дальше — запасная сборка из примитивов, если модель не загрузилась.
         // Роговые щитки по кругу
         for (int ring = 0; ring < 2; ring++)
         {
@@ -116,8 +127,7 @@ public class TurtleWorld : WorldBuilder
         }
 
         // Голова, лапы и хвост торчат из-под панциря
-        float dir = index * 72f;
-        Quaternion rot = Quaternion.Euler(0f, dir, 0f);
+        Quaternion rot = Quaternion.Euler(0f, dirYaw, 0f);
 
         Vector3 headPos = c + rot * new Vector3(0f, height * 0.32f, radius * 1.15f);
         Gfx.Blob(transform, headPos, new Vector3(radius * 0.44f, radius * 0.36f, radius * 0.52f),
@@ -201,6 +211,7 @@ public class TurtleWorld : WorldBuilder
         Gfx.PointLight(transform, c + new Vector3(0f, top + 9f, 0f),
             new Color(1f, 0.85f, 0.55f), 26f, 1.4f);
         AddCoin(c + new Vector3(0f, top + 9.6f, 0f));
+        Gfx.CustomProp(transform, "treasure_chest", c + new Vector3(2f, top + 8.6f, 0f), 1.2f, 30f);
 
         // Подъём на вышку по ящикам
         Vector3[] steps = {
