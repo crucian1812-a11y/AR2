@@ -194,9 +194,13 @@ public class CaveWorld : WorldBuilder
         }
 
         // Летучие мыши в саду
-        AddEnemy(new Vector3(-14f, 1.2f, 16f), new Vector3(14f, 1.2f, 16f), "bat", 3.4f);
-        AddEnemy(new Vector3(18f, 1.2f, -8f), new Vector3(-4f, 1.2f, -18f), "bat", 3f);
-        AddEnemy(new Vector3(24f, 1.2f, 30f), new Vector3(40f, 1.2f, 22f), "bat", 3.6f);
+        // Мыши парят на 0.9 над своей линией патрулирования, а центр тела
+        // ещё на полроста выше. С прежних 1.2-4.0 они проходили сквозь
+        // медведя, не задевая его: разница по высоте выходила 1.8-3.6 при
+        // пороге контакта 1.40. Линию держим не выше 0.8 над полом.
+        AddEnemy(new Vector3(-14f, 0.6f, 16f), new Vector3(14f, 0.6f, 16f), "bat", 3.4f);
+        AddEnemy(new Vector3(18f, 0.6f, -8f), new Vector3(-4f, 0.6f, -18f), "bat", 3f);
+        AddEnemy(new Vector3(24f, 0.6f, 30f), new Vector3(40f, 0.6f, 22f), "bat", 3.6f);
 
         for (int i = 0; i < 14; i++)
         {
@@ -237,7 +241,7 @@ public class CaveWorld : WorldBuilder
         Waterfall(c + new Vector3(-15f, 16f, 0f), 4.5f, 16f, 70);
         Gfx.PointLight(transform, c + new Vector3(-15f, 8f, 0f), Cyan, 20f, 1.3f);
 
-        AddEnemy(c + new Vector3(-12f, 4f, 12f), c + new Vector3(12f, 4f, -12f), "bat", 3.2f);
+        AddEnemy(c + new Vector3(-12f, 1.6f, 12f), c + new Vector3(12f, 1.6f, -12f), "bat", 3.2f);
     }
 
     // ---------- Пропасть и мосты ----------
@@ -285,7 +289,7 @@ public class CaveWorld : WorldBuilder
         AddBouncePad(new Vector3(34f, 8.4f, -4f), 20f);
         AddCoin(new Vector3(34f, 13f, -2f));
 
-        AddEnemy(new Vector3(34f, 10f, -12f), new Vector3(34f, 10f, -26f), "bat", 3.8f);
+        AddEnemy(new Vector3(34f, 9.2f, -12f), new Vector3(34f, 9.2f, -26f), "bat", 3.8f);
     }
 
     // ---------- Алтарь с Сердцем горы ----------
@@ -327,8 +331,8 @@ public class CaveWorld : WorldBuilder
             AddCoin(c + new Vector3(Mathf.Cos(a) * 4f, 2.8f, Mathf.Sin(a) * 4f));
         }
 
-        AddEnemy(c + new Vector3(-5f, 2.4f, 5f), c + new Vector3(5f, 2.4f, -5f), "bat", 4f);
-        AddEnemy(c + new Vector3(5f, 2.4f, 5f), c + new Vector3(-5f, 2.4f, -5f), "bat", 3.6f);
+        AddEnemy(c + new Vector3(-5f, 1.4f, 5f), c + new Vector3(5f, 1.4f, -5f), "bat", 4f);
+        AddEnemy(c + new Vector3(5f, 1.4f, 5f), c + new Vector3(-5f, 1.4f, -5f), "bat", 3.6f);
     }
 
     // ---------- Подземная флора ----------
