@@ -60,6 +60,9 @@ public static class SaveGame
     public static void Clear()
     {
         PlayerPrefs.DeleteKey(Key);
+        // Новая игра начинается и с чистого обучения: подсказки про
+        // двойной прыжок и удар сверху покажем заново.
+        Tutor.Reset();
         PlayerPrefs.Save();
     }
 

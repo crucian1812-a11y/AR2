@@ -44,7 +44,7 @@ public class Hud : MonoBehaviour
 
         _coins = UiKit.MakeText(c, Vector2.zero, new Vector2(400f * s, 46f * s), "Монеты: 0",
             Mathf.RoundToInt(30f * s), new Color(1f, 0.9f, 0.3f), TextAnchor.MiddleLeft);
-        _hearts = UiKit.MakeText(c, Vector2.zero, new Vector2(400f * s, 40f * s), "Жизни: 3",
+        _hearts = UiKit.MakeText(c, Vector2.zero, new Vector2(400f * s, 40f * s), "Сердца: 3 / 3",
             Mathf.RoundToInt(25f * s), new Color(1f, 0.5f, 0.5f), TextAnchor.MiddleLeft);
         _quest = UiKit.MakeText(c, Vector2.zero, new Vector2(700f * s, 60f * s), "",
             Mathf.RoundToInt(21f * s), Color.white, TextAnchor.UpperCenter);
@@ -142,8 +142,11 @@ public class Hud : MonoBehaviour
         _coins.text = "Монеты: " + net.CoinsTotal;
 
         GameRoot root = GameRoot.I;
+        // «Жизни» в счётчике и «Сердца» в лавке — это одно и то же,
+        // и раньше было непонятно, что покупка в лавке двигает именно
+        // этот счётчик. Слово одно, и видно, докуда его можно поднять.
         if (root != null && root.LocalPlayer != null)
-            _hearts.text = "Жизни: " + root.LocalPlayer.Hearts;
+            _hearts.text = "Сердца: " + root.LocalPlayer.Hearts + " / " + net.MaxHearts;
 
         _quest.text = QuestText(net);
 

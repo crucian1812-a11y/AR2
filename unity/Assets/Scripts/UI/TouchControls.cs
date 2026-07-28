@@ -15,6 +15,10 @@ public static class Ctrl
     public static void QueueAttack() { _attack = true; _attackHeld = true; }
     public static void ReleaseAttack() { _attackHeld = false; }
 
+    // Признак удержания без сброса — нужен нырянию, которое длится всё
+    // время, пока кнопка нажата.
+    public static bool AttackHeld { get { return _attackHeld; } }
+
     // Удержание кнопки удара в воздухе = удар сверху.
     public static bool ConsumeAttackHeld()
     {
@@ -75,6 +79,7 @@ public class TouchControls : MonoBehaviour
     private int _jumpFinger = -1;
     private int _attackFinger = -1;
     private Vector2 _knobOffset;
+    private Vector2 _joyOrigin;
     private float _scale = 1f;
     private bool _touchDevice;
     private bool _visible;
@@ -155,7 +160,14 @@ public class TouchControls : MonoBehaviour
         if (_instance == this) _instance = null;
     }
 
-    private Vector2 JoyCenter { get { return new Vector2(190f * _scale, 190f * _scale); } }
+    // Место, куда джойстик возвращается, когда палец отпущен.
+    private Vector2 JoyHome { get { return new Vector2(190f * _scale, 190f * _scale); } }
+
+    // Джойстик плавающий: он появляется там, где палец коснулся экрана.
+    // С жёстко прибитым кругом приходилось смотреть на кнопку, а не на игру,
+    // и большой палец постоянно соскальзывал с края.
+    private Vector2 JoyCenter { get { return _joyFinger >= 0 ? _joyOrigin : JoyHome; } }
+
     private Vector2 JumpCenter { get { return new Vector2(Screen.width - 155f * _scale, 165f * _scale); } }
     private Vector2 AttackCenter { get { return new Vector2(Screen.width - 330f * _scale, 115f * _scale); } }
 
@@ -201,6 +213,12 @@ public class TouchControls : MonoBehaviour
                 else if (p.x < Screen.width * 0.45f && _joyFinger < 0)
                 {
                     _joyFinger = t.fingerId;
+                    // Круг встаёт под палец. Отступ от краёв — чтобы у самого
+                    // угла экрана оставался полный ход во все стороны.
+                    float m = JoyRadius * _scale;
+                    _joyOrigin = new Vector2(
+                        Mathf.Clamp(p.x, m, Screen.width * 0.45f),
+                        Mathf.Clamp(p.y, m, Screen.height - m));
                     UpdateJoystick(p);
                     joySeen = true;
                 }

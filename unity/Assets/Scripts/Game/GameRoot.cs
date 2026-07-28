@@ -17,6 +17,23 @@ public class GameRoot : MonoBehaviour
     }
 
     private readonly Dictionary<int, BearPlayer> _players = new Dictionary<int, BearPlayer>();
+
+    // Ближайший к точке медведь — врагам нужно знать, за кем гнаться.
+    // В одиночной игре это всегда локальный, в сети — любой из подключённых.
+    public static BearPlayer NearestPlayer(Vector3 worldPos)
+    {
+        if (I == null) return null;
+        BearPlayer best = null;
+        float bestSqr = float.MaxValue;
+        foreach (KeyValuePair<int, BearPlayer> kv in I._players)
+        {
+            if (kv.Value == null) continue;
+            float d = (kv.Value.transform.position - worldPos).sqrMagnitude;
+            if (d < bestSqr) { bestSqr = d; best = kv.Value; }
+        }
+        return best;
+    }
+
     private Transform _worldHolder;
     private Transform _playersHolder;
     private Hud _hud;
@@ -212,7 +229,13 @@ public class GameRoot : MonoBehaviour
         for (int i = 0; i < World.Portals.Count; i++)
         {
             Portal p = World.Portals[i];
-            if (p != null && p.TryEnter(pos)) net.RequestPortal(p.Target);
+            if (p == null) continue;
+            if (p.TryEnter(pos)) net.RequestPortal(p.Target);
+            if (p.PendingHint != null)
+            {
+                if (_hud != null) _hud.ShowDialog(p.PendingHint);
+                p.PendingHint = null;
+            }
         }
 
         for (int i = 0; i < World.Checkpoints.Count; i++)

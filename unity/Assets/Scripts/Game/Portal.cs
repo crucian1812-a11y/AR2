@@ -9,10 +9,19 @@ public class Portal : MonoBehaviour
     public Color Tint = new Color(0.4f, 1f, 0.6f);
     public bool Locked;
 
+    // Подсказка «почему закрыто»: портал выставляет её, когда игрок
+    // подошёл вплотную, а GameRoot показывает и стирает.
+    public string PendingHint;
+
     private Material _ringMat;
     private GameObject _swirl;
     private WorldLabel _label;
     private float _cooldown;
+    private float _hintCd;
+    // Числа, которые сейчас нарисованы на табличке. Пока они не изменились,
+    // пересобирать её незачем.
+    private int _shownStars = -1;
+    private int _shownStage = -1;
 
     public static Portal Spawn(Transform parent, Vector3 pos, int target, string label, Color color,
         float yaw)
@@ -61,22 +70,38 @@ public class Portal : MonoBehaviour
         Refresh();
     }
 
+    // Сколько звёзд нужно, чтобы этот портал открылся.
+    public int NeedStars
+    {
+        get
+        {
+            int required = NetManager.RequiredStage(Target);
+            if (required >= 4) return NetManager.QuestStarsFinal;
+            if (required == 3) return NetManager.QuestStarsCity;
+            if (required == 2) return NetManager.QuestStars;
+            return 0;
+        }
+    }
+
     public void Refresh()
     {
         NetManager net = NetManager.I;
         int required = NetManager.RequiredStage(Target);
-        if (net != null) Locked = net.QuestStage < required;
+        _shownStage = net != null ? net.QuestStage : 0;
+        _shownStars = net != null ? net.StarsTotal : 0;
+        Locked = _shownStage < required;
 
         if (Locked)
         {
-            int need = NetManager.QuestStars;
-            if (required == 3) need = NetManager.QuestStarsCity;
-            else if (required >= 4) need = NetManager.QuestStarsFinal;
-            int have = net != null ? net.StarsTotal : 0;
             _ringMat.color = new Color(0.4f, 0.4f, 0.45f);
             _ringMat.SetColor("_EmissionColor", Color.black);
             _swirl.SetActive(false);
-            _label.Text = Label + "\n(звёзд: " + have + " / " + need + ")";
+            // Раньше здесь всегда висел счётчик звёзд, и портал мог
+            // показывать «2 / 2», оставаясь закрытым: до первой стадии
+            // задание вообще не начато, пока не поговоришь со старейшиной.
+            _label.Text = Label + "\n" + (_shownStage == 0
+                ? "(поговори со старейшиной)"
+                : "(звёзд: " + _shownStars + " / " + NeedStars + ")");
             _label.Tint = new Color(0.82f, 0.82f, 0.85f);
         }
         else
@@ -93,11 +118,25 @@ public class Portal : MonoBehaviour
     public bool TryEnter(Vector3 playerPos)
     {
         if (_cooldown > 0f) return false;
-        if (Locked) return false;
         Vector3 d = transform.position - playerPos;
         d.y = 0f;
         if (d.sqrMagnitude > 1.5f * 1.5f) return false;
         if (Mathf.Abs(transform.position.y - playerPos.y) > 2.5f) return false;
+
+        if (Locked)
+        {
+            // Молчащий портал выглядел сломанным: игрок стоял в нём и
+            // не понимал, чего не хватает. Теперь он говорит об этом сам.
+            if (_hintCd <= 0f)
+            {
+                _hintCd = 5f;
+                PendingHint = _shownStage == 0
+                    ? "Закрыто. Расспроси старейшину в деревне."
+                    : "Закрыто. Нужно звёзд: " + NeedStars + ", собрано " + _shownStars + ".";
+            }
+            return false;
+        }
+
         _cooldown = 2f;
         Snd.Play("portal");
         return true;
@@ -106,5 +145,12 @@ public class Portal : MonoBehaviour
     private void Update()
     {
         if (_cooldown > 0f) _cooldown -= Time.deltaTime;
+        if (_hintCd > 0f) _hintCd -= Time.deltaTime;
+
+        // Счётчик звёзд на табличке раньше обновлялся только при смене
+        // стадии задания — собранная звезда на нём не появлялась.
+        NetManager net = NetManager.I;
+        if (net != null && (net.StarsTotal != _shownStars || net.QuestStage != _shownStage))
+            Refresh();
     }
 }

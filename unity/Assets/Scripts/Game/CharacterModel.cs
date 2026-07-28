@@ -171,11 +171,10 @@ public class CharacterModel : MonoBehaviour
 
     // Первый из перечисленных клипов, который есть у модели. Нужен потому,
     // что у летающих монстров нет Idle и Walk, зато есть Flying.
-    public string Pick(string a, string b, string c)
+    public string Pick(params string[] names)
     {
-        if (Has(a)) return a;
-        if (Has(b)) return b;
-        if (Has(c)) return c;
+        for (int i = 0; i < names.Length; i++)
+            if (Has(names[i])) return names[i];
         return null;
     }
 

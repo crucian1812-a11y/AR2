@@ -25,8 +25,33 @@ public class Enemy : MonoBehaviour
     private Transform _wingR;
     private CharacterModel _model;
     private bool _flying;
+    private bool _chasing;
 
     public float Yaw { get { return _visual != null ? _visual.localEulerAngles.y : 0f; } }
+
+    // ---------- Геометрия тела ----------
+    // transform.position — это точка патрулирования на земле. Модель может
+    // стоять выше (летающие подняты на 0.9) и быть крупнее (боссы масштабированы).
+    // Урон и удары считаются по этим свойствам, а не по transform.position,
+    // иначе зона удара висит под врагом и мимо крупного босса можно пройти.
+
+    public float Scale { get { return transform.localScale.x; } }
+
+    public float Height { get { return Heroes.EnemyHeight(Kind) * transform.localScale.y; } }
+
+    // Центр тела в мировых координатах.
+    public Vector3 Center
+    {
+        get
+        {
+            Vector3 basePos = _visual != null ? _visual.position : transform.position;
+            return basePos + Vector3.up * (Height * 0.5f);
+        }
+    }
+
+    // Радиус тела по горизонтали: у босса шире ровно во столько раз,
+    // во сколько он крупнее.
+    public float Radius { get { return 0.55f * Scale; } }
 
     public static Enemy SpawnBoss(Transform parent, Vector3 a, Vector3 b, string kind,
         float speed, int id, int hp, float scale)
@@ -167,20 +192,94 @@ public class Enemy : MonoBehaviour
         Gfx.Glow(_visual, new Vector3(0f, 0.4f, 0f), 1.5f, new Color(0.4f, 0.7f, 1f, 0.35f));
     }
 
-    // Патрулирование считает только хост.
+    // Патрулирование и погоня — считает только хост.
     public void HostStep(float dt)
     {
         if (Dying) return;
         Vector3 pos = transform.localPosition;
-        Vector3 to = _target - pos;
-        if (to.magnitude < 0.08f)
+
+        Vector3 chase;
+        bool sees = FindChaseTarget(pos, out chase);
+        if (sees != _chasing)
         {
-            _target = (_target - PointB).sqrMagnitude < 0.001f ? PointA : PointB;
-            to = _target - pos;
+            _chasing = sees;
+            // Пока враг гонится, шагает он чаще — заметно без единого значка.
+            if (_model != null)
+                _model.Play(_model.Pick("Run", "Walk", "Flying", "Idle"), sees ? 1.5f : 1f, true);
         }
-        transform.localPosition = Vector3.MoveTowards(pos, _target, Speed * dt);
-        if (to.magnitude > 0.01f)
+
+        Vector3 goal;
+        float speed = Speed;
+        if (_chasing)
+        {
+            goal = chase;
+            speed = Speed * 1.7f;
+        }
+        else
+        {
+            if ((_target - pos).magnitude < 0.08f)
+                _target = (_target - PointB).sqrMagnitude < 0.001f ? PointA : PointB;
+            goal = _target;
+        }
+
+        Vector3 to = goal - pos;
+        transform.localPosition = Vector3.MoveTowards(pos, goal, speed * dt);
+        if (new Vector2(to.x, to.z).magnitude > 0.01f)
             _visual.localRotation = Quaternion.Euler(0f, Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg, 0f);
+    }
+
+    // Дальность, с которой враг замечает медведя. У босса шире — он крупный
+    // и стоит на открытой арене.
+    private float AggroRange { get { return (IsBoss ? 14f : 8f) * Mathf.Max(1f, Scale); } }
+
+    // Насколько далеко от своего маршрута враг готов отойти. Без поводка
+    // он сошёл бы с платформы и завис в воздухе: высоты у него нет,
+    // он не падает, а едет на уровне своей линии патрулирования.
+    private float Leash
+    {
+        get { return Mathf.Max(3.5f, (PointB - PointA).magnitude * 0.5f + 2.5f); }
+    }
+
+    // Куда бежать за медведем. false — некого догонять, идём по маршруту.
+    private bool FindChaseTarget(Vector3 localPos, out Vector3 goal)
+    {
+        goal = localPos;
+        BearPlayer p = GameRoot.NearestPlayer(transform.parent != null
+            ? transform.parent.TransformPoint(localPos) : localPos);
+        if (p == null) return false;
+
+        Vector3 theirs = transform.parent != null
+            ? transform.parent.InverseTransformPoint(p.transform.position)
+            : p.transform.position;
+
+        Vector3 flat = theirs - localPos;
+        flat.y = 0f;
+        // Гистерезис: заметив, враг не бросает погоню от каждого шага в сторону.
+        float range = _chasing ? AggroRange * 1.35f : AggroRange;
+        if (flat.magnitude > range) return false;
+        // Медведь на уступе выше или в яме ниже — враг его не достанет,
+        // и бегать под ним бессмысленно.
+        if (Mathf.Abs(theirs.y - localPos.y) > 3.5f + Height) return false;
+
+        Vector3 home = (PointA + PointB) * 0.5f;
+        Vector3 off = new Vector3(theirs.x - home.x, 0f, theirs.z - home.z);
+        float leash = Leash;
+        if (off.magnitude > leash) off = off.normalized * leash;
+
+        goal = new Vector3(home.x + off.x, NearestPatrolY(home.x + off.x, home.z + off.z),
+            home.z + off.z);
+        return true;
+    }
+
+    // Высоту враг берёт со своей линии патрулирования: так он остаётся
+    // на той же площадке, по которой ходил.
+    private float NearestPatrolY(float x, float z)
+    {
+        Vector3 ab = PointB - PointA;
+        float len = new Vector2(ab.x, ab.z).sqrMagnitude;
+        if (len < 0.0001f) return PointA.y;
+        float t = Mathf.Clamp01(((x - PointA.x) * ab.x + (z - PointA.z) * ab.z) / len);
+        return PointA.y + ab.y * t;
     }
 
     public void SetNetState(Vector3 pos, float yaw)

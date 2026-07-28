@@ -25,6 +25,10 @@ public class BearPlayer : MonoBehaviour
     public bool IsLocal;
     public int Hearts = 3;
 
+    // transform.position стоит на подошвах — для проверок столкновений
+    // нужен центр тела, иначе низкие враги «не достают» до медведя.
+    public Vector3 Chest { get { return transform.position + new Vector3(0f, 0.85f, 0f); } }
+
     // Модель персонажа. Если её не удалось загрузить, остаётся null и
     // игрок собирается из примитивов, как раньше.
     private CharacterModel _model;
@@ -296,6 +300,8 @@ public class BearPlayer : MonoBehaviour
                 Snd.Play("splash", 0.9f);
                 ParticleFx.Burst(transform.parent, transform.position, 18,
                     new Color(0.7f, 0.9f, 1f), 5f);
+                if (IsLocal)
+                    Tutor.Show("swim", "Прыжок — всплыть, Удар — нырнуть.");
             }
 
             // Выталкивание к поверхности плюс медленное погружение.
@@ -304,7 +310,9 @@ public class BearPlayer : MonoBehaviour
             _velocity.y = Mathf.Lerp(_velocity.y, buoyancy, Mathf.Min(dt * 5f, 1f));
 
             if (jumpPressed) _velocity.y = 6.5f;
-            if (Input.GetKey(KeyCode.LeftShift)) _velocity.y -= 6f * dt;
+            // На телефоне нырять было нечем: погружение висело только на
+            // Shift. Теперь под водой это делает кнопка удара.
+            if (Input.GetKey(KeyCode.LeftShift) || Ctrl.AttackHeld) _velocity.y -= 6f * dt;
 
             // В воде медленнее и без инерции броска.
             _velocity.x = Mathf.Lerp(_velocity.x, dir.x * Speed * 0.62f, Mathf.Min(dt * 6f, 1f));
@@ -353,7 +361,13 @@ public class BearPlayer : MonoBehaviour
                     Snd.Play("jump", 1.05f);
                     ParticleFx.Burst(transform.parent, transform.position, 12,
                         new Color(0.85f, 0.95f, 1f), 3.5f);
+                    if (IsLocal)
+                        Tutor.Show("pound", "Удержи Удар в воздухе — упадёшь вниз и снесёшь всё рядом.");
                 }
+                // Подсказку про второй прыжок даём на подлёте, пока он ещё
+                // возможен: висящий в воздухе игрок успевает попробовать.
+                else if (IsLocal && _canDoubleJump && !_pounding && _velocity.y < 2f && _velocity.y > -4f)
+                    Tutor.Show("double", "Нажми Прыжок ещё раз в воздухе — двойной прыжок.");
 
                 // Удар сверху: рывок вниз, пробивает врагов при приземлении.
                 if (!_pounding && _poundCd <= 0f &&
@@ -446,8 +460,9 @@ public class BearPlayer : MonoBehaviour
         {
             Enemy e = kv.Value;
             if (e == null || e.Dying) continue;
-            Vector3 to = e.transform.position - transform.position;
-            if (to.magnitude < 2.5f && Mathf.Abs(to.y) < 1.6f)
+            Vector3 to = e.Center - Chest;
+            if (new Vector2(to.x, to.z).magnitude < 2.5f + e.Radius
+                && Mathf.Abs(to.y) < 1.6f + e.Height * 0.5f)
                 NetManager.I.RequestKill(NetManager.I.CurrentWorld, kv.Key);
         }
     }
@@ -470,8 +485,9 @@ public class BearPlayer : MonoBehaviour
         {
             Enemy e = kv.Value;
             if (e == null || e.Dying) continue;
-            Vector3 to = e.transform.position - transform.position;
-            if (to.magnitude < 4.5f && Mathf.Abs(to.y) < 2.5f)
+            Vector3 to = e.Center - Chest;
+            if (new Vector2(to.x, to.z).magnitude < 4.5f + e.Radius
+                && Mathf.Abs(to.y) < 2.5f + e.Height * 0.5f)
                 NetManager.I.RequestKill(NetManager.I.CurrentWorld, kv.Key);
         }
     }
@@ -484,17 +500,22 @@ public class BearPlayer : MonoBehaviour
         {
             Enemy e = kv.Value;
             if (e == null || e.Dying) continue;
-            Vector3 dv = e.transform.position - transform.position;
-            if (new Vector2(dv.x, dv.z).magnitude < 1f && Mathf.Abs(dv.y) < 1.4f)
+            // Считаем по центру тела врага, а не по его точке на земле:
+            // у летающих модель поднята, у боссов увеличена, и раньше зона
+            // урона висела ниже и уже, чем сам враг.
+            Vector3 dv = e.Center - Chest;
+            if (new Vector2(dv.x, dv.z).magnitude < 0.9f + e.Radius
+                && Mathf.Abs(dv.y) < 0.85f + e.Height * 0.5f)
             {
-                if (_velocity.y < -2f && transform.position.y > e.transform.position.y + 0.4f)
+                float top = e.Center.y + e.Height * 0.5f;
+                if (_velocity.y < -2f && transform.position.y > top - 0.45f)
                 {
                     _velocity.y = 8f;
                     NetManager.I.RequestKill(NetManager.I.CurrentWorld, kv.Key);
                 }
                 else if (_invuln <= 0f)
                 {
-                    TakeDamage(e.transform.position);
+                    TakeDamage(e.Center);
                 }
             }
         }

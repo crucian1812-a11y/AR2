@@ -116,7 +116,12 @@ public class Coin : MonoBehaviour
     public bool TryPickup(Vector3 playerPos)
     {
         if (_collecting || _requested) return false;
-        if ((transform.position - playerPos).sqrMagnitude > 1.4f * 1.4f) return false;
+        // Шар радиуса 1.4 от подошв давал на высоте монеты меньше метра
+        // по горизонтали — пробегая мимо, её легко было не задеть.
+        // Цилиндр вокруг тела прощает гораздо больше.
+        Vector3 d = transform.position - (playerPos + new Vector3(0f, 0.85f, 0f));
+        if (new Vector2(d.x, d.z).sqrMagnitude > 1.3f * 1.3f) return false;
+        if (Mathf.Abs(d.y) > 1.5f) return false;
         _requested = true;
         return true;
     }
