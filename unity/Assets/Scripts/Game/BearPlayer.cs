@@ -58,6 +58,9 @@ public class BearPlayer : MonoBehaviour
     private bool _pounding;
     private float _poundCd;
     private bool _swimming;
+    // Немного времени на прыжок после схода с края: иначе на лестницах
+    // прыжок съедается кадром, в котором опора уже потеряна.
+    private float _coyote;
     private float _camPitch = -22f;
     private float _sendAccum;
     private byte _anim;
@@ -90,7 +93,8 @@ public class BearPlayer : MonoBehaviour
         _cc.radius = 0.4f;
         _cc.center = new Vector3(0f, 0.85f, 0f);
         _cc.slopeLimit = 50f;
-        _cc.stepOffset = 0.4f;
+        // Высокий шаг: на ступенях игрока переставало вжимать в них.
+        _cc.stepOffset = 0.65f;
 
         GameObject vis = new GameObject("Visual");
         vis.transform.SetParent(transform, false);
@@ -237,8 +241,10 @@ public class BearPlayer : MonoBehaviour
         Vector3 dir = -_camArm.forward;
         RaycastHit hit;
         float dist = desired;
-        if (Physics.Raycast(origin, dir, out hit, desired + 0.3f, ~(1 << PlayerLayer)))
-            dist = Mathf.Max(1.2f, hit.distance - 0.3f);
+        // Сфера вместо луча: тонкий луч проскакивал мимо стволов и веток,
+        // и камера оказывалась внутри кроны.
+        if (Physics.SphereCast(origin, 0.45f, dir, out hit, desired + 0.3f, ~(1 << PlayerLayer)))
+            dist = Mathf.Max(1.4f, hit.distance - 0.15f);
         _cam.transform.localPosition = new Vector3(0f, 0f, -dist);
     }
 
@@ -304,26 +310,23 @@ public class BearPlayer : MonoBehaviour
                 if (_wasAirborne)
                 {
                     _wasAirborne = false;
-                    _squash = _pounding ? 0.4f : 0.22f;
-                    Snd.Play("land", _pounding ? 1f : 0.8f);
-                    if (_pounding) PoundImpact();
+                    // Приседание только при заметном падении: на ступенях
+                    // мягкие касания шли подряд и персонажа постоянно плющило.
+                    if (_pounding) { _squash = 0.4f; PoundImpact(); }
+                    else if (_velocity.y < -9f) _squash = 0.22f;
+                    Snd.Play("land", _pounding ? 1f : 0.7f);
                 }
                 _pounding = false;
                 _canDoubleJump = true;
+                _coyote = 0.14f;
                 if (_velocity.y < 0f) _velocity.y = -2f;
-                if (jumpPressed)
-                {
-                    _velocity.y = JumpVelocity;
-                    _flip = 0.0001f;
-                    _wasAirborne = true;
-                    Snd.Play("jump", 0.85f);
-                }
             }
             else
             {
                 _wasAirborne = true;
+                _coyote -= dt;
                 // Второй прыжок в воздухе — чуть слабее первого.
-                if (jumpPressed && _canDoubleJump && !_pounding)
+                if (jumpPressed && _canDoubleJump && !_pounding && _coyote <= 0f)
                 {
                     _canDoubleJump = false;
                     _velocity.y = JumpVelocity * 0.86f;
@@ -345,6 +348,16 @@ public class BearPlayer : MonoBehaviour
 
                 _velocity.y -= (_pounding ? Gravity * 2.6f : Gravity) * dt;
                 if (_velocity.y < -45f) _velocity.y = -45f;
+            }
+
+            // Обычный прыжок доступен и пару кадров после схода с опоры.
+            if (jumpPressed && (grounded || _coyote > 0f) && !_pounding)
+            {
+                _coyote = 0f;
+                _velocity.y = JumpVelocity;
+                _flip = 0.0001f;
+                _wasAirborne = true;
+                Snd.Play("jump", 0.85f);
             }
         }
 

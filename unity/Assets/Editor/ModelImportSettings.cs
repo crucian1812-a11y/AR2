@@ -45,9 +45,10 @@ public class ModelImportSettings : AssetPostprocessor
             mi.importAnimation = true;
             mi.animationCompression = ModelImporterAnimationCompression.KeyframeReduction;
 
-            // Материалы монстров делаем сами: в FBX они ссылаются на текстуры
-            // по путям из Blender, которых у нас нет.
-            mi.materialImportMode = ModelImporterMaterialImportMode.None;
+            // Материалы импортируем всегда: у части моделей нет отдельного
+            // атласа, и весь их вид держится на материалах из FBX. Там, где
+            // атлас есть, материал всё равно переопределяется в рантайме.
+            mi.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
         }
 
         mi.importCameras = false;

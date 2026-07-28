@@ -107,7 +107,7 @@ public abstract class WorldBuilder : MonoBehaviour
         // чтобы прежний масштаб давал примерно тот же силуэт.
         int seedIdx = Mathf.Abs(Mathf.RoundToInt(pos.x * 7.3f + pos.z * 3.1f));
         if (Gfx.Prop(transform, Heroes.Pick(Heroes.Trees, seedIdx), pos,
-                5.2f * scale, (seedIdx * 37) % 360) != null) return;
+                5.2f * scale, (seedIdx * 37) % 360, 0.5f * scale) != null) return;
 
         Material bark = Gfx.MatFull(new Color(0.42f, 0.28f, 0.15f), 0.05f, 0f, Color.black, 1.5f, 0.6f);
         Gfx.Cyl(transform, pos + new Vector3(0f, 1.2f * scale, 0f),
@@ -143,7 +143,7 @@ public abstract class WorldBuilder : MonoBehaviour
     {
         int seedIdx = Mathf.Abs(Mathf.RoundToInt(pos.x * 5.1f + pos.z * 9.7f));
         if (Gfx.Prop(transform, Heroes.Pick(Heroes.Pines, seedIdx), pos,
-                6f * scale, (seedIdx * 53) % 360) != null) return;
+                6f * scale, (seedIdx * 53) % 360, 0.45f * scale) != null) return;
 
         Material bark = Gfx.Mat(new Color(0.35f, 0.24f, 0.14f));
         Gfx.Cyl(transform, pos + new Vector3(0f, 0.8f * scale, 0f),
@@ -923,26 +923,35 @@ public abstract class WorldBuilder : MonoBehaviour
     // достижимой из любой точки под ней и заметной издалека.
     protected void AddStarPedestal(Vector3 groundPos, float height)
     {
-        height = Mathf.Clamp(height, 4f, 24f);
-        // Скорость батута подобрана так, чтобы заброс был выше площадки.
+        height = Mathf.Clamp(height, 4f, 22f);
+
+        // Над батутом ничего быть не должно: раньше игрок упирался головой
+        // в плиту постамента и до звезды не долетал. Колонны стоят кольцом
+        // по краям, а путь вверх остаётся свободным.
         AddBouncePad(groundPos + new Vector3(0f, 0.4f, 0f),
-            Mathf.Sqrt(2f * 22f * (height + 3f)));
+            Mathf.Sqrt(2f * 22f * (height + 2.5f)));
 
         Material stone = Gfx.MatFull(new Color(0.68f, 0.62f, 0.52f), 0.1f, 0f,
             Color.black, 3f, 0.4f);
         for (int i = 0; i < 4; i++)
         {
-            float a = i * 90f * Mathf.Deg2Rad;
+            float a = i * 90f * Mathf.Deg2Rad + 0.78f;
+            // Колонны без коллайдера — они обрамляют, но не мешают.
             Gfx.Cyl(transform,
-                groundPos + new Vector3(Mathf.Cos(a) * 2.4f, height * 0.5f, Mathf.Sin(a) * 2.4f),
-                new Vector3(0.5f, height * 0.5f, 0.5f), stone, false);
+                groundPos + new Vector3(Mathf.Cos(a) * 3.6f, height * 0.45f, Mathf.Sin(a) * 3.6f),
+                new Vector3(0.5f, height * 0.45f, 0.5f), stone, false);
+            // Уступы по краям: до звезды можно и допрыгать, а не только взлететь.
+            Platform(groundPos + new Vector3(Mathf.Cos(a) * 3.6f, height * 0.9f + 0.3f,
+                Mathf.Sin(a) * 3.6f), new Vector3(2.6f, 0.5f, 2.6f),
+                new Color(0.72f, 0.66f, 0.55f));
         }
 
-        Vector3 top = groundPos + new Vector3(0f, height, 0f);
-        Gfx.Cyl(transform, top, new Vector3(7f, 0.4f, 7f), stone);
-        Gfx.PointLight(transform, top + new Vector3(0f, 2f, 0f),
-            new Color(1f, 0.85f, 0.45f), 18f, 1.3f);
-        AddStarPickup(top + new Vector3(0f, 1.8f, 0f));
+        Gfx.Cyl(transform, groundPos + new Vector3(0f, 0.15f, 0f),
+            new Vector3(9f, 0.3f, 9f), stone);
+
+        Vector3 star = groundPos + new Vector3(0f, height, 0f);
+        Gfx.PointLight(transform, star, new Color(1f, 0.85f, 0.45f), 20f, 1.4f);
+        AddStarPickup(star);
     }
 
     protected void AddEnemy(Vector3 a, Vector3 b, string kind, float speed)

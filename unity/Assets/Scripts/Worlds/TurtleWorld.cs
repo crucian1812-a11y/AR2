@@ -61,6 +61,12 @@ public class TurtleWorld : WorldBuilder
             new Color(0.62f, 0.44f, 0.28f));
         Spinner(Shells[0] + new Vector3(0f, ShellHeight[0] + 1.4f, -8f), 10f, 60f,
             new Color(0.62f, 0.44f, 0.28f));
+        // Боссы лагуны — акула у берега и капитан на главном панцире
+        AddBoss(new Vector3(-24f, 1.2f, 60f), new Vector3(24f, 1.2f, 60f),
+            "shark", 4.5f, 5, 1.5f);
+        AddBoss(Shells[0] + new Vector3(-9f, ShellHeight[0] + 0.8f, -6f),
+            Shells[0] + new Vector3(9f, ShellHeight[0] + 0.8f, -6f),
+            "pirate", 3.4f, 6, 1.4f);
         BuildAtmosphere();
 
         AddPortal(new Vector3(0f, ShellHeight[0] + 1.6f, -14f), NetManager.WorldHub,

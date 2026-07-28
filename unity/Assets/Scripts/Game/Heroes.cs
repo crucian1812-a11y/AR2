@@ -13,14 +13,20 @@ public static class Heroes
         "Panda", "Yeti", "GreenDemon",
         "Pig", "Chicken", "Penguin", "Deer", "Crab",
         "Mushroom", "Cactus", "Ghost", "Skull",
-        "Cyclops", "Alien", "Alien_Tall", "Demon", "Tree"
+        "Cyclops", "Alien", "Alien_Tall", "Demon", "Tree",
+        "Cat", "Dog", "Ninja", "Alpaking", "Armabee",
+        "Mushnub_Evolved", "Alpaking_Evolved", "Armabee_Evolved",
+        "Characters_Captain_Barbarossa", "Characters_Shark", "Dragon"
     };
     public static readonly string[] Names =
     {
         "Панда", "Йети", "Зелёный демон",
         "Поросёнок", "Цыплёнок", "Пингвин", "Олень", "Краб",
         "Грибок", "Кактус", "Призрак", "Череп",
-        "Циклоп", "Пришелец", "Длинный пришелец", "Демон", "Древень"
+        "Циклоп", "Пришелец", "Длинный пришелец", "Демон", "Древень",
+        "Кот", "Пёс", "Ниндзя", "Альпака", "Пчелодав",
+        "Грибогрыз", "Альпака-вожак", "Пчелиный страж",
+        "Капитан Барбаросса", "Акула", "Дракон"
     };
 
     // Чем дальше по списку, тем дороже.
@@ -84,6 +90,11 @@ public static class Heroes
         if (kind == "crab") return "Crab";
         if (kind == "dragon") return "YellowDragon";
         if (kind == "cthulhu") return "Cthulhu";
+        if (kind == "shark") return "Characters_Shark";
+        if (kind == "pirate") return "Characters_Captain_Barbarossa";
+        if (kind == "bigdragon") return "Dragon_Evolved";
+        if (kind == "alpaking") return "Alpaking_Evolved";
+        if (kind == "armabee") return "Armabee_Evolved";
         return "Mushroom";
     }
 
@@ -97,6 +108,11 @@ public static class Heroes
         if (kind == "crab") return 1.2f;
         if (kind == "dragon") return 2.6f;
         if (kind == "cthulhu") return 2.8f;
+        if (kind == "shark") return 2.4f;
+        if (kind == "pirate") return 2.2f;
+        if (kind == "bigdragon") return 3.2f;
+        if (kind == "alpaking") return 2.6f;
+        if (kind == "armabee") return 2.2f;
         return 1.35f;
     }
 
@@ -104,6 +120,7 @@ public static class Heroes
     public static bool Flies(string kind)
     {
         return kind == "bat" || kind == "bee" || kind == "ghost" ||
-               kind == "dragon" || kind == "cthulhu";
+               kind == "dragon" || kind == "cthulhu" ||
+               kind == "bigdragon" || kind == "armabee";
     }
 }

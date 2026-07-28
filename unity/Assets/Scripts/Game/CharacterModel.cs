@@ -76,12 +76,26 @@ public class CharacterModel : MonoBehaviour
     private void ApplyMaterial(string id)
     {
         Texture2D tex = Resources.Load<Texture2D>("Textures/monsters/" + id + "_Texture");
+        // Без атласа модель раскрашена собственными материалами из FBX —
+        // их трогать нельзя, иначе персонаж станет белым.
+        if (tex == null)
+        {
+            for (int k = 0; k < Renderers.Length; k++)
+            {
+                if (Renderers[k] == null) continue;
+                Renderers[k].receiveShadows = true;
+                Renderers[k].enabled = true;
+                SkinnedMeshRenderer sk = Renderers[k] as SkinnedMeshRenderer;
+                if (sk != null) sk.updateWhenOffscreen = true;
+            }
+            return;
+        }
+
         Material m = new Material(Gfx.Standard);
         m.color = Color.white;
         m.SetFloat("_Glossiness", 0.08f);
         m.SetFloat("_Metallic", 0f);
-        if (tex != null) m.mainTexture = tex;
-        else Debug.LogWarning("CharacterModel: текстура не найдена — " + id);
+        m.mainTexture = tex;
 
         for (int i = 0; i < Renderers.Length; i++)
         {

@@ -51,6 +51,9 @@ public class MeadowWorld : WorldBuilder
             new Color(0.5f, 0.76f, 0.34f));
         Spinner(OnGround(-14f, -46f, 12f), 9f, 55f, new Color(0.45f, 0.32f, 0.2f));
         Spinner(OnGround(56f, 20f, 9f), 8f, -65f, new Color(0.45f, 0.32f, 0.2f));
+        // Босс лугов — вожак альпак у древнего дерева
+        AddBoss(OnGround(38f, -30f) + new Vector3(-9f, 21f, 0f),
+            OnGround(38f, -30f) + new Vector3(9f, 21f, 0f), "alpaking", 3.2f, 4, 1.5f);
         BuildAtmosphere();
 
         AddVillager(OnGround(-6f, 40f), "Пасечница", "Bee", 1.2f,

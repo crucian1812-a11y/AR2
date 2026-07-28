@@ -305,6 +305,14 @@ public static class Gfx
     public static GameObject Prop(Transform parent, string id, Vector3 pos,
         float targetHeight, float yaw)
     {
+        return Prop(parent, id, pos, targetHeight, yaw, 0f);
+    }
+
+    // trunkRadius > 0 добавляет капсулу у основания: камера перестаёт
+    // уезжать внутрь кроны, а сквозь ствол нельзя пройти насквозь.
+    public static GameObject Prop(Transform parent, string id, Vector3 pos,
+        float targetHeight, float yaw, float trunkRadius)
+    {
         if (string.IsNullOrEmpty(id)) return null;
         GameObject prefab = Resources.Load<GameObject>("Models/nature/" + id);
         if (prefab == null) return null;
@@ -334,6 +342,17 @@ public static class Gfx
             float k = Mathf.Clamp(targetHeight / (maxY - minY), 0.05f, 60f);
             go.transform.localScale = new Vector3(k, k, k);
             go.transform.localPosition = pos + new Vector3(0f, -minY * k, 0f);
+        }
+
+        if (trunkRadius > 0f && targetHeight > 0f)
+        {
+            GameObject trunk = new GameObject("Trunk");
+            trunk.transform.SetParent(go.transform.parent, false);
+            trunk.transform.localPosition = pos + new Vector3(0f, targetHeight * 0.45f, 0f);
+            CapsuleCollider cap = trunk.AddComponent<CapsuleCollider>();
+            cap.radius = trunkRadius;
+            cap.height = targetHeight * 0.9f;
+            cap.direction = 1;
         }
         return go;
     }
