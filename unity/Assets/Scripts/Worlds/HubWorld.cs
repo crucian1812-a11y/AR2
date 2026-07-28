@@ -43,7 +43,7 @@ public class HubWorld : WorldBuilder
         AddStarPedestal(OnGround(-52f, 40f), 12f);
         AddStarPedestal(OnGround(46f, -30f), 9f);
         // Тренировочная полоса за мельницей
-        ObstacleRun(OnGround(-62f, -20f, 3f), new Vector3(0.4f, 0f, 1f), 6, 1.5f,
+        ObstacleRun(OnGround(-62f, -20f, 2.1f), new Vector3(0.4f, 0f, 1f), 6, 1.5f,
             new Color(0.5f, 0.7f, 0.4f));
 
         // Грибы на окраинах острова. В самой деревне врагов нет — площадь

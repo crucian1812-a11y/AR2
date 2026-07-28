@@ -44,8 +44,8 @@ public class SnowWorld : WorldBuilder
         BuildFrozenLake();
         BuildGlacier();
         BuildCamp();
-        AddCheckpoint(_peak + new Vector3(0f, 8.2f, 12f));
-        AddCheckpoint(_peak + new Vector3(0f, 18.2f, 6f));
+        // Контрольные точки подъёма ставит сам BuildPeak — на уступах,
+        // а не на оси горы, где они оказывались внутри камня.
         AddCheckpoint(new Vector3(-44f + 16f, 3.2f, -8f + 10f));
         BuildForest();
         // Звёзды — цель мира, каждая на своём постаменте с батутом
@@ -53,7 +53,7 @@ public class SnowWorld : WorldBuilder
         AddStarPedestal(OnGround(56f, -30f), 14f);
         AddStarPedestal(OnGround(-64f, 34f), 10f);
         // Ледяная эстакада вдоль долины
-        ObstacleRun(OnGround(-60f, -50f, 3f), new Vector3(1f, 0f, 0.6f), 8, 1.5f,
+        ObstacleRun(OnGround(-60f, -50f, 2.1f), new Vector3(1f, 0f, 0.6f), 8, 1.5f,
             new Color(0.8f, 0.9f, 1f));
         Spinner(OnGround(-4f, 48f, 4f), 9f, -60f, new Color(0.66f, 0.84f, 1f));
         // Босс снегов — пчелиный страж над замёрзшим озером.
@@ -72,6 +72,16 @@ public class SnowWorld : WorldBuilder
 
     // ---------- Пик и восхождение ----------
 
+    // Радиус горы на высоте y — по ярусам из BuildPeak. Уступы подъёма
+    // выносятся наружу от него, иначе тонут в камне.
+    private static float PeakRadius(float y)
+    {
+        if (y < 10f) return 17f;
+        if (y < 15.5f) return 12f;
+        if (y < 25f) return 7.5f;
+        return 5f;
+    }
+
     private void BuildPeak()
     {
         Material rock = Gfx.MatFull(RockCol, 0.05f, 0f, Color.black, 4f, 0.8f);
@@ -85,14 +95,28 @@ public class SnowWorld : WorldBuilder
         GameObject tip = Gfx.Cone(transform, _peak + new Vector3(0f, 29f, 0f), 5.2f, 7f, cap);
         Gfx.NoShadow(tip);
 
-        // Спираль уступов вокруг горы: 20 площадок, чередуются снег и лёд
+        // Спираль уступов вокруг горы: 20 площадок, чередуются снег и лёд.
+        //
+        // Раньше уступы шли по окружности радиуса 17 - 0.35i, то есть
+        // внутрь горы: с первого по пятый лежали целиком внутри основания
+        // радиуса 17, и подъёма на пик не существовало вовсе. Теперь
+        // радиус каждого уступа берётся от самой горы на его высоте, а
+        // угловой шаг подбирается так, чтобы длина хорды между соседями
+        // держалась постоянной — на узких ярусах шаг шире, на широких уже.
         const int ledges = 20;
+        const float chord = 7.5f;   // расстояние между центрами соседних плит
         Material iceMat = Gfx.MatFull(Ice, 0.9f, 0.25f, new Color(0.08f, 0.18f, 0.3f), 0f, 0f);
+        Vector3[] ledgePos = new Vector3[ledges];
+        float ang = Mathf.PI * 0.5f;
         for (int i = 0; i < ledges; i++)
         {
-            float ang = 0.62f * i + Mathf.PI * 0.5f;
-            float r = 17f - i * 0.35f;
-            Vector3 pos = _peak + new Vector3(Mathf.Cos(ang) * r, 1.6f + i * 1.5f, Mathf.Sin(ang) * r);
+            float y = 1.6f + i * 1.5f;
+            // Полтора метра наружу от склона: плита врезается в камень
+            // задним краем и выходит из него передним.
+            float r = PeakRadius(y) + 1.5f;
+            Vector3 pos = _peak + new Vector3(Mathf.Cos(ang) * r, y, Mathf.Sin(ang) * r);
+            ledgePos[i] = pos;
+
             bool icy = i % 3 == 2;
             GameObject slab = Gfx.Box(transform, pos, new Vector3(5.2f, 0.6f, 4.2f),
                 icy ? iceMat : Gfx.MatFull(Snow, 0.25f, 0f, Color.black, 2f, 0.3f));
@@ -104,7 +128,17 @@ public class SnowWorld : WorldBuilder
                     "slime", 1.7f + i * 0.05f);
             }
             if (i == 9) AddBouncePad(pos + new Vector3(0f, 0.4f, 0f), 18f);
+
+            // Шаг до следующего уступа: хорда постоянной длины на радиусе
+            // следующего яруса.
+            float rNext = PeakRadius(1.6f + (i + 1) * 1.5f) + 1.5f;
+            ang += 2f * Mathf.Asin(Mathf.Min(1f, chord / (2f * rNext)));
         }
+
+        // Контрольные точки — на самих уступах. Раньше они стояли на оси
+        // горы и оказывались внутри камня, коснуться их было нельзя.
+        AddCheckpoint(ledgePos[5] + new Vector3(0f, 0.7f, 0f));
+        AddCheckpoint(ledgePos[14] + new Vector3(0f, 0.7f, 0f));
 
         // Движущиеся льдины через разлом на середине подъёма
         AddMovingPlatform(_peak + new Vector3(-19f, 13f, 6f), _peak + new Vector3(-19f, 13f, -8f),
@@ -114,8 +148,10 @@ public class SnowWorld : WorldBuilder
         AddCoin(_peak + new Vector3(-19f, 15f, -2f));
         AddCoin(_peak + new Vector3(-8f, 19f, -18f));
 
-        // Вершина: смотровая площадка с флагом и щедрой россыпью монет
-        Vector3 top = _peak + new Vector3(0f, 1.6f + ledges * 1.5f + 1.4f, 0f);
+        // Вершина: смотровая площадка с флагом и щедрой россыпью монет.
+        // Она ровно на полтора метра выше последнего уступа — с 1.4 сверху
+        // подъём выходил 2.95 м при потолке прыжка 3.0.
+        Vector3 top = _peak + new Vector3(0f, 1.6f + (ledges - 1) * 1.5f + 1.5f, 0f);
         Platform(top, new Vector3(9f, 0.7f, 9f), new Color(0.88f, 0.93f, 1f), 0.35f);
         Gfx.Cyl(transform, top + new Vector3(0f, 3f, 0f), new Vector3(0.22f, 3f, 0.22f),
             Gfx.Mat(new Color(0.45f, 0.35f, 0.25f), 0.1f), false);

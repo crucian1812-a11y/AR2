@@ -38,7 +38,10 @@ public class MeadowWorld : WorldBuilder
         BuildAncientTree();
         BuildPlatformRoute();
         BuildPond();
-        AddCheckpoint(new Vector3(-30f, 4.2f, -14f));
+        // Не на камне с батутом (-30, 3.4, -14): точка возрождения попадала
+        // в окно батута, и каждая смерть подбрасывала на двенадцать метров
+        // обратно на тот же батут.
+        AddCheckpoint(OnGround(-24f, -14f, 0.4f));
         AddCheckpoint(new Vector3(-34f, 15.2f, -31f));
         // Та же опорная высота, что у лестницы в BuildPlatformRoute,
         // иначе контрольная точка повисает над площадкой или тонет в ней.
@@ -49,7 +52,7 @@ public class MeadowWorld : WorldBuilder
         AddStarPedestal(OnGround(56f, 20f), 11f);
         AddStarPedestal(OnGround(-58f, 48f), 9f);
         // Полоса препятствий над низиной и вращающиеся брёвна
-        ObstacleRun(OnGround(-8f, -56f, 3f), new Vector3(1f, 0f, 0.3f), 7, 1.6f,
+        ObstacleRun(OnGround(-8f, -56f, 2.1f), new Vector3(1f, 0f, 0.3f), 7, 1.6f,
             new Color(0.5f, 0.76f, 0.34f));
         Spinner(OnGround(2f, -38f, 4f), 9f, 55f, new Color(0.45f, 0.32f, 0.2f));
         Spinner(OnGround(40f, 34f, 4f), 8f, -65f, new Color(0.45f, 0.32f, 0.2f));

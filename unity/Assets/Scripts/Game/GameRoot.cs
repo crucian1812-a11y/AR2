@@ -222,8 +222,11 @@ public class GameRoot : MonoBehaviour
     {
         foreach (KeyValuePair<int, Coin> kv in World.Coins)
         {
-            if (kv.Value != null && kv.Value.TryPickup(pos))
-                net.RequestCollect(net.CurrentWorld, kv.Key);
+            if (kv.Value == null || !kv.Value.TryPickup(pos)) continue;
+            // Сердце лечит того, кто его поднял, поэтому здоровье
+            // прибавляем здесь, а не на хосте.
+            if (NetManager.IsHeartId(kv.Key) && LocalPlayer != null) LocalPlayer.Heal(1);
+            net.RequestCollect(net.CurrentWorld, kv.Key);
         }
 
         for (int i = 0; i < World.Portals.Count; i++)

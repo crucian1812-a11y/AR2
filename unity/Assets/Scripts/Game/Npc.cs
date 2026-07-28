@@ -95,8 +95,9 @@ public class Npc : MonoBehaviour
             return "Каньон и вершины ваши! Найдите " + NetManager.QuestStarsCity +
                    " звёзд (" + net.StarsTotal + "), и всплывёт Черепахоград.";
         if (net.QuestStage == 1)
-            return "В каждом мире спрятано по три звезды. Принесите " +
-                   NetManager.QuestStars + " (" + net.StarsTotal +
+            // «По три звезды в каждом мире» было неправдой: в деревне их две.
+            return "Звёзды спрятаны во всех краях — есть они и у нас в деревне. " +
+                   "Принесите " + NetManager.QuestStars + " (" + net.StarsTotal +
                    ") — и я открою пути в Каньон и на Снежные вершины!";
         return "Приветствую, медвежата! Древнее Сердце горы пропало. Поможете найти?";
     }

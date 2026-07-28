@@ -147,6 +147,8 @@ namespace UnityEngine
         public static float Cos(float f) { return 0f; }
         public static float Tan(float f) { return 0f; }
         public static float Atan2(float y, float x) { return 0f; }
+        public static float Asin(float f) { return 0f; }
+        public static float Acos(float f) { return 0f; }
         public static float Sqrt(float f) { return 0f; }
         public static float Pow(float f, float p) { return 0f; }
         public static float Floor(float f) { return 0f; }

@@ -161,6 +161,12 @@ public class BearPlayer : MonoBehaviour
         _velocity.y = power;
         _flip = 0.0001f;
         _wasAirborne = true;
+        // Отскок — не земля: обычный прыжок после него не положен, иначе
+        // тап в первые 0.14 с койот-тайма перезаписывал скорость батута.
+        _coyote = 0f;
+        _pounding = false;
+        // Второй прыжок оставляем — он полезен для доводки, а испортить
+        // взлёт больше не может: прыжки не понижают скорость (см. LocalMove).
         return true;
     }
 
@@ -359,7 +365,9 @@ public class BearPlayer : MonoBehaviour
                 if (jumpPressed && _canDoubleJump && !_pounding && _coyote <= 0f)
                 {
                     _canDoubleJump = false;
-                    _velocity.y = JumpVelocity * 0.86f;
+                    // Не понижаем: после батута скорость вверх куда больше
+                    // прыжковой, и присваивание гасило бы взлёт.
+                    _velocity.y = Mathf.Max(_velocity.y, JumpVelocity * 0.86f);
                     _flip = 0.0001f;
                     Snd.Play("jump", 1.05f);
                     ParticleFx.Burst(transform.parent, transform.position, 12,
@@ -390,7 +398,7 @@ public class BearPlayer : MonoBehaviour
             if (jumpPressed && (grounded || _coyote > 0f) && !_pounding)
             {
                 _coyote = 0f;
-                _velocity.y = JumpVelocity;
+                _velocity.y = Mathf.Max(_velocity.y, JumpVelocity);
                 _flip = 0.0001f;
                 _wasAirborne = true;
                 Snd.Play("jump", 0.85f);

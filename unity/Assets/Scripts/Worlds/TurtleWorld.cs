@@ -63,13 +63,18 @@ public class TurtleWorld : WorldBuilder
             new Color(0.62f, 0.44f, 0.28f));
         Spinner(Shells[0] + new Vector3(0f, ShellHeight[0] + 1.4f, -8f), 10f, 60f,
             new Color(0.62f, 0.44f, 0.28f));
-        // Боссы лагуны — акула у берега и капитан на главном панцире
-        AddBoss(new Vector3(-24f, 1.2f, 60f), new Vector3(24f, 1.2f, 60f),
+        // Боссы лагуны — акула у берега и капитан на главном панцире.
+        //
+        // Акула плавает у поверхности воды (-0.6), а не парит над ней:
+        // на 1.2 она висела почти на два метра выше волны, и достать её
+        // из воды было нельзя — тело уходило за предел удара.
+        AddBoss(new Vector3(-24f, -1.4f, 60f), new Vector3(24f, -1.4f, 60f),
             "shark", 4.5f, 5, 1.5f);
-        // ShellHeight — это сам настил панциря; с прибавкой 0.8 капитан
-        // стоял в воздухе над ним.
-        AddBoss(Shells[0] + new Vector3(-9f, ShellHeight[0], -6f),
-            Shells[0] + new Vector3(9f, ShellHeight[0], -6f),
+        // Настил панциря — это ShellHeight плюс полтолщины диска (0.35).
+        // С голым ShellHeight капитан стоял ногами в досках, с прибавкой
+        // 0.8 — висел над ними.
+        AddBoss(Shells[0] + new Vector3(-9f, ShellHeight[0] + 0.35f, -6f),
+            Shells[0] + new Vector3(9f, ShellHeight[0] + 0.35f, -6f),
             "pirate", 3.4f, 6, 1.4f);
         BuildAtmosphere();
 

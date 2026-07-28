@@ -56,7 +56,7 @@ public class DesertWorld : WorldBuilder
         AddStarPedestal(OnGround(58f, -8f), 10f);
         AddStarPedestal(OnGround(10f, -70f), 16f);
         // Тропа по обломкам над дюнами
-        ObstacleRun(OnGround(56f, -60f, 3f), new Vector3(-0.6f, 0f, 1f), 8, 1.7f,
+        ObstacleRun(OnGround(56f, -60f, 2.1f), new Vector3(-0.6f, 0f, 1f), 8, 1.7f,
             new Color(0.8f, 0.55f, 0.34f));
         Spinner(OnGround(-14f, 20f, 4f), 10f, 70f, new Color(0.72f, 0.44f, 0.28f));
         BuildAtmosphere();

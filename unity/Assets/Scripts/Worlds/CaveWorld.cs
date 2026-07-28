@@ -49,8 +49,12 @@ public class CaveWorld : WorldBuilder
         BuildLake();
         BuildChasm();
         BuildAltar();
-        AddCheckpoint(new Vector3(34f, 8.7f, -4f));
-        AddCheckpoint(new Vector3(-14f, 17.9f, -12f));
+        // Не на батуте (34, 8.4, -4) — иначе каждая смерть у дракона
+        // подбрасывала на девять метров обратно на тот же батут.
+        AddCheckpoint(new Vector3(34f, 8.5f, -8f));
+        // И не в центре алтаря: там постамент и колонна, игрок возрождался
+        // внутри камня. Ставим на край нижнего яруса.
+        AddCheckpoint(new Vector3(-14f, 18.2f, -19f));
         // Босс пещеры кружит над алтарём
         AddBoss(new Vector3(-14f, 20f, -18f), new Vector3(-14f, 20f, -6f),
             "cthulhu", 4.5f, 6, 1.8f);
@@ -60,7 +64,7 @@ public class CaveWorld : WorldBuilder
         AddStarPedestal(OnGround(-46f, 26f), 9f);
         AddStarPedestal(OnGround(48f, 8f), 13f);
         // Мост из плит над кристальным садом
-        ObstacleRun(new Vector3(52f, 4f, 30f), new Vector3(-0.8f, 0f, -1f), 7, 1.6f,
+        ObstacleRun(OnGround(52f, 30f, 2.1f), new Vector3(-0.8f, 0f, -1f), 7, 1.6f,
             new Color(0.42f, 0.34f, 0.5f));
         Spinner(new Vector3(6f, 4f, 40f), 9f, 75f, new Color(0.5f, 0.42f, 0.6f));
         // Второй босс пещеры — исполинский дракон над пропастью.

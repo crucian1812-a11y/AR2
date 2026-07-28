@@ -460,16 +460,21 @@ public static class Gfx
         {
             // Цилиндру и сфере Unity вешает капсулу и сферу, а те при
             // неравномерном масштабе раздуваются по наибольшей оси: диск
-            // 26 x 0.06 x 26 превращается в шар радиусом 13 — невидимый
-            // купол посреди мира. Меняем на бокс по границам меша.
+            // 26 x 0.06 x 26 превращался в шар радиусом 13 — невидимый
+            // купол посреди мира.
+            //
+            // Бокс по границам меша это чинил, но ценой другой беды: гора
+            // из цилиндров становилась кубом, и уступы, расставленные по
+            // окружности, уезжали внутрь камня по углам квадрата. Меш даёт
+            // ровно ту форму, которую видно, и обе беды закрывает разом.
+            // Геометрия здесь статическая, поэтому выпуклость не нужна.
             MeshFilter mf = go.GetComponent<MeshFilter>();
             Mesh mesh = mf != null ? mf.sharedMesh : null;
             if (mesh != null)
             {
                 if (c != null) Object.DestroyImmediate(c);
-                BoxCollider bc = go.AddComponent<BoxCollider>();
-                bc.center = mesh.bounds.center;
-                bc.size = mesh.bounds.size;
+                MeshCollider mc = go.AddComponent<MeshCollider>();
+                mc.sharedMesh = mesh;
             }
         }
         return go;

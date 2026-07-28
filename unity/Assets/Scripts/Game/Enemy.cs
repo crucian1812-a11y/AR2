@@ -213,7 +213,10 @@ public class Enemy : MonoBehaviour
         if (_chasing)
         {
             goal = chase;
-            speed = Speed * 1.7f;
+            // Быстрее игрока (6.5) враг быть не должен: от погони надо
+            // иметь возможность уйти. Без потолка боссы разгонялись до
+            // 8.2 и просто загоняли медведя в угол.
+            speed = Mathf.Min(Speed * 1.7f, 6.0f);
         }
         else
         {
@@ -232,13 +235,13 @@ public class Enemy : MonoBehaviour
     // и стоит на открытой арене.
     private float AggroRange { get { return (IsBoss ? 14f : 8f) * Mathf.Max(1f, Scale); } }
 
-    // Насколько далеко от своего маршрута враг готов отойти. Без поводка
-    // он сошёл бы с платформы и завис в воздухе: высоты у него нет,
-    // он не падает, а едет на уровне своей линии патрулирования.
-    private float Leash
-    {
-        get { return Mathf.Max(3.5f, (PointB - PointA).magnitude * 0.5f + 2.5f); }
-    }
+    // Насколько далеко в сторону от своего маршрута враг готов отойти.
+    // Держим коротко: у врага нет ни гравитации, ни проверки опоры — он
+    // едет на уровне своей линии патрулирования. Линию автор уровня уже
+    // проложил по проходимому месту, а поводок вокруг её середины
+    // выпускал врага за край площадки, где он повисал в воздухе вне
+    // досягаемости удара.
+    private const float Leash = 1.5f;
 
     // Куда бежать за медведем. false — некого догонять, идём по маршруту.
     private bool FindChaseTarget(Vector3 localPos, out Vector3 goal)
@@ -261,25 +264,22 @@ public class Enemy : MonoBehaviour
         // и бегать под ним бессмысленно.
         if (Mathf.Abs(theirs.y - localPos.y) > 3.5f + Height) return false;
 
-        Vector3 home = (PointA + PointB) * 0.5f;
-        Vector3 off = new Vector3(theirs.x - home.x, 0f, theirs.z - home.z);
-        float leash = Leash;
-        if (off.magnitude > leash) off = off.normalized * leash;
-
-        goal = new Vector3(home.x + off.x, NearestPatrolY(home.x + off.x, home.z + off.z),
-            home.z + off.z);
-        return true;
-    }
-
-    // Высоту враг берёт со своей линии патрулирования: так он остаётся
-    // на той же площадке, по которой ходил.
-    private float NearestPatrolY(float x, float z)
-    {
+        // Ближайшая к игроку точка самого маршрута — вместе с её высотой.
         Vector3 ab = PointB - PointA;
-        float len = new Vector2(ab.x, ab.z).sqrMagnitude;
-        if (len < 0.0001f) return PointA.y;
-        float t = Mathf.Clamp01(((x - PointA.x) * ab.x + (z - PointA.z) * ab.z) / len);
-        return PointA.y + ab.y * t;
+        float len2 = ab.sqrMagnitude;
+        float t = len2 < 0.0001f
+            ? 0f
+            : Mathf.Clamp01(Vector3.Dot(theirs - PointA, ab) / len2);
+        Vector3 onPath = PointA + ab * t;
+
+        // И короткий шаг с линии в сторону медведя, чтобы погоня не
+        // выглядела ездой по рельсам.
+        Vector3 off = theirs - onPath;
+        off.y = 0f;
+        if (off.magnitude > Leash) off = off.normalized * Leash;
+
+        goal = onPath + off;
+        return true;
     }
 
     public void SetNetState(Vector3 pos, float yaw)

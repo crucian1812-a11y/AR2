@@ -20,6 +20,12 @@ public class Bootstrap : MonoBehaviour
         NetManager.Create();
         Snd.Create();
 
+        // Купленное подтягиваем сразу, ещё до меню. Сохранение читалось
+        // только внутри StartSolo/StartHost, то есть уже ПОСЛЕ выхода из
+        // меню: на холодном старте в выборе героя всегда было три штуки,
+        // сколько бы их ни куплено.
+        SaveGame.Load(NetManager.I);
+
         NetManager.I.OnEnterGame += EnterGame;
         NetManager.I.OnLeaveToMenu += LeaveToMenu;
 

@@ -76,9 +76,18 @@ public class NetManager : MonoBehaviour
     public static bool IsHeartId(int id) { return id >= HeartIdBase; }
 
     // Звёзды открывают миры, монеты тратятся в лавке.
+    // Всего до пещеры доступно 14 звёзд: деревня 2 плюс четыре мира по 3.
+    // Требовать 11 значило закрыть на сто процентов четыре мира из пяти —
+    // одна пропущенная звезда в каждом, и игрок упирается в стену, не
+    // понимая, где именно недобрал. Девять оставляют запас.
     public const int QuestStars = 2;
     public const int QuestStarsCity = 6;
-    public const int QuestStarsFinal = 11;
+    public const int QuestStarsFinal = 9;
+
+    // Награда за победу. Считалась под пул монет в мирах (около 230) и
+    // витрину лавки: с ней на полное прохождение выходит примерно 570.
+    public const int EnemyReward = 2;
+    public const int BossReward = 20;
 
     public const int QuestCoins = 15;
     public const int QuestCoinsCity = 40;
@@ -358,7 +367,25 @@ public class NetManager : MonoBehaviour
         return _killed.TryGetValue(world, out set) && set.Contains(enemyId);
     }
 
-    public Dictionary<int, HashSet<int>> ExportCollected() { return _collected; }
+    // Для сохранения — всё собранное, кроме сердец. Сердце это лечение,
+    // а не награда: попав в файл, оно исчезало из мира навсегда, и после
+    // первого визита восстановить здоровье было негде, кроме как умереть.
+    // В самой сессии сердца в _collected остаются — иначе подобранное
+    // сердце сразу появлялось бы обратно.
+    public Dictionary<int, HashSet<int>> ExportCollected()
+    {
+        Dictionary<int, HashSet<int>> result = new Dictionary<int, HashSet<int>>();
+        foreach (KeyValuePair<int, HashSet<int>> kv in _collected)
+        {
+            if (kv.Value == null) continue;
+            HashSet<int> keep = new HashSet<int>();
+            foreach (int id in kv.Value)
+                if (!IsHeartId(id)) keep.Add(id);
+            if (keep.Count > 0) result[kv.Key] = keep;
+        }
+        return result;
+    }
+
     public Dictionary<int, HashSet<int>> ExportKilled() { return _killed; }
 
     public void ImportCollected(Dictionary<int, HashSet<int>> src)
@@ -478,11 +505,10 @@ public class NetManager : MonoBehaviour
         HashSet<int> set = CollectedSet(world);
         if (set.Contains(coinId)) return;
         set.Add(coinId);
-        if (IsHeartId(coinId))
-        {
-            BearPlayer local = GameRoot.LocalBear;
-            if (local != null) local.Heal(1);
-        }
+        // Лечит не хост, а тот, кто подобрал: здоровье личное, и раньше
+        // сердце, поднятое клиентом, прибавлялось хозяину игры.
+        // Само лечение происходит на месте подбора, в GameRoot.
+        if (IsHeartId(coinId)) { }
         else if (IsStarId(coinId)) StarsTotal++;
         else CoinsTotal++;
         ApplyCoin(world, coinId, CoinsTotal, StarsTotal);
@@ -501,11 +527,13 @@ public class NetManager : MonoBehaviour
     {
         // Босс переживает несколько попаданий: удаляем его только когда
         // здоровье кончилось, иначе рассылаем лишь эффект попадания.
+        bool wasBoss = false;
         if (world == CurrentWorld && GameRoot.I != null && GameRoot.I.World != null)
         {
             Enemy e;
             if (GameRoot.I.World.Enemies.TryGetValue(enemyId, out e) && e != null && e.IsBoss)
             {
+                wasBoss = true;
                 if (!e.TakeHit()) return;
             }
         }
@@ -514,12 +542,24 @@ public class NetManager : MonoBehaviour
         HashSet<int> set = KilledSet(world);
         if (set.Contains(enemyId)) return;
         set.Add(enemyId);
+
+        // Враги платят. Раньше за победу не давали ничего — ни за рядового,
+        // ни за босса, — а всех монет в шести мирах около 230 при витрине
+        // лавки почти на тысячу: половину скинов нельзя было купить не
+        // потому что дорого, а потому что монет в игре физически нет.
+        CoinsTotal += wasBoss ? BossReward : EnemyReward;
+        SaveProgress();
+
         ApplyKill(world, enemyId);
         if (Online)
         {
             MemoryStream ms; BinaryWriter w;
             Begin(Msg.EvKill, out ms, out w);
             w.Write(world); w.Write(enemyId);
+            BroadcastRepeat(ms, 2);
+            // Клиентам нужен новый счёт монет — он идёт отдельным событием.
+            Begin(Msg.EvCoin, out ms, out w);
+            w.Write(world); w.Write(-1); w.Write(CoinsTotal); w.Write(StarsTotal);
             BroadcastRepeat(ms, 2);
         }
     }
@@ -610,10 +650,15 @@ public class NetManager : MonoBehaviour
 
     private void ApplyCoin(int world, int coinId, int total, int stars)
     {
-        CollectedSet(world).Add(coinId);
+        // coinId < 0 — это не подбор, а просто новый счёт монет: так
+        // рассылается награда за побеждённого врага.
+        if (coinId >= 0)
+        {
+            CollectedSet(world).Add(coinId);
+            if (OnCoinRemoved != null) OnCoinRemoved(world, coinId);
+        }
         CoinsTotal = total;
         StarsTotal = stars;
-        if (OnCoinRemoved != null) OnCoinRemoved(world, coinId);
         if (OnCoinsChanged != null) OnCoinsChanged(total);
     }
 
