@@ -191,6 +191,11 @@ public class GameRoot : MonoBehaviour
         NetManager net = NetManager.I;
         if (net == null || !_worldReady || World == null) return;
 
+        // Самая первая подсказка: базовое управление игра не объясняла
+        // вообще. Показываем её сразу, как только игрок появился в мире.
+        if (LocalPlayer != null)
+            Tutor.Show("jump", "Слева — джойстик, справа — Прыжок и Удар. Врагов можно бить или прыгать им на голову.");
+
         // Удалённые игроки следуют за состоянием из сети.
         foreach (KeyValuePair<int, BearPlayer> kv in _players)
         {
@@ -226,6 +231,10 @@ public class GameRoot : MonoBehaviour
             // Сердце лечит того, кто его поднял, поэтому здоровье
             // прибавляем здесь, а не на хосте.
             if (NetManager.IsHeartId(kv.Key) && LocalPlayer != null) LocalPlayer.Heal(1);
+            // Что такое звёзды, игра нигде не объясняла: об этом узнавали,
+            // только упёршись в закрытый портал.
+            if (NetManager.IsStarId(kv.Key))
+                Tutor.Show("star", "Звезда! Они открывают порталы в деревне — ищи по три в каждом краю.");
             net.RequestCollect(net.CurrentWorld, kv.Key);
         }
 
@@ -261,7 +270,11 @@ public class GameRoot : MonoBehaviour
             {
                 // Задание двигает только старейшина, остальные просто говорят.
                 if (npc == World.Elder) net.RequestQuest();
-                if (npc.IsShop && _shop != null) _shop.Open();
+                if (npc.IsShop && _shop != null)
+                {
+                    _shop.Open();
+                    Tutor.Show("shop", "У торговки меняют монеты на сердца и новых героев.");
+                }
                 if (_hud != null) _hud.ShowDialog(npc.DialogText());
             }
             else if (left && _hud != null) _hud.HideDialog();

@@ -174,6 +174,8 @@ public class Spinner : MonoBehaviour
     public float Speed = 30f;
     public float BobAmplitude;
     public float BobSpeed = 1f;
+    // Половина длины бревна: за её пределами бревно игрока не задевает.
+    public float Reach = 5f;
 
     private Vector3 _basePos;
     private float _t;
@@ -188,5 +190,32 @@ public class Spinner : MonoBehaviour
             _t += Time.deltaTime * BobSpeed;
             transform.localPosition = _basePos + new Vector3(0f, Mathf.Sin(_t) * BobAmplitude, 0f);
         }
+
+        Sweep();
+    }
+
+    // Бревно должно сбивать с платформы, но само по себе оно этого не
+    // делает: CharacterController двигается только собственным Move(),
+    // и чужой коллайдер, наезжающий на него, не толкает — получался либо
+    // проход насквозь, либо застревание. Толкаем вручную.
+    private void Sweep()
+    {
+        BearPlayer p = GameRoot.LocalBear;
+        if (p == null) return;
+
+        Vector3 local = transform.InverseTransformPoint(p.transform.position + new Vector3(0f, 0.85f, 0f));
+        // Бревно лежит вдоль локальной оси X, толщина 0.7.
+        if (Mathf.Abs(local.x) > Reach) return;
+        if (Mathf.Abs(local.y) > 1.1f || Mathf.Abs(local.z) > 0.95f) return;
+
+        // Толкаем по касательной — в ту сторону, куда идёт бревно.
+        Vector3 fromAxis = transform.TransformPoint(new Vector3(local.x, 0f, 0f));
+        Vector3 outward = p.transform.position - fromAxis;
+        outward.y = 0f;
+        if (outward.magnitude < 0.01f) outward = transform.forward;
+        Vector3 tangent = Vector3.Cross(Vector3.up, outward.normalized) * Mathf.Sign(Speed);
+
+        p.ExternalMove((tangent * 5.5f + outward.normalized * 2.5f) * Time.deltaTime);
+        p.Shake(0.12f);
     }
 }

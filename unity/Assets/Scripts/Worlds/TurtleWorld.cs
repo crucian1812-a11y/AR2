@@ -37,6 +37,10 @@ public class TurtleWorld : WorldBuilder
 
         // Дно лагуны: пологая чаша, весь центр под водой.
         FlattenArea(0f, 0f, 70f, 26f, -6f);
+        // Сухой пляж под причалом. Чаша с растяжкой 26 достаёт до r = 96,
+        // и «берег» на 76 был на пять метров ниже дна лагуны: причал висел
+        // над водой, а крабы ходили в четырёх метрах под её поверхностью.
+        FlattenArea(0f, 90f, 15f, 11f, 0.6f);
         Terrain(Vector3.zero, new Vector2(240f, 240f), 140, 9f, 0.011f,
             SandLow, SandHigh, 26f, 4242);
 
@@ -61,8 +65,13 @@ public class TurtleWorld : WorldBuilder
         // Плоты и брёвна над лагуной
         ObstacleRun(OnGround(-92f, -30f, 1.5f), new Vector3(1f, 0f, 0.4f), 8, 1.2f,
             new Color(0.62f, 0.44f, 0.28f));
-        Spinner(Shells[0] + new Vector3(0f, ShellHeight[0] + 1.4f, -8f), 10f, 60f,
-            new Color(0.62f, 0.44f, 0.28f));
+        // Бревно стояло на главном панцире, на подходе к порталу (z = -8
+        // при портале на -14): при размахе в пять метров оно просто
+        // перекрывало дорогу домой. Перенесено на соседний панцирь, где
+        // настила радиусом 8 хватает на весь размах и где оно стало тем,
+        // чем задумано — препятствием на переходе. Площадка ему не нужна.
+        Spinner(Shells[1] + new Vector3(0f, ShellHeight[1] + 1.4f, 0f), 10f, 60f,
+            new Color(0.62f, 0.44f, 0.28f), false);
         // Боссы лагуны — акула у берега и капитан на главном панцире.
         //
         // Акула плавает у поверхности воды (-0.6), а не парит над ней:
@@ -198,11 +207,13 @@ public class TurtleWorld : WorldBuilder
         MarketStall(c + new Vector3(-7f, top + 0.5f, -2f), new Color(0.9f, 0.45f, 0.35f), 30f);
         MarketStall(c + new Vector3(7f, top + 0.5f, -3f), new Color(0.4f, 0.7f, 0.85f), -35f);
 
-        // Хижины по краю панциря
+        // Хижины по краю панциря. Настил — диск радиуса ShellRadius*1.25/2,
+        // то есть 12.5: на прежних тринадцати две хижины из пяти свисали
+        // с края в пустоту.
         for (int i = 0; i < 5; i++)
         {
             float a = i * 72f * Mathf.Deg2Rad + 0.4f;
-            Vector3 p = c + new Vector3(Mathf.Cos(a) * 13f, top + 0.5f, Mathf.Sin(a) * 13f);
+            Vector3 p = c + new Vector3(Mathf.Cos(a) * 10f, top + 0.5f, Mathf.Sin(a) * 10f);
             Hut(p, -a * Mathf.Rad2Deg, 1f + (i % 3) * 0.15f);
         }
 
@@ -334,10 +345,10 @@ public class TurtleWorld : WorldBuilder
             if (i % 3 == 0) AddCoin(p + new Vector3(0f, 1.6f, 0f));
         }
 
-        // Причал с лодкой у берега
-        Dock(new Vector3(0f, 0.6f, 76f), 10f, 0f);
-        AddCoin(new Vector3(0f, 1.6f, 80f));
-        AddEnemy(OnGround(-16f, 74f), OnGround(16f, 74f), "crab", 2.4f);
+        // Причал с лодкой у берега — на пляже, а не над серединой лагуны
+        Dock(OnGround(0f, 90f, 0.3f), 10f, 0f);
+        AddCoin(OnGround(0f, 86f, 1.6f));
+        AddEnemy(OnGround(-13f, 90f, 0.1f), OnGround(13f, 90f, 0.1f), "crab", 2.4f);
     }
 
     private void BuildAtmosphere()

@@ -389,8 +389,28 @@ public abstract class WorldBuilder : MonoBehaviour
     }
 
     // Вращающееся бревно — сбивает с платформы, если зазеваться.
-    protected void Spinner(Vector3 pos, float length, float speed, Color color)
+    //
+    // Вместе с бревном строится и сама платформа: раньше девятиметровое
+    // бревно крутилось в четырёх метрах над чистым полем, сбивать с него
+    // было не с чего, а обойти его можно было просто по земле.
+    protected void Spinner(Vector3 pos, float length, float speed, Color color,
+        bool withPlatform = true)
     {
+        if (withPlatform)
+        {
+            float r = length * 0.5f + 1.6f;
+            // Диск под бревном и столб от него до земли, чтобы площадка
+            // не висела в воздухе.
+            Platform(pos + new Vector3(0f, -0.9f, 0f), new Vector3(r * 2f, 0.7f, r * 2f), color);
+            float ground = GroundHeight(pos.x, pos.z);
+            float pillar = Mathf.Max(0.6f, pos.y - 1.25f - ground);
+            Gfx.Cyl(transform, new Vector3(pos.x, ground + pillar * 0.5f, pos.z),
+                new Vector3(3.4f, pillar * 0.5f, 3.4f),
+                Gfx.MatFull(color * 0.8f, 0.05f, 0f, Color.black, 3f, 0.6f));
+            AddCoin(pos + new Vector3(r - 1.2f, 1.4f, 0f));
+            AddCoin(pos + new Vector3(-(r - 1.2f), 1.4f, 0f));
+        }
+
         GameObject hub = new GameObject("SpinnerHub");
         hub.transform.SetParent(transform, false);
         hub.transform.localPosition = pos;
@@ -399,6 +419,7 @@ public abstract class WorldBuilder : MonoBehaviour
         Spinner sp = hub.AddComponent<Spinner>();
         sp.Axis = Vector3.up;
         sp.Speed = speed;
+        sp.Reach = length * 0.5f;
     }
 
     protected void AddCheckpoint(Vector3 pos)
