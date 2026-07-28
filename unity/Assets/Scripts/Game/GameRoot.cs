@@ -104,6 +104,7 @@ public class GameRoot : MonoBehaviour
         else if (worldIndex == NetManager.WorldTurtle) wb = go.AddComponent<TurtleWorld>();
         else wb = go.AddComponent<HubWorld>();
 
+        Snd.SetTheme(worldIndex);
         wb.Construct(worldIndex);
         World = wb;
         _worldReady = true;

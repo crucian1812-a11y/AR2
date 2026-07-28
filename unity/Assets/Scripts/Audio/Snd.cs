@@ -40,8 +40,7 @@ public class Snd : MonoBehaviour
         _music.volume = 0.22f;
 
         GenerateSfx();
-        _music.clip = MakeMusic();
-        _music.Play();
+        SetTheme(0);
     }
 
     public static void Play(string name, float volume = 1f, float pitch = 1f)
@@ -151,6 +150,14 @@ public class Snd : MonoBehaviour
             new float[] { 1174.7f, 0.1f, 0.28f, 0.9f }
         }, 0.35f));
 
+        Add("splash", Synth(0.3f, 900f, 200f, 2, 0.01f, 1.3f, 0.3f, 0.7f));
+        Add("star", MixNotes(0.9f, new float[][] {
+            new float[] { 659.26f, 0f, 0.18f, 1f },
+            new float[] { 987.77f, 0.12f, 0.2f, 0.9f },
+            new float[] { 1318.5f, 0.24f, 0.5f, 1.1f }
+        }, 0.42f));
+        Add("bosshit", Synth(0.26f, 220f, 70f, 1, 0.005f, 1.6f, 0.5f, 0.4f));
+
         Add("victory", MixNotes(1.1f, new float[][] {
             new float[] { 523.25f, 0f, 0.2f, 1f },
             new float[] { 659.26f, 0.16f, 0.2f, 1f },
@@ -159,15 +166,72 @@ public class Snd : MonoBehaviour
         }, 0.45f));
     }
 
-    private AudioClip MakeMusic()
+    private int _theme = -1;
+
+    // У каждого мира своя тема: свой лад, темп и голос баса.
+    // Треки синтезируются один раз и кэшируются вместе с эффектами.
+    public static void SetTheme(int world)
     {
-        float beat = 0.5f; // 120 BPM
-        float[][] chords = new float[][] {
-            new float[] { 261.63f, 329.63f, 392f },     // C
-            new float[] { 220f, 261.63f, 329.63f },     // Am
-            new float[] { 174.61f, 220f, 261.63f },     // F
-            new float[] { 196f, 246.94f, 293.66f }      // G
+        if (I == null || I._theme == world) return;
+        I._theme = world;
+        string key = "music" + world;
+        AudioClip clip;
+        if (!I._clips.TryGetValue(key, out clip))
+        {
+            clip = I.MakeMusic(world);
+            I._clips[key] = clip;
+        }
+        I._music.clip = clip;
+        I._music.volume = world == 4 ? 0.16f : 0.22f;
+        if (!I._muted) I._music.Play();
+    }
+
+    private AudioClip MakeMusic(int world)
+    {
+        // Деревня — мажор, луга светлее и быстрее, каньон на увеличенном
+        // ладу, снега прозрачные, пещера мрачная, лагуна покачивается.
+        float[] tempo = { 0.5f, 0.44f, 0.52f, 0.6f, 0.72f, 0.56f };
+        float beat = tempo[Mathf.Clamp(world, 0, tempo.Length - 1)];
+
+        float[][][] palettes = new float[][][] {
+            // Деревня: C - Am - F - G
+            new float[][] {
+                new float[] { 261.63f, 329.63f, 392f },
+                new float[] { 220f, 261.63f, 329.63f },
+                new float[] { 174.61f, 220f, 261.63f },
+                new float[] { 196f, 246.94f, 293.66f } },
+            // Луга: D - Bm - G - A
+            new float[][] {
+                new float[] { 293.66f, 369.99f, 440f },
+                new float[] { 246.94f, 293.66f, 369.99f },
+                new float[] { 196f, 246.94f, 293.66f },
+                new float[] { 220f, 277.18f, 329.63f } },
+            // Каньон: увеличенные интервалы, восточный оттенок
+            new float[][] {
+                new float[] { 261.63f, 311.13f, 392f },
+                new float[] { 233.08f, 293.66f, 349.23f },
+                new float[] { 207.65f, 261.63f, 311.13f },
+                new float[] { 246.94f, 311.13f, 369.99f } },
+            // Снега: открытые квинты, много воздуха
+            new float[][] {
+                new float[] { 349.23f, 440f, 523.25f },
+                new float[] { 293.66f, 392f, 466.16f },
+                new float[] { 261.63f, 349.23f, 440f },
+                new float[] { 311.13f, 392f, 493.88f } },
+            // Пещера: минор с пониженной второй
+            new float[][] {
+                new float[] { 174.61f, 207.65f, 261.63f },
+                new float[] { 155.56f, 196f, 233.08f },
+                new float[] { 138.59f, 174.61f, 207.65f },
+                new float[] { 164.81f, 196f, 246.94f } },
+            // Лагуна: покачивающийся мажор
+            new float[][] {
+                new float[] { 246.94f, 311.13f, 369.99f },
+                new float[] { 207.65f, 261.63f, 311.13f },
+                new float[] { 185f, 233.08f, 277.18f },
+                new float[] { 220f, 277.18f, 329.63f } }
         };
+        float[][] chords = palettes[Mathf.Clamp(world, 0, palettes.Length - 1)];
 
         List<float[]> notes = new List<float[]>();
         for (int b = 0; b < 4; b++)
@@ -186,6 +250,6 @@ public class Snd : MonoBehaviour
         }
 
         float total = 4f * beat * 4f;
-        return FromSamples("music", MixNotes(total, notes.ToArray(), 0.33f), true);
+        return FromSamples("music" + world, MixNotes(total, notes.ToArray(), 0.33f), true);
     }
 }

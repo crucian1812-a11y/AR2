@@ -783,6 +783,31 @@ namespace UnityEngine
                 public ClampedFloatParameter saturation;
             }
 
+            public enum DepthOfFieldMode { Off, Gaussian, Bokeh }
+            public class DepthOfFieldModeParameter : VolumeParameter<DepthOfFieldMode> { }
+
+            public class DepthOfField : VolumeComponent
+            {
+                public DepthOfFieldModeParameter mode;
+                public MinFloatParameter gaussianStart;
+                public MinFloatParameter gaussianEnd;
+                public ClampedFloatParameter gaussianMaxRadius;
+            }
+
+            public enum FilmGrainLookup { Thin1, Thin2, Medium1, Large01 }
+            public class FilmGrainLookupParameter : VolumeParameter<FilmGrainLookup> { }
+
+            public class FilmGrain : VolumeComponent
+            {
+                public FilmGrainLookupParameter type;
+                public ClampedFloatParameter intensity;
+            }
+
+            public class ChromaticAberration : VolumeComponent
+            {
+                public ClampedFloatParameter intensity;
+            }
+
             public class Vignette : VolumeComponent
             {
                 public ClampedFloatParameter intensity;

@@ -61,6 +61,21 @@ public class PostFx : MonoBehaviour
         _vignette.intensity.Override(0.25f);
         _vignette.smoothness.Override(0.6f);
 
+        // Дальний план мягче — персонаж читается в фокусе.
+        DepthOfField dof = profile.Add<DepthOfField>(true);
+        dof.mode.Override(DepthOfFieldMode.Gaussian);
+        dof.gaussianStart.Override(45f);
+        dof.gaussianEnd.Override(160f);
+        dof.gaussianMaxRadius.Override(0.8f);
+
+        // Едва заметное зерно снимает «пластиковость» градиентов неба.
+        FilmGrain grain = profile.Add<FilmGrain>(true);
+        grain.type.Override(FilmGrainLookup.Thin1);
+        grain.intensity.Override(0.18f);
+
+        ChromaticAberration ca = profile.Add<ChromaticAberration>(true);
+        ca.intensity.Override(0.08f);
+
         _volume = gameObject.AddComponent<Volume>();
         _volume.isGlobal = true;
         _volume.priority = 100f;

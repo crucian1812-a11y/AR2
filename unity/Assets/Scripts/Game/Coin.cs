@@ -103,6 +103,6 @@ public class Coin : MonoBehaviour
         if (_collecting) return;
         _collecting = true;
         _fx = 0f;
-        Snd.Play("coin", 1f, Random.Range(0.95f, 1.1f));
+        Snd.Play(IsStar ? "star" : "coin", 1f, Random.Range(0.95f, 1.1f));
     }
 }

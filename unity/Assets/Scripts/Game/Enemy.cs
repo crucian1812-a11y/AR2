@@ -251,7 +251,9 @@ public class Enemy : MonoBehaviour
         Hp--;
         if (Hp > 0)
         {
-            Snd.Play("stomp", 0.7f);
+            Snd.Play("bosshit", 0.9f);
+            BearPlayer local = GameRoot.LocalBear;
+            if (local != null) local.Shake(0.28f);
             if (_model != null) _model.Restart("HitRecieve", 1.3f);
             ParticleFx.Burst(transform.parent, transform.position + new Vector3(0f, 1.2f, 0f),
                 10, new Color(1f, 0.6f, 0.4f), 4f);

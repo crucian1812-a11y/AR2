@@ -61,6 +61,7 @@ public class BearPlayer : MonoBehaviour
     // Немного времени на прыжок после схода с края: иначе на лестницах
     // прыжок съедается кадром, в котором опора уже потеряна.
     private float _coyote;
+    private float _shake;
     private float _camPitch = -22f;
     private float _sendAccum;
     private byte _anim;
@@ -245,7 +246,14 @@ public class BearPlayer : MonoBehaviour
         // и камера оказывалась внутри кроны.
         if (Physics.SphereCast(origin, 0.45f, dir, out hit, desired + 0.3f, ~(1 << PlayerLayer)))
             dist = Mathf.Max(1.4f, hit.distance - 0.15f);
-        _cam.transform.localPosition = new Vector3(0f, 0f, -dist);
+        Vector3 camPos = new Vector3(0f, 0f, -dist);
+        if (_shake > 0f)
+        {
+            _shake = Mathf.Max(0f, _shake - dt * 2.2f);
+            float a = _shake * 0.6f;
+            camPos += new Vector3(Random.Range(-a, a), Random.Range(-a, a), 0f);
+        }
+        _cam.transform.localPosition = camPos;
     }
 
     private void LocalMove(float dt)
@@ -279,7 +287,9 @@ public class BearPlayer : MonoBehaviour
             {
                 _swimming = true;
                 _pounding = false;
-                Snd.Play("land", 0.7f);
+                Snd.Play("splash", 0.9f);
+                ParticleFx.Burst(transform.parent, transform.position, 18,
+                    new Color(0.7f, 0.9f, 1f), 5f);
             }
 
             // Выталкивание к поверхности плюс медленное погружение.
@@ -434,8 +444,15 @@ public class BearPlayer : MonoBehaviour
     }
 
     // Приземление после удара сверху бьёт всех врагов вокруг.
+    // Короткий толчок камеры — удар ощущается весомее.
+    public void Shake(float amount)
+    {
+        _shake = Mathf.Max(_shake, amount);
+    }
+
     private void PoundImpact()
     {
+        Shake(0.35f);
         ParticleFx.Burst(transform.parent, transform.position, 22,
             new Color(1f, 0.9f, 0.6f), 6f);
         GameRoot root = GameRoot.I;
@@ -480,6 +497,7 @@ public class BearPlayer : MonoBehaviour
         _invuln = 1.5f;
         _hitAnim = HitTime;
         Snd.Play("hurt", 0.9f);
+        Shake(0.3f);
         if (_model != null) _model.Restart("HitRecieve", 1.2f);
         Vector3 push = transform.position - from;
         push.y = 0f;
