@@ -40,7 +40,9 @@ public class MeadowWorld : WorldBuilder
         BuildPond();
         AddCheckpoint(new Vector3(-30f, 4.2f, -14f));
         AddCheckpoint(new Vector3(-34f, 15.2f, -31f));
-        AddCheckpoint(OnGround(28f, 14f, 11.8f));
+        // Та же опорная высота, что у лестницы в BuildPlatformRoute,
+        // иначе контрольная точка повисает над площадкой или тонет в ней.
+        AddCheckpoint(new Vector3(28f, GroundHeight(6f, 24f) + 12f, 14f));
         BuildNature();
         // Звёзды — цель мира, каждая на своём постаменте с батутом
         AddStarPedestal(OnGround(-14f, -46f), 14f);
@@ -52,8 +54,9 @@ public class MeadowWorld : WorldBuilder
         Spinner(OnGround(2f, -38f, 4f), 9f, 55f, new Color(0.45f, 0.32f, 0.2f));
         Spinner(OnGround(40f, 34f, 4f), 8f, -65f, new Color(0.45f, 0.32f, 0.2f));
         // Босс лугов — вожак альпак у древнего дерева
-        AddBoss(OnGround(38f, -30f) + new Vector3(-9f, 21f, 0f),
-            OnGround(38f, -30f) + new Vector3(9f, 21f, 0f), "alpaking", 3.2f, 4, 1.5f);
+        // 20.4 — верх площадки на дереве; на 21 вожак висел над ней в воздухе.
+        AddBoss(OnGround(38f, -30f) + new Vector3(-9f, 20.4f, 0f),
+            OnGround(38f, -30f) + new Vector3(9f, 20.4f, 0f), "alpaking", 3.2f, 4, 1.5f);
         BuildAtmosphere();
 
         AddVillager(OnGround(-6f, 40f), "Пасечница", "Bee", 1.2f,
@@ -147,17 +150,23 @@ public class MeadowWorld : WorldBuilder
 
     private void BuildPlatformRoute()
     {
-        // Лестница от земли: шаг по 2 метра — заведомо в пределах прыжка.
-        // Раньше первый ярус висел на шести метрах и был недосягаем.
+        // Лестница от земли: шаг ровно 2 метра — в пределах прыжка.
+        //
+        // Высоту берём одним замером у подножия и дальше отсчитываем от неё.
+        // Раньше каждая ступень вставала «на землю в своей точке», а земля
+        // здесь уже вне ровной площадки и гуляет метра на два: реальный шаг
+        // получался от почти нулевого до четырёх метров, и середина лестницы
+        // становилась непроходимой.
+        float baseY = GroundHeight(6f, 24f);
         for (int i = 0; i < 5; i++)
         {
-            Vector3 p = OnGround(6f + i * 4.5f, 24f - i * 2f, 1.2f + i * 2f);
+            Vector3 p = new Vector3(6f + i * 4.5f, baseY + 1.2f + i * 2f, 24f - i * 2f);
             Platform(p, new Vector3(5f, 0.7f, 5f), Plat);
             AddCoin(p + new Vector3(0f, 1.5f, 0f));
         }
 
         // Верх лестницы — площадка, с которой начинается цепочка платформ
-        Vector3 hub = OnGround(28f, 14f, 11f);
+        Vector3 hub = new Vector3(28f, baseY + 11.2f, 14f);
         Platform(hub, new Vector3(7f, 0.8f, 7f), Plat);
         AddCoin(hub + new Vector3(0f, 1.6f, 0f));
 

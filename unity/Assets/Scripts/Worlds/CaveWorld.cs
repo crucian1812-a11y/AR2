@@ -29,6 +29,12 @@ public class CaveWorld : WorldBuilder
         FlattenArea(-34f, -16f, 17f, 11f);
         FlattenArea(0f, 52f, 11f, 9f);
         FlattenArea(34f, -19f, 13f, 10f);
+        // И сама пропасть — настоящая. Раньше «провал» был просто зазором
+        // между двумя восьмиметровыми глыбами, стоящими на ровном полу:
+        // сорвавшись с моста, игрок падал на землю, обходил их пешком и
+        // ничего не терял. Теперь дно ниже отметки гибели (-30), падение
+        // стоит сердца и возвращает к контрольной точке.
+        FlattenArea(34f, -19f, 8f, 6f, -34f);
 
         // Настоящие PBR-текстуры поверхности
         TerrainTextures("brown_mud_leaves_01_diff_1k", "brown_mud_leaves_01_nor_gl_1k",
@@ -57,8 +63,10 @@ public class CaveWorld : WorldBuilder
         ObstacleRun(new Vector3(52f, 4f, 30f), new Vector3(-0.8f, 0f, -1f), 7, 1.6f,
             new Color(0.42f, 0.34f, 0.5f));
         Spinner(new Vector3(6f, 4f, 40f), 9f, 75f, new Color(0.5f, 0.42f, 0.6f));
-        // Второй босс пещеры — исполинский дракон над пропастью
-        AddBoss(new Vector3(34f, 14f, -8f), new Vector3(34f, 14f, -30f),
+        // Второй босс пещеры — исполинский дракон над пропастью.
+        // С высоты 14 он висел в пяти метрах над мостом и был недосягаем;
+        // 10.2 — самая нижняя высота, на которой он не задевает настил.
+        AddBoss(new Vector3(34f, 10.2f, -8f), new Vector3(34f, 10.2f, -30f),
             "bigdragon", 4.8f, 8, 1.7f);
         BuildAtmosphere();
 
@@ -232,30 +240,43 @@ public class CaveWorld : WorldBuilder
 
     private void BuildChasm()
     {
-        // Провал в полу с мостом и цепочкой платформ над ним
+        // Стены провала. Они уходят до -40, ниже дна: раньше это были
+        // отдельные глыбы высотой восемь метров, и снизу было видно, что
+        // они ни на чём не стоят.
         Material edge = Gfx.MatFull(RockLight, 0.05f, 0f, Color.black, 4f, 0.75f);
-        Gfx.Box(transform, new Vector3(34f, 4f, -4f), new Vector3(16f, 8f, 12f), edge);
-        Gfx.Box(transform, new Vector3(34f, 4f, -34f), new Vector3(16f, 8f, 12f), edge);
+        Gfx.Box(transform, new Vector3(34f, -16f, -4f), new Vector3(16f, 48f, 12f), edge);
+        Gfx.Box(transform, new Vector3(34f, -16f, -34f), new Vector3(16f, 48f, 12f), edge);
 
         Bridge(new Vector3(34f, 8.6f, -10f), new Vector3(34f, 8.6f, -28f), 4.4f,
             new Color(0.4f, 0.3f, 0.34f));
         AddCoin(new Vector3(34f, 9.6f, -19f));
 
-        // Свечение из глубины провала
-        Gfx.Glow(transform, new Vector3(34f, -2f, -19f), 26f, new Color(1f, 0.45f, 0.25f, 0.5f));
-        Gfx.PointLight(transform, new Vector3(34f, 1f, -19f), new Color(1f, 0.5f, 0.25f), 32f, 1.6f);
+        // Свечение из глубины провала — теперь и правда из глубины
+        Gfx.Glow(transform, new Vector3(34f, -14f, -19f), 30f, new Color(1f, 0.45f, 0.25f, 0.5f));
+        Gfx.PointLight(transform, new Vector3(34f, -9f, -19f), new Color(1f, 0.5f, 0.25f), 40f, 1.8f);
 
-        // Подъём к алтарю: движущиеся плиты и батуты над пропастью
-        AddMovingPlatform(new Vector3(34f, 11f, -34f), new Vector3(20f, 11f, -40f),
-            new Vector3(4.4f, 0.6f, 4.4f), new Color(0.42f, 0.34f, 0.5f), 6f, 0f);
-        AddMovingPlatform(new Vector3(10f, 13.5f, -40f), new Vector3(-4f, 13.5f, -36f),
-            new Vector3(4.4f, 0.6f, 4.4f), new Color(0.42f, 0.34f, 0.5f), 6.5f, 0.35f);
-        AddMovingPlatform(new Vector3(-14f, 16f, -32f), new Vector3(-14f, 16f, -18f),
-            new Vector3(4.4f, 0.6f, 4.4f), new Color(0.42f, 0.34f, 0.5f), 5.5f, 0.7f);
+        // Подъём к алтарю: движущиеся плиты над пропастью.
+        //
+        // Шаг между плитами держим 2.2 м. Раньше он был 3.3–3.8 м, а один
+        // прыжок поднимает на v^2/2g = 11.5^2/44 = 3.0 м: первая же плита
+        // была недосягаема без идеально пойманного двойного прыжка.
+        // По той же причине добавлена четвёртая плита — без неё разрывы
+        // по горизонтали доходили до 10 м при дальности прыжка около 7.
+        Color slab = new Color(0.42f, 0.34f, 0.5f);
+        Vector3 slabSize = new Vector3(4.4f, 0.6f, 4.4f);
+        AddMovingPlatform(new Vector3(34f, 9.9f, -34f), new Vector3(22f, 9.9f, -40f),
+            slabSize, slab, 6f, 0f);
+        AddMovingPlatform(new Vector3(16f, 12.1f, -40f), new Vector3(6f, 12.1f, -38f),
+            slabSize, slab, 6.5f, 0.35f);
+        AddMovingPlatform(new Vector3(0f, 14.3f, -38f), new Vector3(-8f, 14.3f, -34f),
+            slabSize, slab, 5.5f, 0.7f);
+        AddMovingPlatform(new Vector3(-14f, 16.5f, -30f), new Vector3(-14f, 16.5f, -22f),
+            slabSize, slab, 5f, 0.15f);
 
-        AddCoin(new Vector3(27f, 13f, -37f));
-        AddCoin(new Vector3(3f, 15.5f, -38f));
-        AddCoin(new Vector3(-14f, 18f, -25f));
+        AddCoin(new Vector3(28f, 11.4f, -37f));
+        AddCoin(new Vector3(11f, 13.6f, -39f));
+        AddCoin(new Vector3(-4f, 15.8f, -36f));
+        AddCoin(new Vector3(-14f, 18f, -26f));
 
         AddBouncePad(new Vector3(34f, 8.4f, -4f), 20f);
         AddCoin(new Vector3(34f, 13f, -2f));

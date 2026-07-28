@@ -45,7 +45,10 @@ public class DesertWorld : WorldBuilder
         AddCheckpoint(new Vector3(-12f, 3.1f, -14f));
         AddCheckpoint(new Vector3(-16f, 10.9f, -38f));
         // Босс каньона стережёт верхнюю площадку
-        AddBoss(new Vector3(-52f, 25.5f, -24f), new Vector3(-52f, 25.5f, -12f),
+        // Верхняя площадка каньона под ним на 23 м: с 25.5 дракона было
+        // не достать даже в прыжке. Опущен до высоты, на которой по нему
+        // попадают с прыжка.
+        AddBoss(new Vector3(-52f, 24.5f, -24f), new Vector3(-52f, 24.5f, -12f),
             "dragon", 4f, 4, 1.6f);
         BuildDunes();
         // Звёзды — цель мира, каждая на своём постаменте с батутом

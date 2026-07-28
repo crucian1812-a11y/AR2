@@ -233,23 +233,54 @@ public class Snd : MonoBehaviour
         };
         float[][] chords = palettes[Mathf.Clamp(world, 0, palettes.Length - 1)];
 
+        // Раньше тема была ровно четыре такта — восемь секунд в деревне,
+        // и на второй минуте от неё уже дёргался глаз. Теперь шестнадцать:
+        // восьмитактовая гармония проходит дважды, во второй половине
+        // мелодия уходит октавой выше и меняет рисунок.
+        int[] progression = { 0, 1, 2, 3, 0, 2, 1, 3 };
+
+        // Мелодические фигуры — номера ступеней в наборе аккорда.
+        // Соседние такты берут разные, поэтому рисунок не повторяется подряд.
+        int[][] motifs = {
+            new[] { 0, 1, 2, 1, 2, 3, 2, 1 },
+            new[] { 2, 1, 0, 1, 2, 2, 3, 2 },
+            new[] { 0, 2, 1, 3, 2, 0, 1, 0 },
+            new[] { 3, 2, 1, 0, 1, 2, 3, 2 }
+        };
+
         List<float[]> notes = new List<float[]>();
-        for (int b = 0; b < 4; b++)
+        const int Bars = 16;
+        for (int b = 0; b < Bars; b++)
         {
-            float[] chord = chords[b];
+            float[] chord = chords[progression[b % progression.Length]];
             float barT = b * beat * 4f;
+            bool second = b >= Bars / 2;
+            // Ступени: тоника, терция, квинта и терция октавой выше.
+            float[] pool = { chord[0], chord[1], chord[2], chord[1] * 2f };
+
             notes.Add(new float[] { chord[0] * 0.5f, barT, 0.9f, 0.9f });
             notes.Add(new float[] { chord[0] * 0.5f, barT + beat * 2f, 0.9f, 0.7f });
-            for (int k = 0; k < 8; k++)
+            // Во второй половине бас отвечает квинтой на слабую долю.
+            if (second)
+                notes.Add(new float[] { chord[2] * 0.5f, barT + beat * 3f, 0.6f, 0.5f });
+
+            // Последний такт каждой половины оставляем почти пустым —
+            // без паузы петля звучит как заевшая пластинка.
+            bool breath = b % (Bars / 2) == (Bars / 2 - 1);
+            if (!breath)
             {
-                float tone = chord[k % 3];
-                if (k % 4 == 3) tone = chord[1] * 2f;
-                notes.Add(new float[] { tone, barT + k * beat * 0.5f, 0.35f, 0.45f });
+                int[] motif = motifs[(b * 3 + (second ? 1 : 0)) % motifs.Length];
+                float octave = second ? 2f : 1f;
+                for (int k = 0; k < motif.Length; k++)
+                    notes.Add(new float[] {
+                        pool[motif[k]] * octave, barT + k * beat * 0.5f, 0.35f,
+                        second ? 0.34f : 0.45f });
             }
+
             notes.Add(new float[] { chord[2] * 2f, barT + beat, 0.7f, 0.2f });
         }
 
-        float total = 4f * beat * 4f;
+        float total = Bars * beat * 4f;
         return FromSamples("music" + world, MixNotes(total, notes.ToArray(), 0.33f), true);
     }
 }

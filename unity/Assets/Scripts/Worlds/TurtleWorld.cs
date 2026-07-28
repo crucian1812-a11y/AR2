@@ -66,8 +66,10 @@ public class TurtleWorld : WorldBuilder
         // Боссы лагуны — акула у берега и капитан на главном панцире
         AddBoss(new Vector3(-24f, 1.2f, 60f), new Vector3(24f, 1.2f, 60f),
             "shark", 4.5f, 5, 1.5f);
-        AddBoss(Shells[0] + new Vector3(-9f, ShellHeight[0] + 0.8f, -6f),
-            Shells[0] + new Vector3(9f, ShellHeight[0] + 0.8f, -6f),
+        // ShellHeight — это сам настил панциря; с прибавкой 0.8 капитан
+        // стоял в воздухе над ним.
+        AddBoss(Shells[0] + new Vector3(-9f, ShellHeight[0], -6f),
+            Shells[0] + new Vector3(9f, ShellHeight[0], -6f),
             "pirate", 3.4f, 6, 1.4f);
         BuildAtmosphere();
 

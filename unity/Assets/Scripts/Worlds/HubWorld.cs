@@ -45,6 +45,14 @@ public class HubWorld : WorldBuilder
         // Тренировочная полоса за мельницей
         ObstacleRun(OnGround(-62f, -20f, 3f), new Vector3(0.4f, 0f, 1f), 6, 1.5f,
             new Color(0.5f, 0.7f, 0.4f));
+
+        // Грибы на окраинах острова. В самой деревне врагов нет — площадь
+        // остаётся безопасной, — но за околицей есть на ком потренировать
+        // прыжок на голову до того, как уйдёшь в первый мир.
+        AddEnemy(OnGround(-48f, 34f, 0.1f), OnGround(-56f, 44f, 0.1f), "mushroom", 2.2f);
+        AddEnemy(OnGround(42f, -26f, 0.1f), OnGround(50f, -34f, 0.1f), "mushroom", 2.4f);
+        AddEnemy(OnGround(-58f, -14f, 0.1f), OnGround(-64f, -26f, 0.1f), "mushroom", 2.6f);
+        AddEnemy(OnGround(30f, 44f, 0.1f), OnGround(44f, 44f, 0.1f), "mushroom", 2.3f);
         BuildAtmosphere();
 
         // Старейшина и порталы вокруг площади
