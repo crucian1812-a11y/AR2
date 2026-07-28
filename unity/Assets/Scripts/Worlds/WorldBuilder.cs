@@ -401,6 +401,13 @@ public abstract class WorldBuilder : MonoBehaviour
         AddHeart(pos + new Vector3(2.2f, 1.2f, 0f));
     }
 
+    // Скользкий участок. Вида у него нет — лёд уже нарисован, — зона
+    // отвечает только за то, что на нём хуже держат ноги.
+    protected void Slippery(Vector3 pos, Vector2 size, float slip = 0.18f)
+    {
+        IceZone.Create(transform, pos, size, slip);
+    }
+
     protected void Water(Vector3 pos, Vector2 size)
     {
         // Плавать можно только там, где зарегистрирована зона —

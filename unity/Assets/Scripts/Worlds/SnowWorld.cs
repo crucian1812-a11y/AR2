@@ -139,6 +139,12 @@ public class SnowWorld : WorldBuilder
         Gfx.Box(transform, c + new Vector3(0f, -1.2f, 0f), new Vector3(36f, 2f, 30f),
             Gfx.MatFull(new Color(0.4f, 0.44f, 0.5f), 0.03f, 0f, Color.black, 4f, 0.5f));
 
+        // Каток и правда скользит. Раньше снега были теми же лугами, только
+        // белыми: походка и прыжки везде одинаковые. Здесь медведь
+        // разгоняется и тормозит впятеро дольше, и знакомая пробежка между
+        // монетами становится другой задачей.
+        Slippery(c + new Vector3(0f, 0.28f, 0f), new Vector2(32f, 26f), 0.2f);
+
         // Ледяная корка — крупные многоугольные плиты со швами
         Material sheet = Gfx.MatFull(Ice, 0.92f, 0.3f, new Color(0.06f, 0.16f, 0.28f), 0f, 0f);
         for (int i = 0; i < 12; i++)
@@ -183,6 +189,9 @@ public class SnowWorld : WorldBuilder
         // Массив льда со сколами
         Gfx.Box(transform, c + new Vector3(0f, 8f, 0f), new Vector3(30f, 16f, 26f), glacier);
         Gfx.Box(transform, c + new Vector3(-8f, 17f, 4f), new Vector3(16f, 6f, 14f), glacier);
+        // Верх ледника скользкий — идти по краю над пропастью приходится
+        // с оглядкой на разгон.
+        Slippery(c + new Vector3(0f, 16.05f, 0f), new Vector2(28f, 24f), 0.22f);
         for (int i = 0; i < 9; i++)
         {
             Gfx.Crystal(transform,

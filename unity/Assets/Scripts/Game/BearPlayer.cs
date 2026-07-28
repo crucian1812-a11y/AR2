@@ -281,12 +281,15 @@ public class BearPlayer : MonoBehaviour
         Vector3 dir = (fwd.normalized * mv.y + right.normalized * mv.x);
         if (dir.magnitude > 1f) dir = dir.normalized;
 
-        float k = Mathf.Min(Accel * dt, 1f);
-        _velocity.x = Mathf.Lerp(_velocity.x, dir.x * Speed, k);
-        _velocity.z = Mathf.Lerp(_velocity.z, dir.z * Speed, k);
-
         bool jumpPressed = Ctrl.ConsumeJump() || Input.GetKeyDown(KeyCode.Space);
         bool grounded = _cc.isGrounded;
+
+        // Лёд держит ноги хуже земли: разгон и торможение растягиваются.
+        // В воздухе сцепление ни при чём, поэтому только на опоре.
+        float grip = grounded ? IceZone.GripAt(transform.position) : 1f;
+        float k = Mathf.Min(Accel * grip * dt, 1f);
+        _velocity.x = Mathf.Lerp(_velocity.x, dir.x * Speed, k);
+        _velocity.z = Mathf.Lerp(_velocity.z, dir.z * Speed, k);
 
         // ---------- Вода ----------
         float surface = WaterZone.SurfaceAt(transform.position + new Vector3(0f, 0.6f, 0f));
