@@ -42,10 +42,15 @@ public class MeadowWorld : WorldBuilder
         AddCheckpoint(new Vector3(-34f, 15.2f, -31f));
         AddCheckpoint(OnGround(28f, 14f, 11.8f));
         BuildNature();
-        // Звёзды — цель мира
-        AddStarPickup(new Vector3(-42f, 21.5f, -32f));
-        AddStarPickup(new Vector3(-26f, 1.4f, 26f));
-        AddStarPickup(OnGround(38f, -30f) + new Vector3(0f, 22.5f, 0f));
+        // Звёзды — цель мира, каждая на своём постаменте с батутом
+        AddStarPedestal(OnGround(-14f, -46f), 14f);
+        AddStarPedestal(OnGround(56f, 20f), 11f);
+        AddStarPedestal(OnGround(-58f, 48f), 9f);
+        // Полоса препятствий над низиной и вращающиеся брёвна
+        ObstacleRun(OnGround(-8f, -56f, 3f), new Vector3(1f, 0f, 0.3f), 7, 1.6f,
+            new Color(0.5f, 0.76f, 0.34f));
+        Spinner(OnGround(-14f, -46f, 12f), 9f, 55f, new Color(0.45f, 0.32f, 0.2f));
+        Spinner(OnGround(56f, 20f, 9f), 8f, -65f, new Color(0.45f, 0.32f, 0.2f));
         BuildAtmosphere();
 
         AddVillager(OnGround(-6f, 40f), "Пасечница", "Bee", 1.2f,

@@ -6,7 +6,6 @@ using UnityEngine.UI;
 public class ShopUI : MonoBehaviour
 {
     public const int HeartPrice = 30;
-    public const int CharPrice = 60;
     public const int MaxHeartsCap = 6;
 
     private Canvas _canvas;
@@ -109,9 +108,11 @@ public class ShopUI : MonoBehaviour
         bool allChars = net.UnlockedChars >= Heroes.Ids.Length;
         SetButton(_charBtn, allChars
             ? "Все герои открыты"
-            : "Открыть героя «" + Heroes.Name(net.UnlockedChars) + "» — " + CharPrice, !allChars);
+            : "Открыть «" + Heroes.Name(net.UnlockedChars) + "» — " +
+              Heroes.Price(net.UnlockedChars) + " монет", !allChars);
 
-        _note.text = "Звёзды открывают миры, монеты тратятся здесь.\nНового героя можно выбрать в главном меню.";
+        _note.text = "Звёзды открывают миры, монеты тратятся здесь.\n" +
+                     "Купленного героя выбирают в главном меню.";
     }
 
     private static void SetButton(Button b, string label, bool enabled)
@@ -139,7 +140,7 @@ public class ShopUI : MonoBehaviour
     {
         NetManager net = NetManager.I;
         if (net == null || net.UnlockedChars >= Heroes.Ids.Length) return;
-        if (!net.Spend(CharPrice)) { Deny(); return; }
+        if (!net.Spend(Heroes.Price(net.UnlockedChars))) { Deny(); return; }
         net.UnlockedChars++;
         net.SaveProgress();
         Snd.Play("coin");

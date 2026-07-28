@@ -114,7 +114,7 @@ public class NetManager : MonoBehaviour
     public int StarsTotal;
     // Куплено в лавке: сердец и открытых персонажей.
     public int MaxHearts = 3;
-    public int UnlockedChars = 3;
+    public int UnlockedChars = Heroes.FreeChars;
     public int QuestStage;
     public bool VictoryReached;
     public string StatusMessage = "";

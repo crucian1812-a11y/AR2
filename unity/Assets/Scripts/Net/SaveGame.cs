@@ -81,8 +81,8 @@ public static class SaveGame
         net.QuestStage = ParseInt(parts[3]);
         net.VictoryReached = ParseInt(parts[4]) == 1;
         net.MaxHearts = Mathf.Clamp(ParseInt(parts[5]), 3, 9);
-        net.UnlockedChars = Mathf.Max(ParseInt(parts[6]), 3);
-        net.CharIndex = ParseInt(parts[7]);
+        net.UnlockedChars = Mathf.Clamp(ParseInt(parts[6]), Heroes.FreeChars, Heroes.Ids.Length);
+        net.CharIndex = Mathf.Clamp(ParseInt(parts[7]), 0, net.UnlockedChars - 1);
 
         string tail = parts[8];
         for (int i = 9; i < parts.Length; i++) tail += "|" + parts[i];

@@ -5,8 +5,31 @@ using UnityEngine;
 // лежат в Assets/Resources/Models/monsters.
 public static class Heroes
 {
-    public static readonly string[] Ids = { "Panda", "Yeti", "GreenDemon" };
-    public static readonly string[] Names = { "Панда", "Йети", "Демон" };
+    // Первые три доступны сразу, остальные открываются в лавке.
+    public const int FreeChars = 3;
+
+    public static readonly string[] Ids =
+    {
+        "Panda", "Yeti", "GreenDemon",
+        "Pig", "Chicken", "Penguin", "Deer", "Crab",
+        "Mushroom", "Cactus", "Ghost", "Skull",
+        "Cyclops", "Alien", "Alien_Tall", "Demon", "Tree"
+    };
+    public static readonly string[] Names =
+    {
+        "Панда", "Йети", "Зелёный демон",
+        "Поросёнок", "Цыплёнок", "Пингвин", "Олень", "Краб",
+        "Грибок", "Кактус", "Призрак", "Череп",
+        "Циклоп", "Пришелец", "Длинный пришелец", "Демон", "Древень"
+    };
+
+    // Чем дальше по списку, тем дороже.
+    public static int Price(int index)
+    {
+        index = Clamp(index);
+        if (index < FreeChars) return 0;
+        return 40 + (index - FreeChars) * 15;
+    }
 
     // Все герои приводятся к одному росту, чтобы физика и камера
     // работали одинаково независимо от выбранной модели.

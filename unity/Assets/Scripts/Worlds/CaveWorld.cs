@@ -49,10 +49,14 @@ public class CaveWorld : WorldBuilder
         AddBoss(new Vector3(-14f, 20f, -18f), new Vector3(-14f, 20f, -6f),
             "cthulhu", 4.5f, 6, 1.8f);
         BuildFlora();
-        // Звёзды — цель мира
-        AddStarPickup(new Vector3(-34f, 1.9f, -16f));
-        AddStarPickup(new Vector3(34f, 10.6f, -19f));
-        AddStarPickup(new Vector3(0f, 1.4f, 20f));
+        // Звёзды — цель мира, каждая на своём постаменте с батутом
+        AddStarPedestal(OnGround(20f, 34f), 11f);
+        AddStarPedestal(OnGround(-46f, 26f), 9f);
+        AddStarPedestal(OnGround(48f, 8f), 13f);
+        // Мост из плит над кристальным садом
+        ObstacleRun(new Vector3(52f, 4f, 30f), new Vector3(-0.8f, 0f, -1f), 7, 1.6f,
+            new Color(0.42f, 0.34f, 0.5f));
+        Spinner(new Vector3(20f, 12f, 34f), 9f, 75f, new Color(0.5f, 0.42f, 0.6f));
         BuildAtmosphere();
 
         AddVillager(new Vector3(6f, 0.2f, 46f), "Отшельник", "Skull", 1.7f,

@@ -48,10 +48,14 @@ public class DesertWorld : WorldBuilder
         AddBoss(new Vector3(-52f, 25.5f, -24f), new Vector3(-52f, 25.5f, -12f),
             "dragon", 4f, 4, 1.6f);
         BuildDunes();
-        // Звёзды — цель мира
-        AddStarPickup(new Vector3(-52f, 24.6f, -18f));
-        AddStarPickup(OnGround(46f, -34f, 29f));
-        AddStarPickup(new Vector3(30f, 3.6f, 6f));
+        // Звёзды — цель мира, каждая на своём постаменте с батутом
+        AddStarPedestal(OnGround(-30f, 30f), 13f);
+        AddStarPedestal(OnGround(58f, -8f), 10f);
+        AddStarPedestal(OnGround(10f, -70f), 16f);
+        // Тропа по обломкам над дюнами
+        ObstacleRun(OnGround(56f, -60f, 3f), new Vector3(-0.6f, 0f, 1f), 8, 1.7f,
+            new Color(0.8f, 0.55f, 0.34f));
+        Spinner(OnGround(-30f, 30f, 11f), 10f, 70f, new Color(0.72f, 0.44f, 0.28f));
         BuildAtmosphere();
 
         AddVillager(OnGround(24f, 14f), "Хранитель оазиса", "Cactus", 1.8f,

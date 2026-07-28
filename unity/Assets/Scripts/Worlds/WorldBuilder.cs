@@ -355,6 +355,43 @@ public abstract class WorldBuilder : MonoBehaviour
 
     public readonly List<Checkpoint> Checkpoints = new List<Checkpoint>();
 
+    // Полоса препятствий: чередование неподвижных плит и движущихся
+    // между ними — заполняет пустые куски мира настоящей игрой.
+    protected void ObstacleRun(Vector3 start, Vector3 dir, int steps, float rise, Color color)
+    {
+        dir = dir.normalized;
+        Vector3 side = Vector3.Cross(Vector3.up, dir);
+        Vector3 p = start;
+        for (int i = 0; i < steps; i++)
+        {
+            if (i % 2 == 0)
+            {
+                Platform(p, new Vector3(4.6f, 0.6f, 4.6f), color);
+                AddCoin(p + new Vector3(0f, 1.5f, 0f));
+            }
+            else
+            {
+                AddMovingPlatform(p - side * 4f, p + side * 4f,
+                    new Vector3(4f, 0.6f, 4f), color, 4.5f + (i % 3) * 0.8f, i * 0.27f);
+            }
+            p += dir * 7.5f + new Vector3(0f, rise, 0f);
+        }
+        AddCheckpoint(p - dir * 7.5f + new Vector3(0f, 0.5f, 0f));
+    }
+
+    // Вращающееся бревно — сбивает с платформы, если зазеваться.
+    protected void Spinner(Vector3 pos, float length, float speed, Color color)
+    {
+        GameObject hub = new GameObject("SpinnerHub");
+        hub.transform.SetParent(transform, false);
+        hub.transform.localPosition = pos;
+        Gfx.Box(hub.transform, Vector3.zero, new Vector3(length, 0.7f, 0.7f),
+            Gfx.MatFull(color, 0.08f, 0f, Color.black, 2f, 0.4f));
+        Spinner sp = hub.AddComponent<Spinner>();
+        sp.Axis = Vector3.up;
+        sp.Speed = speed;
+    }
+
     protected void AddCheckpoint(Vector3 pos)
     {
         Checkpoints.Add(Checkpoint.Create(transform, pos));
@@ -878,6 +915,34 @@ public abstract class WorldBuilder : MonoBehaviour
         int id = NetManager.StarIdBase + _starCounter++;
         Coin c = Coin.Spawn(transform, pos, id);
         Coins[id] = c;
+    }
+
+    // Звезда на собственном постаменте: снизу батут, наверху площадка.
+    // Расставлять звёзды по выверенным координатам оказалось ненадёжно —
+    // они попадали внутрь крон и крыш. Постамент делает награду
+    // достижимой из любой точки под ней и заметной издалека.
+    protected void AddStarPedestal(Vector3 groundPos, float height)
+    {
+        height = Mathf.Clamp(height, 4f, 24f);
+        // Скорость батута подобрана так, чтобы заброс был выше площадки.
+        AddBouncePad(groundPos + new Vector3(0f, 0.4f, 0f),
+            Mathf.Sqrt(2f * 22f * (height + 3f)));
+
+        Material stone = Gfx.MatFull(new Color(0.68f, 0.62f, 0.52f), 0.1f, 0f,
+            Color.black, 3f, 0.4f);
+        for (int i = 0; i < 4; i++)
+        {
+            float a = i * 90f * Mathf.Deg2Rad;
+            Gfx.Cyl(transform,
+                groundPos + new Vector3(Mathf.Cos(a) * 2.4f, height * 0.5f, Mathf.Sin(a) * 2.4f),
+                new Vector3(0.5f, height * 0.5f, 0.5f), stone, false);
+        }
+
+        Vector3 top = groundPos + new Vector3(0f, height, 0f);
+        Gfx.Cyl(transform, top, new Vector3(7f, 0.4f, 7f), stone);
+        Gfx.PointLight(transform, top + new Vector3(0f, 2f, 0f),
+            new Color(1f, 0.85f, 0.45f), 18f, 1.3f);
+        AddStarPickup(top + new Vector3(0f, 1.8f, 0f));
     }
 
     protected void AddEnemy(Vector3 a, Vector3 b, string kind, float speed)
