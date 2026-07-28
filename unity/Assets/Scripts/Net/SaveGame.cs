@@ -85,7 +85,10 @@ public static class SaveGame
         net.VictoryReached = ParseInt(parts[4]) == 1;
         net.MaxHearts = Mathf.Clamp(ParseInt(parts[5]), 3, 9);
         net.UnlockedChars = Mathf.Clamp(ParseInt(parts[6]), Heroes.FreeChars, Heroes.Ids.Length);
-        net.CharIndex = Mathf.Clamp(ParseInt(parts[7]), 0, net.UnlockedChars - 1);
+        // Персонажа НЕ берём из сохранения: игрок только что выбрал его в
+        // меню, и подменять выбор прошлой игрой — значит сделать кнопку
+        // выбора в меню бесполезной. Только следим, что он уже открыт.
+        net.CharIndex = Mathf.Clamp(net.CharIndex, 0, net.UnlockedChars - 1);
 
         string tail = parts[8];
         for (int i = 9; i < parts.Length; i++) tail += "|" + parts[i];

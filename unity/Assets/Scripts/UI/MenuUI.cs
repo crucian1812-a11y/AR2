@@ -16,6 +16,9 @@ public class MenuUI : MonoBehaviour
     private InputField _ipField;
     private Text _searchLabel;
     private Button _soloBtn, _hostBtn, _joinBtn, _soundBtn, _connectBtn, _backBtn;
+    private Button _resetBtn;
+    // Стереть прогресс — в два касания: первое переспрашивает.
+    private bool _resetArmed;
     private Button _charBtn;
 
     private readonly List<Button> _serverButtons = new List<Button>();
@@ -62,6 +65,12 @@ public class MenuUI : MonoBehaviour
             "Присоединиться к игре", Mathf.RoundToInt(23f * s), OnJoinOpen);
         _soundBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(380f * s, 54f * s),
             Snd.Muted ? "Звук: выкл" : "Звук: вкл", Mathf.RoundToInt(23f * s), OnToggleSound);
+
+        // Начать заново. Раньше стереть прогресс было нечем вообще:
+        // SaveGame.Clear() существовал, но его никто не вызывал, и игра
+        // навсегда продолжалась с последнего сохранения.
+        _resetBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(380f * s, 46f * s),
+            "Начать заново", Mathf.RoundToInt(20f * s), OnResetSave);
 
         _searchLabel = UiKit.MakeText(c, Vector2.zero, new Vector2(700f * s, 36f * s),
             "Поиск игр в вашей сети...", Mathf.RoundToInt(22f * s), Color.white, TextAnchor.MiddleCenter);
@@ -118,13 +127,14 @@ public class MenuUI : MonoBehaviour
         _hostBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 64f * s);
         _joinBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 124f * s);
         _soundBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 184f * s);
+        _resetBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 238f * s);
 
         _searchLabel.rectTransform.anchoredPosition = new Vector2(cx, cy + 150f * s);
         _ipField.image.rectTransform.anchoredPosition = new Vector2(cx - 110f * s, cy - 110f * s);
         _connectBtn.image.rectTransform.anchoredPosition = new Vector2(cx + 145f * s, cy - 110f * s);
         _backBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 175f * s);
 
-        _status.rectTransform.anchoredPosition = new Vector2(cx, cy - 240f * s);
+        _status.rectTransform.anchoredPosition = new Vector2(cx, cy - 290f * s);
         LayoutServerButtons();
     }
 
@@ -151,6 +161,8 @@ public class MenuUI : MonoBehaviour
         _hostBtn.gameObject.SetActive(!join);
         _joinBtn.gameObject.SetActive(!join);
         _soundBtn.gameObject.SetActive(!join);
+        // Стирать нечего, пока нечего стирать.
+        _resetBtn.gameObject.SetActive(!join && SaveGame.HasSave());
 
         _searchLabel.gameObject.SetActive(join);
         _ipField.gameObject.SetActive(join);
@@ -236,6 +248,26 @@ public class MenuUI : MonoBehaviour
         Snd.Play("click");
         Text label = _soundBtn.GetComponentInChildren<Text>();
         if (label != null) label.text = Snd.Muted ? "Звук: выкл" : "Звук: вкл";
+    }
+
+    private void OnResetSave()
+    {
+        Snd.Play("click");
+        Text label = _resetBtn.GetComponentInChildren<Text>();
+
+        if (!_resetArmed)
+        {
+            _resetArmed = true;
+            if (label != null) label.text = "Точно стереть? Нажмите ещё раз";
+            _status.text = "Пропадут монеты, звёзды, скины и открытые миры.";
+            return;
+        }
+
+        _resetArmed = false;
+        SaveGame.Clear();
+        if (label != null) label.text = "Начать заново";
+        _resetBtn.gameObject.SetActive(false);
+        _status.text = "Прогресс стёрт.";
     }
 
     private void JoinTo(string ip)

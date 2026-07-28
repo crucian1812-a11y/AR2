@@ -194,6 +194,10 @@ public class NetManager : MonoBehaviour
         CoinsTotal = 0;
         StarsTotal = 0;
         QuestStage = 0;
+        // Купленное в лавке тоже принадлежит сессии: без сброса стёртое
+        // сохранение оставляло за игроком скины и сердца прошлой игры.
+        MaxHearts = 3;
+        UnlockedChars = Heroes.FreeChars;
         VictoryReached = false;
         CurrentWorld = 0;
         MyId = 1;
@@ -227,6 +231,9 @@ public class NetManager : MonoBehaviour
         CloseSockets();
         ResetSession();
         IsHost = true;
+        // Хозяин игры продолжает свой прогресс — в одиночной игре так было
+        // всегда, а по сети мир каждый раз начинался с нуля.
+        SaveGame.Load(this);
         try
         {
             _game = new UdpClient(GamePort);
