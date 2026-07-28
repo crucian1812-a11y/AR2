@@ -232,8 +232,10 @@ public class HubWorld : WorldBuilder
         AddCoin(new Vector3(-7f, 1.2f, 6f));
         AddCoin(OnGround(-22f, -20f, 1.2f));
         AddCoin(OnGround(22f, -20f, 1.2f));
-        AddCoin(OnGround(-40f, 34f, 5.5f));
-        AddCoin(OnGround(-34f, -26f, 8f));
+        // Монета стояла внутри ствола дерева-ориентира — отодвинута.
+        AddCoin(OnGround(-36f, 30f, 1.2f));
+        // Восемь метров над травой недостижимы: потолок прыжка 5.2 м.
+        AddCoin(OnGround(-34f, -26f, 4.5f));
         AddCoin(new Vector3(11f, 1.2f, -8f));
     }
 

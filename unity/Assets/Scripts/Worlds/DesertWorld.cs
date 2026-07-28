@@ -55,7 +55,7 @@ public class DesertWorld : WorldBuilder
         // Тропа по обломкам над дюнами
         ObstacleRun(OnGround(56f, -60f, 3f), new Vector3(-0.6f, 0f, 1f), 8, 1.7f,
             new Color(0.8f, 0.55f, 0.34f));
-        Spinner(OnGround(-30f, 30f, 11f), 10f, 70f, new Color(0.72f, 0.44f, 0.28f));
+        Spinner(OnGround(-14f, 20f, 4f), 10f, 70f, new Color(0.72f, 0.44f, 0.28f));
         BuildAtmosphere();
 
         AddVillager(OnGround(24f, 14f), "Хранитель оазиса", "Cactus", 1.8f,

@@ -5,7 +5,7 @@ using UnityEngine.UI;
 // Открывается при подходе к торговке, закрывается кнопкой.
 public class ShopUI : MonoBehaviour
 {
-    public const int HeartPrice = 30;
+    public const int HeartPrice = 18;
     public const int MaxHeartsCap = 6;
 
     private Canvas _canvas;
@@ -80,14 +80,30 @@ public class ShopUI : MonoBehaviour
 
     public void Open()
     {
+        if (gameObject.activeSelf) return;
         gameObject.SetActive(true);
+        // В одиночной игре мир на паузе, пока открыта лавка: раньше медведь
+        // бегал по джойстику под панелью. В сетевой игре время не трогаем —
+        // остальные игроки продолжают играть.
+        if (NetManager.I == null || !NetManager.I.Online) Time.timeScale = 0f;
+        Ctrl.Reset();
+        TouchControls.SetVisible(false);
         Refresh();
     }
 
-    private void Close()
+    public void Close()
     {
+        if (!gameObject.activeSelf) return;
         Snd.Play("click");
+        Time.timeScale = 1f;
+        TouchControls.SetVisible(true);
         gameObject.SetActive(false);
+    }
+
+    private void OnDisable()
+    {
+        Time.timeScale = 1f;
+        TouchControls.SetVisible(true);
     }
 
     public bool IsOpen { get { return gameObject.activeSelf; } }

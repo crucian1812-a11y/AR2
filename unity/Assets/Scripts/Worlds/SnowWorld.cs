@@ -55,7 +55,7 @@ public class SnowWorld : WorldBuilder
         // Ледяная эстакада вдоль долины
         ObstacleRun(OnGround(-60f, -50f, 3f), new Vector3(1f, 0f, 0.6f), 8, 1.5f,
             new Color(0.8f, 0.9f, 1f));
-        Spinner(OnGround(-20f, 60f, 10f), 9f, -60f, new Color(0.66f, 0.84f, 1f));
+        Spinner(OnGround(-4f, 48f, 4f), 9f, -60f, new Color(0.66f, 0.84f, 1f));
         // Босс снегов — пчелиный страж над замёрзшим озером
         AddBoss(new Vector3(28f, 6f, 22f), new Vector3(48f, 6f, 22f),
             "armabee", 4.2f, 5, 1.6f);

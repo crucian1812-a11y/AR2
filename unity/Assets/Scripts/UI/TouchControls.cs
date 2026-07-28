@@ -76,7 +76,20 @@ public class TouchControls : MonoBehaviour
     private int _attackFinger = -1;
     private Vector2 _knobOffset;
     private float _scale = 1f;
+    private bool _touchDevice;
     private bool _visible;
+
+    private static TouchControls _instance;
+
+    // Убрать кнопки с экрана на время лавки или победного ролика: иначе
+    // игрок продолжает вслепую управлять героем сквозь чужое окно.
+    // На клавиатуре кнопок и так нет, поэтому показ обратно разрешаем
+    // только сенсорным устройствам.
+    public static void SetVisible(bool visible)
+    {
+        if (_instance == null) return;
+        _instance.ApplyVisible(visible && _instance._touchDevice);
+    }
 
     public static TouchControls Create(Transform canvas)
     {
@@ -89,7 +102,8 @@ public class TouchControls : MonoBehaviour
 
     private void Build(Transform canvas)
     {
-        _visible = Application.isMobilePlatform || Input.touchSupported;
+        _instance = this;
+        _touchDevice = Application.isMobilePlatform || Input.touchSupported;
         _scale = UiKit.Scale;
 
         Sprite ring = Gfx.RingSprite();
@@ -111,17 +125,34 @@ public class TouchControls : MonoBehaviour
             "Удар", Mathf.RoundToInt(20f * _scale), new Color(1f, 1f, 1f, 0.9f), TextAnchor.MiddleCenter);
 
         Layout();
-        SetVisible(_visible);
+        ApplyVisible(_touchDevice);
     }
 
-    private void SetVisible(bool v)
+    private void ApplyVisible(bool v)
     {
+        _visible = v;
         _joyBase.gameObject.SetActive(v);
         _knob.gameObject.SetActive(v);
         _jumpBtn.gameObject.SetActive(v);
         _attackBtn.gameObject.SetActive(v);
         _jumpLabel.gameObject.SetActive(v);
         _attackLabel.gameObject.SetActive(v);
+
+        if (!v)
+        {
+            // Пальцы, лежавшие на кнопках в момент скрытия, больше не
+            // получат TouchPhase.Ended по своим веткам — сбрасываем сами.
+            _joyFinger = -1;
+            _lookFinger = -1;
+            _jumpFinger = -1;
+            _attackFinger = -1;
+            _knobOffset = Vector2.zero;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (_instance == this) _instance = null;
     }
 
     private Vector2 JoyCenter { get { return new Vector2(190f * _scale, 190f * _scale); } }
@@ -195,7 +226,13 @@ public class TouchControls : MonoBehaviour
                 if (t.fingerId == _joyFinger) _joyFinger = -1;
                 else if (t.fingerId == _lookFinger) _lookFinger = -1;
                 else if (t.fingerId == _jumpFinger) _jumpFinger = -1;
-                else if (t.fingerId == _attackFinger) _attackFinger = -1;
+                else if (t.fingerId == _attackFinger)
+                {
+                    _attackFinger = -1;
+                    // Без этого признак удержания оставался поднятым навсегда,
+                    // и следующий прыжок сразу превращался в удар сверху.
+                    Ctrl.ReleaseAttack();
+                }
             }
             else if (t.fingerId == _joyFinger)
             {

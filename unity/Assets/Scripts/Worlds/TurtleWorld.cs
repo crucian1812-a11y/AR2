@@ -53,11 +53,13 @@ public class TurtleWorld : WorldBuilder
         AddCheckpoint(new Vector3(-2f, ShellHeight[0] + 7.9f, 6f));
         BuildShore();
         // Звёзды — цель мира, каждая на своём постаменте с батутом
-        AddStarPedestal(OnGround(-64f, -46f), 10f);
-        AddStarPedestal(OnGround(62f, 48f), 12f);
-        AddStarPedestal(OnGround(-70f, 52f), 9f);
+        // Постаменты стоят на берегу: центр лагуны опущен на -6 и залит
+        // водой, и внутри неё батут оказывался под поверхностью.
+        AddStarPedestal(OnGround(-86f, -62f), 10f);
+        AddStarPedestal(OnGround(84f, 64f), 12f);
+        AddStarPedestal(OnGround(-94f, 70f), 9f);
         // Плоты и брёвна над лагуной
-        ObstacleRun(new Vector3(-60f, 3f, -60f), new Vector3(1f, 0f, 1f), 8, 1.2f,
+        ObstacleRun(OnGround(-92f, -30f, 1.5f), new Vector3(1f, 0f, 0.4f), 8, 1.2f,
             new Color(0.62f, 0.44f, 0.28f));
         Spinner(Shells[0] + new Vector3(0f, ShellHeight[0] + 1.4f, -8f), 10f, 60f,
             new Color(0.62f, 0.44f, 0.28f));

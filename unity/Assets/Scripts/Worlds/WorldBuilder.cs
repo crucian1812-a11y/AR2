@@ -18,6 +18,7 @@ public abstract class WorldBuilder : MonoBehaviour
 
     private int _coinCounter;
     private int _starCounter;
+    private int _heartCounter;
     private int _enemyCounter;
     private readonly List<EnemyState> _stateScratch = new List<EnemyState>();
 
@@ -395,6 +396,9 @@ public abstract class WorldBuilder : MonoBehaviour
     protected void AddCheckpoint(Vector3 pos)
     {
         Checkpoints.Add(Checkpoint.Create(transform, pos));
+        // У каждой контрольной точки лежит сердце: до него игрок как раз
+        // добирается потрёпанным, и лечиться прыжком в пропасть больше не надо.
+        AddHeart(pos + new Vector3(2.2f, 1.2f, 0f));
     }
 
     protected void Water(Vector3 pos, Vector2 size)
@@ -913,6 +917,14 @@ public abstract class WorldBuilder : MonoBehaviour
     protected void AddStarPickup(Vector3 pos)
     {
         int id = NetManager.StarIdBase + _starCounter++;
+        Coin c = Coin.Spawn(transform, pos, id);
+        Coins[id] = c;
+    }
+
+    // Сердце восстанавливает единицу здоровья.
+    protected void AddHeart(Vector3 pos)
+    {
+        int id = NetManager.HeartIdBase + _heartCounter++;
         Coin c = Coin.Spawn(transform, pos, id);
         Coins[id] = c;
     }

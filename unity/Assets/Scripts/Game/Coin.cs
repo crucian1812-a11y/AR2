@@ -5,6 +5,7 @@ public class Coin : MonoBehaviour
 {
     public int Id;
     public bool IsStar;
+    public bool IsHeart;
 
     private Transform _visual;
     private float _baseY;
@@ -21,8 +22,30 @@ public class Coin : MonoBehaviour
         Coin c = go.AddComponent<Coin>();
         c.Id = id;
         c.IsStar = NetManager.IsStarId(id);
-        if (c.IsStar) c.BuildStar(); else c.BuildVisual();
+        c.IsHeart = NetManager.IsHeartId(id);
+        if (c.IsHeart) c.BuildHeart();
+        else if (c.IsStar) c.BuildStar();
+        else c.BuildVisual();
         return c;
+    }
+
+    // Сердце: восстанавливает единицу здоровья. Без него единственным
+    // способом полечиться был прыжок в пропасть.
+    private void BuildHeart()
+    {
+        GameObject vis = new GameObject("Visual");
+        vis.transform.SetParent(transform, false);
+        _visual = vis.transform;
+
+        Material red = Gfx.MatFull(new Color(1f, 0.3f, 0.4f), 0.6f, 0f,
+            new Color(0.8f, 0.1f, 0.2f), 0f, 0f);
+        Gfx.Ball(_visual, new Vector3(-0.17f, 0.12f, 0f), new Vector3(0.4f, 0.4f, 0.4f), red);
+        Gfx.Ball(_visual, new Vector3(0.17f, 0.12f, 0f), new Vector3(0.4f, 0.4f, 0.4f), red);
+        GameObject tip = Gfx.Box(_visual, new Vector3(0f, -0.14f, 0f),
+            new Vector3(0.42f, 0.42f, 0.28f), red, false);
+        tip.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+        Gfx.Glow(transform, Vector3.zero, 2.6f, new Color(1f, 0.4f, 0.5f, 0.6f));
+        _baseY = transform.localPosition.y;
     }
 
     // Звезда — главная награда мира: крупнее, ярче и со своим светом.
@@ -103,6 +126,6 @@ public class Coin : MonoBehaviour
         if (_collecting) return;
         _collecting = true;
         _fx = 0f;
-        Snd.Play(IsStar ? "star" : "coin", 1f, Random.Range(0.95f, 1.1f));
+        Snd.Play(IsHeart ? "quest" : (IsStar ? "star" : "coin"), 1f, Random.Range(0.95f, 1.1f));
     }
 }

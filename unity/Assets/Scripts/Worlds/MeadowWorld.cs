@@ -49,8 +49,8 @@ public class MeadowWorld : WorldBuilder
         // Полоса препятствий над низиной и вращающиеся брёвна
         ObstacleRun(OnGround(-8f, -56f, 3f), new Vector3(1f, 0f, 0.3f), 7, 1.6f,
             new Color(0.5f, 0.76f, 0.34f));
-        Spinner(OnGround(-14f, -46f, 12f), 9f, 55f, new Color(0.45f, 0.32f, 0.2f));
-        Spinner(OnGround(56f, 20f, 9f), 8f, -65f, new Color(0.45f, 0.32f, 0.2f));
+        Spinner(OnGround(2f, -38f, 4f), 9f, 55f, new Color(0.45f, 0.32f, 0.2f));
+        Spinner(OnGround(40f, 34f, 4f), 8f, -65f, new Color(0.45f, 0.32f, 0.2f));
         // Босс лугов — вожак альпак у древнего дерева
         AddBoss(OnGround(38f, -30f) + new Vector3(-9f, 21f, 0f),
             OnGround(38f, -30f) + new Vector3(9f, 21f, 0f), "alpaking", 3.2f, 4, 1.5f);

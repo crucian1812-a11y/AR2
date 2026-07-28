@@ -17,6 +17,7 @@ public enum Msg : byte
     ReqVictory = 7,
     Bye = 8,
     Ping = 9,
+    ReqSpend = 10,
 
     Welcome = 20,
     Snapshot = 21,
@@ -68,7 +69,11 @@ public class NetManager : MonoBehaviour
     // Звёзды живут в том же наборе собранного, что и монеты, но с
     // идентификаторами от 10000 — так их синхронизация достаётся даром.
     public const int StarIdBase = 10000;
-    public static bool IsStarId(int id) { return id >= StarIdBase; }
+    public static bool IsStarId(int id) { return id >= StarIdBase && id < HeartIdBase; }
+
+    // Сердца — тот же механизм собранного, свой диапазон идентификаторов.
+    public const int HeartIdBase = 20000;
+    public static bool IsHeartId(int id) { return id >= HeartIdBase; }
 
     // Звёзды открывают миры, монеты тратятся в лавке.
     public const int QuestStars = 2;
@@ -194,6 +199,7 @@ public class NetManager : MonoBehaviour
         MyId = 1;
         _nextId = 2;
         _awaitingWelcome = false;
+        _joinedAsClient = false;
     }
 
     private void CloseSockets()
@@ -251,6 +257,9 @@ public class NetManager : MonoBehaviour
         CloseSockets();
         ResetSession();
         IsHost = false;
+        // Прогресс клиента приходит от хоста; свой файл он не трогает,
+        // иначе чужое состояние затёрло бы одиночное сохранение.
+        _joinedAsClient = true;
         try
         {
             _game = new UdpClient(0);
@@ -364,16 +373,38 @@ public class NetManager : MonoBehaviour
     public bool Spend(int amount)
     {
         if (amount <= 0 || CoinsTotal < amount) return false;
+        // В сетевой игре кошелёк общий и живёт на хосте: локальная трата
+        // возвращалась обратно ближайшим снапшотом, и покупки были даром.
+        if (Online && !IsHost)
+        {
+            MemoryStream ms; BinaryWriter w;
+            Begin(Msg.ReqSpend, out ms, out w);
+            w.Write(amount);
+            SendToHost(ms);
+            return true;
+        }
         CoinsTotal -= amount;
         if (OnCoinsChanged != null) OnCoinsChanged(CoinsTotal);
         SaveProgress();
         return true;
     }
 
+    private void HostSpend(int amount)
+    {
+        if (amount <= 0 || CoinsTotal < amount) return;
+        CoinsTotal -= amount;
+        if (OnCoinsChanged != null) OnCoinsChanged(CoinsTotal);
+        SaveProgress();
+        if (Online) BroadcastSnapshot();
+    }
+
     public void SaveProgress()
     {
-        if (IsHost) SaveGame.Save(this);
+        // Клиент живёт состоянием хоста — записывать его себе нельзя.
+        if (IsHost && !_joinedAsClient) SaveGame.Save(this);
     }
+
+    private bool _joinedAsClient;
 
     private HashSet<int> CollectedSet(int world)
     {
@@ -440,7 +471,13 @@ public class NetManager : MonoBehaviour
         HashSet<int> set = CollectedSet(world);
         if (set.Contains(coinId)) return;
         set.Add(coinId);
-        if (IsStarId(coinId)) StarsTotal++; else CoinsTotal++;
+        if (IsHeartId(coinId))
+        {
+            BearPlayer local = GameRoot.LocalBear;
+            if (local != null) local.Heal(1);
+        }
+        else if (IsStarId(coinId)) StarsTotal++;
+        else CoinsTotal++;
         ApplyCoin(world, coinId, CoinsTotal, StarsTotal);
         SaveProgress();
         if (Online)
@@ -751,6 +788,9 @@ public class NetManager : MonoBehaviour
             case Msg.ReqKill: HostKill(r.ReadInt32(), r.ReadInt32()); break;
             case Msg.ReqPortal: HostPortal(r.ReadInt32()); break;
             case Msg.ReqQuest: HostQuest(); break;
+            case Msg.ReqSpend:
+                HostSpend(r.ReadInt32());
+                break;
             case Msg.ReqVictory: HostVictory(); break;
             case Msg.Bye:
                 if (conn != null)

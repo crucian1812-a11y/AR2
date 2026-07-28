@@ -49,7 +49,7 @@ public class StarGoal : MonoBehaviour
         fx.LifeMax = 2.2f;
         fx.Prewarm();
 
-        WorldLabel.Attach(transform, "Вершина!", new Vector3(0f, 2f, 0f),
+        WorldLabel.Attach(transform, "Сердце горы", new Vector3(0f, 2f, 0f),
             new Color(1f, 0.95f, 0.6f), 28);
     }
 

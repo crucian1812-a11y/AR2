@@ -160,6 +160,12 @@ public class BearPlayer : MonoBehaviour
         return true;
     }
 
+    public void Heal(int amount)
+    {
+        int max = NetManager.I != null ? NetManager.I.MaxHearts : 3;
+        Hearts = Mathf.Min(Hearts + amount, max);
+    }
+
     // Чекпоинт становится новой точкой возрождения.
     public void SetCheckpoint(Vector3 pos)
     {
@@ -329,6 +335,9 @@ public class BearPlayer : MonoBehaviour
                 _pounding = false;
                 _canDoubleJump = true;
                 _coyote = 0.14f;
+                // Удар сверху заказывается только удержанием в воздухе;
+                // на земле признак гасим, чтобы он не утёк в прыжок.
+                Ctrl.ReleaseAttack();
                 if (_velocity.y < 0f) _velocity.y = -2f;
             }
             else

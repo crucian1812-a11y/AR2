@@ -56,7 +56,7 @@ public class CaveWorld : WorldBuilder
         // Мост из плит над кристальным садом
         ObstacleRun(new Vector3(52f, 4f, 30f), new Vector3(-0.8f, 0f, -1f), 7, 1.6f,
             new Color(0.42f, 0.34f, 0.5f));
-        Spinner(new Vector3(20f, 12f, 34f), 9f, 75f, new Color(0.5f, 0.42f, 0.6f));
+        Spinner(new Vector3(6f, 4f, 40f), 9f, 75f, new Color(0.5f, 0.42f, 0.6f));
         // Второй босс пещеры — исполинский дракон над пропастью
         AddBoss(new Vector3(34f, 14f, -8f), new Vector3(34f, 14f, -30f),
             "bigdragon", 4.8f, 8, 1.7f);
