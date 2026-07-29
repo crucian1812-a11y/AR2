@@ -91,6 +91,29 @@ public class BearPlayer : MonoBehaviour
         return p;
     }
 
+    // Переодевание на лету. Купить скин можно было в лавке, а надеть —
+    // только в главном меню, перебором вперёд: после покупки игрок
+    // оставался в прежнем облике, и ничто не подсказывало, где его сменить.
+    public void SetCharacter(int index)
+    {
+        index = Mathf.Clamp(index, 0, Heroes.Ids.Length - 1);
+        if (index == CharIndex && _model != null) return;
+        CharIndex = index;
+
+        // Модель и запасной медведь из примитивов живут под _body; кольцо
+        // команды и кольцо удара — под _visual, их не трогаем.
+        for (int i = _body.childCount - 1; i >= 0; i--)
+            Object.Destroy(_body.GetChild(i).gameObject);
+        _lArm = null; _rArm = null; _lLeg = null; _rLeg = null;
+        // Та же посадка, что задаёт BuildNodes: запасной медведь ездит по
+        // localPosition, и от прошлого облика она могла остаться сдвинутой.
+        _body.localPosition = new Vector3(0f, -PivotHeight, 0f);
+
+        _model = CharacterModel.Spawn(_body, Heroes.Id(CharIndex), Heroes.BodyHeight);
+        if (_model == null) BuildProceduralBear();
+        _renderers = GetComponentsInChildren<Renderer>();
+    }
+
     private void Init()
     {
         _cc = gameObject.AddComponent<CharacterController>();

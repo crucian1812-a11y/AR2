@@ -20,6 +20,7 @@ public class MenuUI : MonoBehaviour
     // Стереть прогресс — в два касания: первое переспрашивает.
     private bool _resetArmed;
     private Button _charBtn;
+    private Button _charPrevBtn, _charNextBtn;
 
     private readonly List<Button> _serverButtons = new List<Button>();
     private bool _joinMode;
@@ -54,8 +55,12 @@ public class MenuUI : MonoBehaviour
         _nameField = UiKit.MakeInput(c, Vector2.zero, new Vector2(380f * s, 50f * s),
             NetManager.I != null ? NetManager.I.PlayerName : "Медведь", Mathf.RoundToInt(22f * s));
 
-        _charBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(380f * s, 50f * s),
-            CharButtonText(), Mathf.RoundToInt(21f * s), OnNextChar);
+        _charBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(290f * s, 50f * s),
+            CharButtonText(), Mathf.RoundToInt(20f * s), OnNextChar);
+        _charPrevBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(52f * s, 50f * s), "◀",
+            Mathf.RoundToInt(22f * s), OnPrevChar);
+        _charNextBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(52f * s, 50f * s), "▶",
+            Mathf.RoundToInt(22f * s), OnNextChar);
 
         _soloBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(380f * s, 54f * s), "Играть одному",
             Mathf.RoundToInt(23f * s), OnSolo);
@@ -123,6 +128,8 @@ public class MenuUI : MonoBehaviour
         _nameLabel.rectTransform.anchoredPosition = new Vector2(cx, cy + 152f * s);
         _nameField.image.rectTransform.anchoredPosition = new Vector2(cx, cy + 114f * s);
         _charBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy + 56f * s);
+        _charPrevBtn.image.rectTransform.anchoredPosition = new Vector2(cx - 176f * s, cy + 56f * s);
+        _charNextBtn.image.rectTransform.anchoredPosition = new Vector2(cx + 176f * s, cy + 56f * s);
         _soloBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 4f * s);
         _hostBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 64f * s);
         _joinBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 124f * s);
@@ -157,6 +164,8 @@ public class MenuUI : MonoBehaviour
         _nameLabel.gameObject.SetActive(!join);
         _nameField.gameObject.SetActive(!join);
         _charBtn.gameObject.SetActive(!join);
+        _charPrevBtn.gameObject.SetActive(!join);
+        _charNextBtn.gameObject.SetActive(!join);
         _soloBtn.gameObject.SetActive(!join);
         _hostBtn.gameObject.SetActive(!join);
         _joinBtn.gameObject.SetActive(!join);
@@ -193,13 +202,18 @@ public class MenuUI : MonoBehaviour
         return "Персонаж: " + Heroes.Name(i) + "  \u25B6";
     }
 
-    private void OnNextChar()
+    private void OnNextChar() { StepChar(1); }
+    private void OnPrevChar() { StepChar(-1); }
+
+    // Героев двадцать восемь: одной кнопкой «вперёд» вернуться к предыдущему
+    // стоило двадцати семи нажатий.
+    private void StepChar(int step)
     {
         Snd.Play("click");
         NetManager net = NetManager.I;
         if (net == null) return;
         int limit = Mathf.Clamp(net.UnlockedChars, 1, Heroes.Ids.Length);
-        net.CharIndex = (net.CharIndex + 1) % limit;
+        net.CharIndex = ((net.CharIndex + step) % limit + limit) % limit;
         Text label = _charBtn.GetComponentInChildren<Text>();
         if (label != null) label.text = CharButtonText();
     }

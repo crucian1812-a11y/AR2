@@ -24,7 +24,7 @@ public class Bootstrap : MonoBehaviour
         // только внутри StartSolo/StartHost, то есть уже ПОСЛЕ выхода из
         // меню: на холодном старте в выборе героя всегда было три штуки,
         // сколько бы их ни куплено.
-        SaveGame.Load(NetManager.I);
+        SaveGame.Load(NetManager.I, true);
 
         NetManager.I.OnEnterGame += EnterGame;
         NetManager.I.OnLeaveToMenu += LeaveToMenu;

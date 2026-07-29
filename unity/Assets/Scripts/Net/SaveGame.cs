@@ -67,7 +67,13 @@ public static class SaveGame
     }
 
     // Возвращает false, если сохранения нет или оно от другой версии.
-    public static bool Load(NetManager net)
+    //
+    // withChar разделяет два случая. На старте игры (Bootstrap) героя из
+    // сохранения взять надо — иначе в меню всегда предлагались бы первые
+    // три. А при входе в мир — нельзя: игрок только что выбрал героя в
+    // меню или в лавке, и подменять этот выбор прошлой игрой значит
+    // сделать выбор бесполезным.
+    public static bool Load(NetManager net, bool withChar = false)
     {
         if (net == null) return false;
         string raw = PlayerPrefs.GetString(Key, "");
@@ -85,10 +91,8 @@ public static class SaveGame
         net.VictoryReached = ParseInt(parts[4]) == 1;
         net.MaxHearts = Mathf.Clamp(ParseInt(parts[5]), 3, 9);
         net.UnlockedChars = Mathf.Clamp(ParseInt(parts[6]), Heroes.FreeChars, Heroes.Ids.Length);
-        // Персонажа НЕ берём из сохранения: игрок только что выбрал его в
-        // меню, и подменять выбор прошлой игрой — значит сделать кнопку
-        // выбора в меню бесполезной. Только следим, что он уже открыт.
-        net.CharIndex = Mathf.Clamp(net.CharIndex, 0, net.UnlockedChars - 1);
+        net.CharIndex = Mathf.Clamp(withChar ? ParseInt(parts[7]) : net.CharIndex,
+            0, net.UnlockedChars - 1);
 
         string tail = parts[8];
         for (int i = 9; i < parts.Length; i++) tail += "|" + parts[i];
