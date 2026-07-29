@@ -63,6 +63,21 @@ public class SnowWorld : WorldBuilder
         AddBoss(new Vector3(28f, 1.6f, 22f), new Vector3(48f, 1.6f, 22f),
             "armabee", 4.2f, 5, 1.6f);
         BuildAtmosphere();
+        Weather.Attach(transform, Weather.Kind.Snow, 5252);
+        Color sStone = new Color(0.55f, 0.58f, 0.66f);
+        for (int i = 0; i < 8; i++)
+        {
+            float a = i * 46f * Mathf.Deg2Rad;
+            OreRock(OnGround(Mathf.Cos(a) * (52f + (i % 3) * 6f), Mathf.Sin(a) * (52f + (i % 3) * 6f), 0.3f),
+                2.3f, sStone, 3);
+        }
+        for (int i = 0; i < 6; i++)
+        {
+            float a = 0.4f + i * 59f * Mathf.Deg2Rad;
+            OreTree(OnGround(Mathf.Cos(a) * (58f + (i % 2) * 6f), Mathf.Sin(a) * (58f + (i % 2) * 6f)),
+                new Color(0.2f, 0.42f, 0.28f), 0.95f);
+        }
+        AddChest(OnGround(-70f, -20f, 0.1f), 25f, 20, Res.Iron, 4);
 
         AddVillager(OnGround(-12f, 38f), "Смотритель лагеря", "Yeti", 2.2f,
             "Костёр здесь не гаснет триста лет. Говорят, его зажгли\nот того самого Сердца горы.");

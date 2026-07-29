@@ -78,7 +78,11 @@ public class NetManager : MonoBehaviour
 
     // Сердца — тот же механизм собранного, свой диапазон идентификаторов.
     public const int HeartIdBase = 20000;
-    public static bool IsHeartId(int id) { return id >= HeartIdBase; }
+    public static bool IsHeartId(int id) { return id >= HeartIdBase && id < ChestIdBase; }
+
+    // Сундуки — тот же набор собранного, свой диапазон.
+    public const int ChestIdBase = 30000;
+    public static bool IsChestId(int id) { return id >= ChestIdBase; }
 
     // Звёзды открывают миры, монеты тратятся в лавке.
     // Всего до пещеры доступно 14 звёзд: деревня 2 плюс четыре мира по 3.
@@ -434,6 +438,26 @@ public class NetManager : MonoBehaviour
 
     // ---------- Материалы ----------
 
+    // Начисление монет из верстака. В сетевой игре кошелёк общий и живёт
+    // на хосте, поэтому клиент только просит — тем же путём, что и трата.
+    public void AddCoins(int amount)
+    {
+        if (amount <= 0) return;
+        if (Online && !IsHost)
+        {
+            // Тем же сообщением, что и трата, но с отрицательной суммой:
+            // заводить второе ради этого незачем.
+            MemoryStream ms; BinaryWriter w;
+            Begin(Msg.ReqSpend, out ms, out w);
+            w.Write(-amount);
+            SendToHost(ms);
+            return;
+        }
+        CoinsTotal += amount;
+        if (OnCoinsChanged != null) OnCoinsChanged(CoinsTotal);
+        SaveProgress();
+    }
+
     public int ResCount(int kind)
     {
         return kind >= 0 && kind < Res.Count ? _res[kind] : 0;
@@ -586,9 +610,18 @@ public class NetManager : MonoBehaviour
         return true;
     }
 
+    // Отрицательная сумма — начисление (награда за верстак у клиента).
     private void HostSpend(int amount)
     {
-        if (amount <= 0 || CoinsTotal < amount) return;
+        if (amount < 0)
+        {
+            CoinsTotal += -amount;
+            if (OnCoinsChanged != null) OnCoinsChanged(CoinsTotal);
+            SaveProgress();
+            if (Online) BroadcastSnapshot();
+            return;
+        }
+        if (amount == 0 || CoinsTotal < amount) return;
         CoinsTotal -= amount;
         if (OnCoinsChanged != null) OnCoinsChanged(CoinsTotal);
         SaveProgress();
@@ -772,6 +805,7 @@ public class NetManager : MonoBehaviour
         // сердце, поднятое клиентом, прибавлялось хозяину игры.
         // Само лечение происходит на месте подбора, в GameRoot.
         if (IsHeartId(coinId)) { }
+        else if (IsChestId(coinId)) CoinsTotal += ChestCoins(world, coinId);
         else if (IsStarId(coinId)) StarsTotal++;
         else CoinsTotal++;
         ApplyCoin(world, coinId, CoinsTotal, StarsTotal);
@@ -784,6 +818,19 @@ public class NetManager : MonoBehaviour
             BroadcastRepeat(ms, 2);
         }
         CheckQuest();
+    }
+
+    // Сколько монет в сундуке. Мир детерминирован, поэтому у хоста лежит
+    // ровно тот же сундук, что и у клиента, — достаточно посмотреть.
+    private static int ChestCoins(int world, int chestId)
+    {
+        if (GameRoot.I == null || GameRoot.I.World == null) return 1;
+        for (int i = 0; i < GameRoot.I.World.Chests.Count; i++)
+        {
+            Chest c = GameRoot.I.World.Chests[i];
+            if (c != null && c.Id == chestId) return Mathf.Max(1, c.Coins);
+        }
+        return 1;
     }
 
     private void HostKill(int world, int enemyId)
@@ -811,6 +858,7 @@ public class NetManager : MonoBehaviour
         // лавки почти на тысячу: половину скинов нельзя было купить не
         // потому что дорого, а потому что монет в игре физически нет.
         CoinsTotal += wasBoss ? BossReward : EnemyReward;
+        if (wasBoss) Achievements.Grant("firstboss");
         SaveProgress();
 
         ApplyKill(world, enemyId);
@@ -854,6 +902,7 @@ public class NetManager : MonoBehaviour
     {
         if (VictoryReached || CurrentWorld != WorldCave) return;
         VictoryReached = true;
+        Achievements.Grant("victory");
         if (OnVictory != null) OnVictory();
         if (Online)
         {

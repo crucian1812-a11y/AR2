@@ -66,6 +66,20 @@ public class DesertWorld : WorldBuilder
             new Color(0.8f, 0.55f, 0.34f));
         Spinner(OnGround(-14f, 20f, 4f), 10f, 70f, new Color(0.72f, 0.44f, 0.28f));
         BuildAtmosphere();
+        Color dStone = new Color(0.72f, 0.5f, 0.32f);
+        for (int i = 0; i < 9; i++)
+        {
+            float a = i * 41f * Mathf.Deg2Rad;
+            OreRock(OnGround(Mathf.Cos(a) * (50f + (i % 4) * 6f), Mathf.Sin(a) * (50f + (i % 4) * 6f), 0.3f),
+                2.4f, dStone, 3);
+        }
+        // Железо — только в каньоне и пещере: за ним надо идти.
+        for (int i = 0; i < 5; i++)
+        {
+            float a = 1.2f + i * 68f * Mathf.Deg2Rad;
+            OreVein(OnGround(Mathf.Cos(a) * 64f, Mathf.Sin(a) * 64f, 0.2f), Res.Iron, 2, 1.1f);
+        }
+        AddChest(OnGround(-52f, 22.9f, 0.1f), 0f, 18, Res.Iron, 3);
 
         AddVillager(OnGround(24f, 14f), "Хранитель оазиса", "Cactus", 1.8f,
             "Руины старше деревни. На алтаре когда-то лежало\nвторое сердце — но его унесли ещё до меня.");

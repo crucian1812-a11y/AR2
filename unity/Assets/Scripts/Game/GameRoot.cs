@@ -17,6 +17,7 @@ public class GameRoot : MonoBehaviour
     }
 
     private readonly Dictionary<int, BearPlayer> _players = new Dictionary<int, BearPlayer>();
+    private readonly HashSet<int> _visited = new HashSet<int>();
 
     // Ближайший к точке медведь — врагам нужно знать, за кем гнаться.
     // В одиночной игре это всегда локальный, в сети — любой из подключённых.
@@ -71,6 +72,9 @@ public class GameRoot : MonoBehaviour
         net.OnEnemyRemoved += OnEnemyRemoved;
         net.OnEnemyStates += OnEnemyStates;
         net.OnQuestChanged += OnQuestChanged;
+        net.OnBrokenRemoved += OnBrokenRemoved;
+        net.OnBlockPlaced += OnBlockPlaced;
+        net.OnBlockRemoved += OnBlockRemoved;
 
         if (net.IsHost)
         {
@@ -96,6 +100,9 @@ public class GameRoot : MonoBehaviour
             net.OnEnemyRemoved -= OnEnemyRemoved;
             net.OnEnemyStates -= OnEnemyStates;
             net.OnQuestChanged -= OnQuestChanged;
+            net.OnBrokenRemoved -= OnBrokenRemoved;
+            net.OnBlockPlaced -= OnBlockPlaced;
+            net.OnBlockRemoved -= OnBlockRemoved;
         }
         if (I == this) I = null;
     }
@@ -124,7 +131,14 @@ public class GameRoot : MonoBehaviour
         Snd.SetTheme(worldIndex);
         wb.Construct(worldIndex);
         World = wb;
+        // Поставленные блоки — отдельный слой поверх мира: мир строится
+        // кодом заново, а блоки приходят из сохранения и из сети.
+        BlockField.Create(go.transform, worldIndex);
         _worldReady = true;
+
+        // Побывал во всех шести краях.
+        _visited.Add(worldIndex);
+        if (_visited.Count >= NetManager.WorldIds.Length) Achievements.Grant("allworlds");
 
         PlaceAllPlayers();
         // Камера принадлежит игроку и может появиться позже мира —
@@ -191,6 +205,8 @@ public class GameRoot : MonoBehaviour
         NetManager net = NetManager.I;
         if (net == null || !_worldReady || World == null) return;
 
+        if (DayCycle.IsNight) Achievements.Grant("firstnight");
+
         // Самая первая подсказка: базовое управление игра не объясняла
         // вообще. Показываем её сразу, как только игрок появился в мире.
         if (LocalPlayer != null)
@@ -234,7 +250,11 @@ public class GameRoot : MonoBehaviour
             // Что такое звёзды, игра нигде не объясняла: об этом узнавали,
             // только упёршись в закрытый портал.
             if (NetManager.IsStarId(kv.Key))
+            {
                 Tutor.Show("star", "Звезда! Они открывают порталы в деревне — ищи по три в каждом краю.");
+                Achievements.Grant("firststar");
+            }
+            else if (!NetManager.IsHeartId(kv.Key)) Achievements.Grant("firstcoin");
             net.RequestCollect(net.CurrentWorld, kv.Key);
         }
 
@@ -280,6 +300,20 @@ public class GameRoot : MonoBehaviour
             else if (left && _hud != null) _hud.HideDialog();
         }
 
+        for (int i = 0; i < World.Chests.Count; i++)
+        {
+            Chest ch = World.Chests[i];
+            if (ch == null || !ch.TryOpen(pos)) continue;
+            // Материал получает тот, кто открыл — он личный. Монеты
+            // начисляет хост: кошелёк в сетевой игре общий.
+            net.AddRes(ch.ResKind, ch.ResAmount);
+            Achievements.Grant("firstchest");
+            if (_hud != null)
+                _hud.ShowDialog("В сундуке: " + ch.Coins + " монет и " +
+                                ch.ResAmount + " — " + Res.Name(ch.ResKind).ToLower());
+            net.RequestCollect(net.CurrentWorld, ch.Id);
+        }
+
         if (World.Star != null && World.Star.TryReach(pos)) net.RequestVictory();
     }
 
@@ -295,6 +329,22 @@ public class GameRoot : MonoBehaviour
     {
         if (World == null || NetManager.I == null || world != NetManager.I.CurrentWorld) return;
         World.RemoveEnemy(enemyId, true);
+    }
+
+    private void OnBrokenRemoved(int world, int propId)
+    {
+        if (World == null || NetManager.I == null || world != NetManager.I.CurrentWorld) return;
+        World.RemoveBreakable(propId, true);
+    }
+
+    private void OnBlockPlaced(int world, int cell, int kind)
+    {
+        if (BlockField.I != null) BlockField.I.OnPlaced(world, cell, kind);
+    }
+
+    private void OnBlockRemoved(int world, int cell)
+    {
+        if (BlockField.I != null) BlockField.I.OnRemoved(world, cell);
     }
 
     private void OnEnemyStates(List<EnemyState> states)

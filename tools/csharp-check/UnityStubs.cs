@@ -635,7 +635,7 @@ namespace UnityEngine
 
     public enum KeyCode
     {
-        None, Space, Escape, Return, W, A, S, D, E, Q, R,
+        None, Space, Escape, Return, W, A, S, D, E, Q, R, B, F,
         LeftShift, LeftControl, LeftAlt,
         UpArrow, DownArrow, LeftArrow, RightArrow, Mouse0, Mouse1
     }

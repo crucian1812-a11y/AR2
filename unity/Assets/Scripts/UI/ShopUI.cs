@@ -21,7 +21,54 @@ public class ShopUI : MonoBehaviour
     private Button _nextBtn;
     private Text _wearLabel;
     private Text _note;
+    // Верстак: рецепты из добытого. Списком, а не сеткой 3x3 — на телефоне
+    // перетаскивать по клеткам мучительно, а выбор из списка честный.
+    private Button[] _craftBtn;
+    private Text _craftTitle;
     private int _lastW, _lastH;
+
+    // Рецепт: что стоит и что даёт.
+    private struct Recipe
+    {
+        public string Title;
+        public int[] Cost;      // по индексам Res
+        public int GiveCoins;
+        public int GiveHeart;   // +1 к пределу здоровья
+        public int GiveRes;     // вид материала
+        public int GiveResAmount;
+    }
+
+    private static Recipe[] Recipes
+    {
+        get
+        {
+            return new Recipe[]
+            {
+                Make("Доски: 4 дерева → 12 монет", C(4, 0, 0, 0), 12, 0, -1, 0),
+                Make("Слиток: 3 камня + 2 железа → 26 монет", C(0, 3, 2, 0), 26, 0, -1, 0),
+                Make("Сердце: 2 железа + 1 кристалл", C(0, 0, 2, 1), 0, 1, -1, 0),
+                Make("Дробить камень: 1 камень → 3 дерева", C(0, 1, 0, 0), 0, 0, Res.Wood, 3)
+            };
+        }
+    }
+
+    private static int[] C(int wood, int stone, int iron, int crystal)
+    {
+        return new int[] { wood, stone, iron, crystal };
+    }
+
+    private static Recipe Make(string title, int[] cost, int coins, int heart,
+        int giveRes, int giveAmount)
+    {
+        Recipe r;
+        r.Title = title;
+        r.Cost = cost;
+        r.GiveCoins = coins;
+        r.GiveHeart = heart;
+        r.GiveRes = giveRes;
+        r.GiveResAmount = giveAmount;
+        return r;
+    }
 
     public static ShopUI Create(Transform parent)
     {
@@ -39,7 +86,7 @@ public class ShopUI : MonoBehaviour
         Transform c = _canvas.transform;
         float s = UiKit.Scale;
 
-        _panel = UiKit.MakePanel(c, Vector2.zero, new Vector2(560f * s, 470f * s),
+        _panel = UiKit.MakePanel(c, Vector2.zero, new Vector2(600f * s, 690f * s),
             new Color(0.1f, 0.13f, 0.2f, 0.95f));
         _title = UiKit.MakeText(c, Vector2.zero, new Vector2(520f * s, 44f * s),
             "Лавка торговки", Mathf.RoundToInt(30f * s),
@@ -57,6 +104,18 @@ public class ShopUI : MonoBehaviour
             Mathf.RoundToInt(20f * s), Color.white, TextAnchor.MiddleCenter);
         _nextBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(60f * s, 52f * s), "▶",
             Mathf.RoundToInt(24f * s), NextChar);
+
+        _craftTitle = UiKit.MakeText(c, Vector2.zero, new Vector2(520f * s, 32f * s),
+            "Верстак", Mathf.RoundToInt(22f * s),
+            new Color(0.8f, 0.92f, 0.7f), TextAnchor.MiddleCenter);
+        Recipe[] rs = Recipes;
+        _craftBtn = new Button[rs.Length];
+        for (int i = 0; i < rs.Length; i++)
+        {
+            int idx = i;
+            _craftBtn[i] = UiKit.MakeButton(c, Vector2.zero, new Vector2(500f * s, 46f * s), "",
+                Mathf.RoundToInt(18f * s), delegate { Craft(idx); });
+        }
 
         _note = UiKit.MakeText(c, Vector2.zero, new Vector2(520f * s, 60f * s), "",
             Mathf.RoundToInt(18f * s), new Color(0.75f, 0.82f, 0.95f), TextAnchor.UpperCenter);
@@ -77,17 +136,22 @@ public class ShopUI : MonoBehaviour
         float cy = Screen.height * 0.5f;
 
         _panel.rectTransform.anchoredPosition = new Vector2(cx, cy);
-        _title.rectTransform.anchoredPosition = new Vector2(cx, cy + 186f * s);
-        _wallet.rectTransform.anchoredPosition = new Vector2(cx, cy + 146f * s);
-        _heartBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy + 88f * s);
-        _charBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy + 28f * s);
+        _title.rectTransform.anchoredPosition = new Vector2(cx, cy + 300f * s);
+        _wallet.rectTransform.anchoredPosition = new Vector2(cx, cy + 262f * s);
+        _heartBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy + 210f * s);
+        _charBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy + 152f * s);
 
-        _prevBtn.image.rectTransform.anchoredPosition = new Vector2(cx - 190f * s, cy - 34f * s);
-        _wearLabel.rectTransform.anchoredPosition = new Vector2(cx, cy - 34f * s);
-        _nextBtn.image.rectTransform.anchoredPosition = new Vector2(cx + 190f * s, cy - 34f * s);
+        _prevBtn.image.rectTransform.anchoredPosition = new Vector2(cx - 200f * s, cy + 94f * s);
+        _wearLabel.rectTransform.anchoredPosition = new Vector2(cx, cy + 94f * s);
+        _nextBtn.image.rectTransform.anchoredPosition = new Vector2(cx + 200f * s, cy + 94f * s);
 
-        _note.rectTransform.anchoredPosition = new Vector2(cx, cy - 86f * s);
-        _closeBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 186f * s);
+        _craftTitle.rectTransform.anchoredPosition = new Vector2(cx, cy + 36f * s);
+        for (int i = 0; i < _craftBtn.Length; i++)
+            _craftBtn[i].image.rectTransform.anchoredPosition =
+                new Vector2(cx, cy - 8f * s - i * 50f * s);
+
+        _note.rectTransform.anchoredPosition = new Vector2(cx, cy - 232f * s);
+        _closeBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 300f * s);
     }
 
     private void Update()
@@ -152,8 +216,17 @@ public class ShopUI : MonoBehaviour
         SetButton(_prevBtn, "◀", canSwitch);
         SetButton(_nextBtn, "▶", canSwitch);
 
+        Recipe[] rs = Recipes;
+        for (int i = 0; i < _craftBtn.Length && i < rs.Length; i++)
+        {
+            bool can = true;
+            for (int k = 0; k < Res.Count; k++)
+                if (net.ResCount(k) < rs[i].Cost[k]) can = false;
+            SetButton(_craftBtn[i], rs[i].Title + (can ? "" : "  (не хватает)"), can);
+        }
+
         _note.text = "Звёзды открывают миры, монеты тратятся здесь.\n" +
-                     "Стрелками примеряй купленных героев — смена сразу.";
+                     "Материал добывается ударом по камням и деревьям.";
     }
 
     private void PrevChar() { Wear(-1); }
@@ -216,9 +289,40 @@ public class ShopUI : MonoBehaviour
         Refresh();
     }
 
+    private void Craft(int index)
+    {
+        NetManager net = NetManager.I;
+        Recipe[] rs = Recipes;
+        if (net == null || index < 0 || index >= rs.Length) return;
+
+        Recipe r = rs[index];
+        if (r.GiveHeart > 0 && net.MaxHearts >= MaxHeartsCap)
+        {
+            _note.text = "Сердца больше не нужны — предел уже взят.";
+            Snd.Play("hurt", 0.6f);
+            return;
+        }
+        if (!net.SpendRes(r.Cost)) { Deny(); return; }
+
+        if (r.GiveCoins > 0) net.AddCoins(r.GiveCoins);
+        if (r.GiveRes >= 0) net.AddRes(r.GiveRes, r.GiveResAmount);
+        if (r.GiveHeart > 0)
+        {
+            net.MaxHearts += r.GiveHeart;
+            BearPlayer local = GameRoot.LocalBear;
+            if (local != null) local.Hearts = net.MaxHearts;
+        }
+
+        net.SaveProgress();
+        Achievements.Grant("firstcraft");
+        Snd.Play("quest", 0.9f);
+        Refresh();
+    }
+
     private void Deny()
     {
         Snd.Play("hurt", 0.6f);
-        _note.text = "Не хватает монет.\nМонеты рассыпаны по всем мирам — поищи ещё.";
+        _note.text = "Не хватает. Монеты рассыпаны по мирам,\n" +
+                     "материал добывается ударом по камням и деревьям.";
     }
 }

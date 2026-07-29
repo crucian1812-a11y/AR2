@@ -328,6 +328,10 @@ public class BearPlayer : MonoBehaviour
         Vector3 dir = (fwd.normalized * mv.y + right.normalized * mv.x);
         if (dir.magnitude > 1f) dir = dir.normalized;
 
+        // Постройка блока. Материал выбирается сам — тот, которого больше:
+        // на телефоне отдельный хотбар с выбором лишний.
+        if (Ctrl.ConsumeBuild() || Input.GetKeyDown(KeyCode.B)) PlaceBlock(BestBuildKind());
+
         bool jumpPressed = Ctrl.ConsumeJump() || Input.GetKeyDown(KeyCode.Space);
         bool grounded = _cc.isGrounded;
 
@@ -516,6 +520,100 @@ public class BearPlayer : MonoBehaviour
             if (new Vector2(to.x, to.z).magnitude < 2.5f + e.Radius
                 && Mathf.Abs(to.y) < 1.6f + e.Height * 0.5f)
                 NetManager.I.RequestKill(NetManager.I.CurrentWorld, kv.Key);
+        }
+
+        MineSwing(root);
+    }
+
+    // Тот же удар добывает материал: валуны, деревья и рудные жилы
+    // ломаются им же, отдельной кнопки «копать» на телефоне не нужно.
+    private void MineSwing(GameRoot root)
+    {
+        NetManager net = NetManager.I;
+        if (net == null) return;
+
+        // Ближайший добываемый объект в пределах взмаха — по одному за удар,
+        // иначе одним махом сносило бы целую рощу.
+        Breakable best = null;
+        float bestDist = float.MaxValue;
+        for (int i = 0; i < root.World.Breakables.Count; i++)
+        {
+            Breakable b = root.World.Breakables[i];
+            if (b == null) continue;
+            Vector3 to = b.Center - Chest;
+            float flat = new Vector2(to.x, to.z).magnitude;
+            if (flat > 2.4f + b.Radius || Mathf.Abs(to.y) > 1.8f + b.Height * 0.5f) continue;
+            if (flat < bestDist) { bestDist = flat; best = b; }
+        }
+        if (best != null)
+        {
+            if (best.Hit())
+            {
+                net.AddRes(best.Kind, best.Amount);
+                Achievements.Grant("firstmine");
+                net.RequestBreak(net.CurrentWorld, best.Id, best.Kind, best.Amount);
+            }
+            return;
+        }
+
+        // Свой блок сносится тем же ударом и возвращает материал.
+        BlockField field = BlockField.I;
+        if (field == null) return;
+        Vector3 aim = Chest + _visual.forward * 1.3f;
+        int cell = NetManager.CellAt(aim);
+        GameObject block = field.At(cell);
+        if (block == null)
+        {
+            block = field.At(NetManager.CellAt(aim + Vector3.up * 0.6f));
+            if (block == null) return;
+            cell = block.GetComponent<BlockTag>().Cell;
+        }
+        BlockTag tag = block.GetComponent<BlockTag>();
+        if (tag != null) net.AddRes(tag.Kind, 1);
+        net.RequestPlace(net.CurrentWorld, cell, -1);
+    }
+
+    // Какой материал класть. Берём тот, которого больше всего: выбор из
+    // четырёх кнопок на телефоне не окупается, а строят обычно из того,
+    // чего в избытке.
+    private static int BestBuildKind()
+    {
+        NetManager net = NetManager.I;
+        if (net == null) return Res.Stone;
+        int best = Res.Stone, bestN = 0;
+        for (int i = 0; i < Res.Count; i++)
+        {
+            int n = net.ResCount(i);
+            if (n > bestN) { bestN = n; best = i; }
+        }
+        return best;
+    }
+
+    // Поставить блок перед собой. Клетка выбирается по взгляду, а высота —
+    // от подошв: кубик ложится на землю или на предыдущий кубик, а не
+    // повисает на уровне груди.
+    public void PlaceBlock(int kind)
+    {
+        NetManager net = NetManager.I;
+        BlockField field = BlockField.I;
+        if (net == null || field == null) return;
+        if (net.ResCount(kind) <= 0) return;
+
+        Vector3 fwd = _visual.forward;
+        fwd.y = 0f;
+        if (fwd.sqrMagnitude < 0.001f) fwd = Vector3.forward;
+        Vector3 spot = transform.position + fwd.normalized * (NetManager.BlockSize * 1.1f);
+
+        // Ищем снизу вверх первую свободную клетку — так стопка растёт.
+        for (int up = 0; up < 4; up++)
+        {
+            int cell = NetManager.CellAt(spot + Vector3.up * (up * NetManager.BlockSize));
+            if (field.Has(cell)) continue;
+            net.AddRes(kind, -1);
+            net.RequestPlace(net.CurrentWorld, cell, kind);
+            Achievements.Grant("firstblock");
+            Snd.Play("land", 0.8f);
+            return;
         }
     }
 

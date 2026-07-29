@@ -86,6 +86,16 @@ public class TurtleWorld : WorldBuilder
             Shells[0] + new Vector3(9f, ShellHeight[0] + 0.35f, -6f),
             "pirate", 3.4f, 6, 1.4f);
         BuildAtmosphere();
+        Weather.Attach(transform, Weather.Kind.Rain, 4242);
+        Color tLeaf = new Color(0.3f, 0.62f, 0.34f);
+        for (int i = 0; i < 8; i++)
+        {
+            float a = i * 45f * Mathf.Deg2Rad;
+            Vector3 p = OnGround(Mathf.Cos(a) * 100f, Mathf.Sin(a) * 100f);
+            if (p.y < 0.3f) continue;
+            OreTree(p, tLeaf, 1f, 4);
+        }
+        AddChest(OnGround(0f, 92f, 0.4f), 180f, 16, Res.Wood, 8);
 
         AddPortal(new Vector3(0f, ShellHeight[0] + 1.6f, -14f), NetManager.WorldHub,
             "В деревню", new Color(1f, 0.8f, 0.4f), 0f);

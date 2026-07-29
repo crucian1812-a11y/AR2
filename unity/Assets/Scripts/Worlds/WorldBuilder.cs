@@ -11,6 +11,8 @@ public abstract class WorldBuilder : MonoBehaviour
     public readonly Dictionary<int, Coin> Coins = new Dictionary<int, Coin>();
     public readonly Dictionary<int, Enemy> Enemies = new Dictionary<int, Enemy>();
     public readonly List<Portal> Portals = new List<Portal>();
+    public readonly List<Breakable> Breakables = new List<Breakable>();
+    public readonly List<Chest> Chests = new List<Chest>();
 
     public Npc Elder;
     public readonly List<Npc> Npcs = new List<Npc>();
@@ -20,6 +22,8 @@ public abstract class WorldBuilder : MonoBehaviour
     private int _starCounter;
     private int _heartCounter;
     private int _enemyCounter;
+    private int _breakCounter;
+    private int _chestCounter;
     private readonly List<EnemyState> _stateScratch = new List<EnemyState>();
 
     protected abstract void Build();
@@ -42,7 +46,104 @@ public abstract class WorldBuilder : MonoBehaviour
         List<int> enemyIds = new List<int>(Enemies.Keys);
         for (int i = 0; i < enemyIds.Count; i++)
             if (net.IsKilled(worldIndex, enemyIds[i])) RemoveEnemy(enemyIds[i], false);
+
+        // Добытое не отрастает: сломанные валуны и деревья не возвращаются.
+        for (int i = Breakables.Count - 1; i >= 0; i--)
+        {
+            Breakable b = Breakables[i];
+            if (b == null) { Breakables.RemoveAt(i); continue; }
+            if (!net.IsBroken(worldIndex, b.Id)) continue;
+            Breakables.RemoveAt(i);
+            Object.Destroy(b.gameObject);
+        }
+
+        for (int i = Chests.Count - 1; i >= 0; i--)
+        {
+            Chest c = Chests[i];
+            if (c == null) { Chests.RemoveAt(i); continue; }
+            if (net.IsCollected(worldIndex, c.Id)) c.SetOpened();
+        }
     }
+
+    // Убрать разрушенный объект по событию от хоста.
+    public void RemoveBreakable(int id, bool effect)
+    {
+        for (int i = 0; i < Breakables.Count; i++)
+        {
+            Breakable b = Breakables[i];
+            if (b == null || b.Id != id) continue;
+            Breakables.RemoveAt(i);
+            if (b == null) return;
+            if (effect) b.BreakEffect();
+            else Object.Destroy(b.gameObject);
+            return;
+        }
+    }
+
+    // ---------- Добыча и сундуки ----------
+
+    // Сделать уже построенный объект добываемым.
+    protected void MakeBreakable(GameObject target, int kind, int amount, int hp,
+        float radius, float height)
+    {
+        if (target == null) return;
+        Breakable b = Breakable.Attach(target, BreakIdBase + _breakCounter++,
+            kind, amount, hp, radius, height);
+        if (b != null) Breakables.Add(b);
+    }
+
+    // Рудная жила: светящиеся кристаллы в породе. Отдельный вид добычи,
+    // ради которого стоит лезть в пещеру.
+    protected void OreVein(Vector3 pos, int kind, int amount, float scale = 1f)
+    {
+        Color tint = Res.Tint(kind);
+        Material rock = Gfx.MatFull(new Color(0.34f, 0.32f, 0.36f), 0.05f, 0f,
+            Color.black, 3f, 0.6f);
+        GameObject host = Gfx.Ball(transform, pos + new Vector3(0f, 0.55f * scale, 0f),
+            new Vector3(1.1f, 0.95f, 1.1f) * scale, rock, true);
+        host.name = "Ore";
+
+        Material gem = Gfx.MatFull(tint, 0.85f, 0.3f, tint * 0.8f, 0f, 0f);
+        for (int i = 0; i < 5; i++)
+        {
+            float a = i * 72f * Mathf.Deg2Rad;
+            Gfx.Crystal(host.transform,
+                new Vector3(Mathf.Cos(a) * 0.42f, 0.45f, Mathf.Sin(a) * 0.42f),
+                0.16f, 0.5f, gem, Random.Range(-18f, 18f));
+        }
+        Gfx.Glow(host.transform, new Vector3(0f, 0.5f, 0f), 2.2f * scale,
+            new Color(tint.r, tint.g, tint.b, 0.5f));
+
+        MakeBreakable(host, kind, amount, 3, 1.1f * scale, 1.4f * scale);
+    }
+
+    protected void AddChest(Vector3 pos, float yaw, int coins, int resKind, int resAmount)
+    {
+        Chest c = Chest.Create(transform, pos, yaw, ChestIdBase + _chestCounter++,
+            coins, resKind, resAmount);
+        if (c != null) Chests.Add(c);
+    }
+
+    // Добываемый валун: тот же камень, что и декоративный, но ломается.
+    protected void OreRock(Vector3 pos, float size, Color color, int amount = 2)
+    {
+        Rock(pos, size, color);
+        // Rock ставит модель или примитив последним ребёнком — берём его.
+        Transform last = transform.GetChild(transform.childCount - 1);
+        MakeBreakable(last.gameObject, Res.Stone, amount, 2, size * 0.6f, size);
+    }
+
+    // Добываемое дерево.
+    protected void OreTree(Vector3 pos, Color leaf, float scale, int amount = 3)
+    {
+        Tree(pos, leaf, scale);
+        Transform last = transform.GetChild(transform.childCount - 1);
+        MakeBreakable(last.gameObject, Res.Wood, amount, 3, 0.9f * scale, 4f * scale);
+    }
+
+    // Диапазоны ID, чтобы добыча и сундуки не пересекались с монетами.
+    public const int BreakIdBase = 1000;
+    public const int ChestIdBase = 30000;
 
     // ---------- Небо, свет, туман ----------
 
@@ -84,7 +185,19 @@ public abstract class WorldBuilder : MonoBehaviour
         sun.shadows = LightShadows.Soft;
         sun.shadowStrength = 0.85f;
         sun.shadowNormalBias = 0.05f;
+
+        // Смена суток. Мир задаёт свою ДНЕВНУЮ палитру, ночная выводится
+        // из неё же — общая ночь на все шесть миров смотрелась бы чужой.
+        // В пещере суток нет: там своё небо и свет от кристаллов.
+        if (HasDayCycle)
+        {
+            DayCycle.Attach(transform, sun, RenderSettings.skybox,
+                top, horizon, ground, fogColor, fogDensity, sunIntensity, sunEuler.y);
+        }
     }
+
+    // Пещера переопределяет на false.
+    protected virtual bool HasDayCycle { get { return true; } }
 
     // ---------- Ландшафт и декор ----------
 

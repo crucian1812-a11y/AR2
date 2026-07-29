@@ -54,6 +54,7 @@ public class HubWorld : WorldBuilder
         AddEnemy(OnGround(-58f, -14f, 0.1f), OnGround(-64f, -26f, 0.1f), "mushroom", 2.6f);
         AddEnemy(OnGround(30f, 44f, 0.1f), OnGround(44f, 44f, 0.1f), "mushroom", 2.3f);
         BuildAtmosphere();
+        BuildResources();
 
         // Старейшина и порталы вокруг площади
         AddNpc(new Vector3(4.5f, 0f, -4.5f));
@@ -79,6 +80,35 @@ public class HubWorld : WorldBuilder
         AddShopkeeper(new Vector3(10f, 0f, 5f), "Торговка", "Chicken", 1.4f);
         AddVillager(new Vector3(-13f, 0f, 9f), "Путешественник", "Cyclops", 2.1f,
             "Я видел город на спинах спящих черепах.\nОн всплывает, только когда в деревне снова становится тепло.");
+    }
+
+    // Добыча и сундуки на окраинах. В самой деревне ничего не ломается —
+    // площадь должна оставаться площадью.
+    private void BuildResources()
+    {
+        Weather.Attach(transform, Weather.Kind.Rain, 1812);
+
+        Color stone = new Color(0.6f, 0.58f, 0.54f);
+        Vector3[] rocks = {
+            new Vector3(-40f, 0f, 18f), new Vector3(-44f, 0f, 24f),
+            new Vector3(38f, 0f, -34f), new Vector3(45f, 0f, -28f),
+            new Vector3(-52f, 0f, -30f), new Vector3(26f, 0f, 48f),
+            new Vector3(-18f, 0f, 52f), new Vector3(56f, 0f, 12f)
+        };
+        for (int i = 0; i < rocks.Length; i++)
+            OreRock(OnGround(rocks[i].x, rocks[i].z, 0.3f), 2f + (i % 3) * 0.5f, stone);
+
+        Color leaf = new Color(0.3f, 0.6f, 0.32f);
+        Vector3[] trees = {
+            new Vector3(-36f, 0f, 8f), new Vector3(-42f, 0f, -6f),
+            new Vector3(34f, 0f, 34f), new Vector3(48f, 0f, 30f),
+            new Vector3(-24f, 0f, -44f), new Vector3(14f, 0f, -50f)
+        };
+        for (int i = 0; i < trees.Length; i++)
+            OreTree(OnGround(trees[i].x, trees[i].z), leaf, 0.9f + (i % 3) * 0.15f);
+
+        AddChest(OnGround(-58f, 12f, 0.1f), 30f, 8, Res.Wood, 4);
+        AddChest(OnGround(52f, -46f, 0.1f), -120f, 12, Res.Stone, 5);
     }
 
     private void BuildPlaza()

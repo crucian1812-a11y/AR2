@@ -13,6 +13,10 @@ public class CaveWorld : WorldBuilder
 
     private const float Radius = 104f;
 
+    // Под землёй суток нет: небо здесь почти чёрное всегда, а свет дают
+    // кристаллы. Затемнять его ещё и по ночам значило бы играть вслепую.
+    protected override bool HasDayCycle { get { return false; } }
+
     protected override void Build()
     {
         SpawnPoint = new Vector3(0f, 2f, 52f);
@@ -73,6 +77,15 @@ public class CaveWorld : WorldBuilder
         AddBoss(new Vector3(34f, 10.2f, -8f), new Vector3(34f, 10.2f, -30f),
             "bigdragon", 4.8f, 8, 1.7f);
         BuildAtmosphere();
+        // Кристалл водится только под землёй — ради него и лезут в пещеру.
+        for (int i = 0; i < 10; i++)
+        {
+            float a = i * 137.5f * Mathf.Deg2Rad;
+            float r = 34f + (i % 5) * 11f;
+            OreVein(OnGround(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0.2f),
+                i % 3 == 0 ? Res.Iron : Res.Crystal, 2, 1.15f);
+        }
+        AddChest(new Vector3(-14f, 18.2f, -22f), 0f, 30, Res.Crystal, 4);
 
         AddVillager(new Vector3(6f, 0.2f, 46f), "Отшельник", "Skull", 1.7f,
             "Ты дошёл. Сердце горы на алтаре — но оно не вещь,\nа обещание вернуться. Возьмёшь — станешь должен.");

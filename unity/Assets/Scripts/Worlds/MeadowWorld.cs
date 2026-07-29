@@ -61,6 +61,22 @@ public class MeadowWorld : WorldBuilder
         AddBoss(OnGround(38f, -30f) + new Vector3(-9f, 20.4f, 0f),
             OnGround(38f, -30f) + new Vector3(9f, 20.4f, 0f), "alpaking", 3.2f, 4, 1.5f);
         BuildAtmosphere();
+        Weather.Attach(transform, Weather.Kind.Rain, 7717);
+        Color mStone = new Color(0.58f, 0.56f, 0.52f);
+        for (int i = 0; i < 7; i++)
+        {
+            float a = i * 51f * Mathf.Deg2Rad;
+            OreRock(OnGround(Mathf.Cos(a) * (44f + i * 3f), Mathf.Sin(a) * (44f + i * 3f), 0.3f),
+                2.2f, mStone);
+        }
+        Color mLeaf = new Color(0.26f, 0.56f, 0.26f);
+        for (int i = 0; i < 8; i++)
+        {
+            float a = 0.7f + i * 44f * Mathf.Deg2Rad;
+            OreTree(OnGround(Mathf.Cos(a) * (52f + (i % 3) * 5f), Mathf.Sin(a) * (52f + (i % 3) * 5f)),
+                mLeaf, 1f);
+        }
+        AddChest(OnGround(-62f, -12f, 0.1f), 40f, 14, Res.Wood, 6);
 
         AddVillager(OnGround(-6f, 40f), "Пасечница", "Bee", 1.2f,
             "Древнее дерево перестало цвести в ту же ночь.\nОно чувствует Сердце горы лучше любого из нас.");

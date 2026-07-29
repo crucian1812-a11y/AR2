@@ -15,6 +15,16 @@ public static class Ctrl
     public static void QueueAttack() { _attack = true; _attackHeld = true; }
     public static void ReleaseAttack() { _attackHeld = false; }
 
+    private static bool _build;
+    public static void QueueBuild() { _build = true; }
+
+    public static bool ConsumeBuild()
+    {
+        bool v = _build;
+        _build = false;
+        return v;
+    }
+
     // Признак удержания без сброса — нужен нырянию, которое длится всё
     // время, пока кнопка нажата.
     public static bool AttackHeld { get { return _attackHeld; } }
@@ -55,6 +65,7 @@ public static class Ctrl
         _jump = false;
         _attack = false;
         _attackHeld = false;
+        _build = false;
     }
 }
 
@@ -66,18 +77,22 @@ public class TouchControls : MonoBehaviour
     private const float KnobRadius = 46f;
     private const float JumpRadius = 85f;
     private const float AttackRadius = 62f;
+    private const float BuildRadius = 52f;
 
     private RectTransform _joyBase;
     private RectTransform _knob;
     private RectTransform _jumpBtn;
     private RectTransform _attackBtn;
+    private RectTransform _buildBtn;
     private Text _jumpLabel;
     private Text _attackLabel;
+    private Text _buildLabel;
 
     private int _joyFinger = -1;
     private int _lookFinger = -1;
     private int _jumpFinger = -1;
     private int _attackFinger = -1;
+    private int _buildFinger = -1;
     private Vector2 _knobOffset;
     private Vector2 _joyOrigin;
     private float _scale = 1f;
@@ -129,6 +144,11 @@ public class TouchControls : MonoBehaviour
         _attackLabel = UiKit.MakeText(canvas, Vector2.zero, new Vector2(140f * _scale, 40f * _scale),
             "Удар", Mathf.RoundToInt(20f * _scale), new Color(1f, 1f, 1f, 0.9f), TextAnchor.MiddleCenter);
 
+        _buildBtn = UiKit.MakeImage(canvas, Vector2.zero, Vector2.one * (BuildRadius * 2f * _scale),
+            circle, new Color(0.55f, 0.75f, 1f, 0.25f)).rectTransform;
+        _buildLabel = UiKit.MakeText(canvas, Vector2.zero, new Vector2(140f * _scale, 40f * _scale),
+            "Блок", Mathf.RoundToInt(19f * _scale), new Color(1f, 1f, 1f, 0.9f), TextAnchor.MiddleCenter);
+
         Layout();
         ApplyVisible(_touchDevice);
     }
@@ -142,6 +162,8 @@ public class TouchControls : MonoBehaviour
         _attackBtn.gameObject.SetActive(v);
         _jumpLabel.gameObject.SetActive(v);
         _attackLabel.gameObject.SetActive(v);
+        _buildBtn.gameObject.SetActive(v);
+        _buildLabel.gameObject.SetActive(v);
 
         if (!v)
         {
@@ -151,6 +173,7 @@ public class TouchControls : MonoBehaviour
             _lookFinger = -1;
             _jumpFinger = -1;
             _attackFinger = -1;
+            _buildFinger = -1;
             _knobOffset = Vector2.zero;
         }
     }
@@ -170,6 +193,7 @@ public class TouchControls : MonoBehaviour
 
     private Vector2 JumpCenter { get { return new Vector2(Screen.width - 155f * _scale, 165f * _scale); } }
     private Vector2 AttackCenter { get { return new Vector2(Screen.width - 330f * _scale, 115f * _scale); } }
+    private Vector2 BuildCenter { get { return new Vector2(Screen.width - 175f * _scale, 300f * _scale); } }
 
     private void Layout()
     {
@@ -180,6 +204,8 @@ public class TouchControls : MonoBehaviour
         _jumpLabel.rectTransform.anchoredPosition = JumpCenter;
         _attackBtn.anchoredPosition = AttackCenter;
         _attackLabel.rectTransform.anchoredPosition = AttackCenter;
+        _buildBtn.anchoredPosition = BuildCenter;
+        _buildLabel.rectTransform.anchoredPosition = BuildCenter;
     }
 
     private void Update()
@@ -204,6 +230,11 @@ public class TouchControls : MonoBehaviour
                 {
                     _jumpFinger = t.fingerId;
                     Ctrl.QueueJump();
+                }
+                else if (Vector2.Distance(p, BuildCenter) < BuildRadius * _scale * 1.2f && _buildFinger < 0)
+                {
+                    _buildFinger = t.fingerId;
+                    Ctrl.QueueBuild();
                 }
                 else if (Vector2.Distance(p, AttackCenter) < AttackRadius * _scale * 1.2f && _attackFinger < 0)
                 {
@@ -244,6 +275,7 @@ public class TouchControls : MonoBehaviour
                 if (t.fingerId == _joyFinger) _joyFinger = -1;
                 else if (t.fingerId == _lookFinger) _lookFinger = -1;
                 else if (t.fingerId == _jumpFinger) _jumpFinger = -1;
+                else if (t.fingerId == _buildFinger) _buildFinger = -1;
                 else if (t.fingerId == _attackFinger)
                 {
                     _attackFinger = -1;
