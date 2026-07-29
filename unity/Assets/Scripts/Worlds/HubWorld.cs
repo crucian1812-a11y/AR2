@@ -120,6 +120,70 @@ public class HubWorld : WorldBuilder
             GameObject bench = Gfx.Box(transform, p, new Vector3(2.6f, 0.16f, 0.7f), wood);
             bench.transform.localRotation = Quaternion.Euler(0f, -a, 0f);
         }
+
+        BuildLamps();
+        BuildProps();
+    }
+
+    // Фонари вдоль дорожек. Каждый со своим источником света — именно они
+    // превращают ровно освещённую площадь в вечернюю деревню: дорожки
+    // читаются цепочкой тёплых пятен, у столбов ложатся длинные тени.
+    private void BuildLamps()
+    {
+        Vector3[] spots = {
+            new Vector3(-4.2f, 0f, 13f), new Vector3(4.2f, 0f, 13f),
+            new Vector3(-4.2f, 0f, -13f), new Vector3(4.2f, 0f, -13f),
+            new Vector3(-13f, 0f, 4.2f), new Vector3(-13f, 0f, -4.2f),
+            new Vector3(13f, 0f, 4.2f), new Vector3(13f, 0f, -4.2f),
+            new Vector3(-4.2f, 0f, 27f), new Vector3(4.2f, 0f, 27f),
+            new Vector3(-4.2f, 0f, -27f), new Vector3(4.2f, 0f, -27f),
+            new Vector3(-27f, 0f, 4.2f), new Vector3(27f, 0f, -4.2f)
+        };
+        for (int i = 0; i < spots.Length; i++)
+        {
+            Vector3 p = OnGround(spots[i].x, spots[i].z, 0.05f);
+            if (Gfx.CustomProp(transform, "lamp_post", p, 4.2f, i * 37f) == null) continue;
+            Vector3 head = p + new Vector3(0f, 3.45f, 0f);
+            Gfx.Glow(transform, head, 2.2f, new Color(1f, 0.87f, 0.55f, 0.65f));
+            Gfx.PointLight(transform, head, new Color(1f, 0.84f, 0.5f), 15f, 1.35f);
+        }
+    }
+
+    // Мелочь, от которой площадь выглядит обжитой: колодец, телега у лавки,
+    // бочки у прилавков.
+    private void BuildProps()
+    {
+        Vector3 wellPos = OnGround(-14f, 12f, 0.05f);
+        if (Gfx.CustomProp(transform, "well", wellPos, 3.4f, 28f) != null)
+        {
+            Gfx.PointLight(transform, wellPos + new Vector3(0f, 2.6f, 0f),
+                new Color(0.7f, 0.85f, 1f), 9f, 0.5f);
+            AddCoin(wellPos + new Vector3(0f, 3.9f, 0f));
+        }
+
+        Gfx.CustomProp(transform, "cart", OnGround(13.5f, 3.2f, 0.05f), 1.5f, -60f);
+        Gfx.CustomProp(transform, "cart", OnGround(-12f, -11f, 0.05f), 1.5f, 140f);
+
+        Vector3[] barrels = {
+            new Vector3(-11.4f, 0f, 6.2f), new Vector3(-12.6f, 0f, 7.6f),
+            new Vector3(11.6f, 0f, 9.1f), new Vector3(-12.2f, 0f, -6.4f),
+            new Vector3(9.2f, 0f, -10.6f)
+        };
+        for (int i = 0; i < barrels.Length; i++)
+            Gfx.CustomProp(transform, "barrel", OnGround(barrels[i].x, barrels[i].z, 0.05f),
+                1.15f, i * 53f);
+    }
+
+    // Палисадник: звенья штакетника по дуге перед домом.
+    private void Garden(Vector3 center, float yaw, int segments, float radius)
+    {
+        for (int i = 0; i < segments; i++)
+        {
+            float a = (yaw + (i - (segments - 1) * 0.5f) * 26f) * Mathf.Deg2Rad;
+            Vector3 p = OnGround(center.x + Mathf.Sin(a) * radius,
+                                 center.z + Mathf.Cos(a) * radius, 0.05f);
+            Gfx.CustomProp(transform, "fence", p, 1.5f, a * Mathf.Rad2Deg + 90f);
+        }
     }
 
     private void BuildHouses()
@@ -130,6 +194,13 @@ public class HubWorld : WorldBuilder
         House(new Vector3(32f, 0f, 18f), new Color(0.78f, 0.55f, 0.62f), -62f, 1.55f);
         House(new Vector3(-11f, 0f, 30f), new Color(0.7f, 0.85f, 0.7f), 172f, 1.35f);
         House(new Vector3(42f, 0f, -6f), new Color(0.88f, 0.7f, 0.5f), -95f, 1.7f);
+
+        // Палисадники перед домами — участки читаются как чьи-то дворы,
+        // а не как дома, расставленные по чистому полю.
+        Garden(new Vector3(-21f, 0f, -20f), 22f, 5, 7.5f);
+        Garden(new Vector3(21f, 0f, -21f), -24f, 5, 7.8f);
+        Garden(new Vector3(-31f, 0f, 15f), 68f, 4, 7.2f);
+        Garden(new Vector3(42f, 0f, -6f), -95f, 4, 8f);
 
         Windmill(OnGround(-48f, -36f), new Color(0.85f, 0.82f, 0.74f), new Color(0.92f, 0.9f, 0.85f));
     }
@@ -252,6 +323,19 @@ public class HubWorld : WorldBuilder
         Quaternion rot = Quaternion.Euler(0f, yaw, 0f);
         Vector3 baseP = OnGround(pos.x, pos.z);
 
+        // Дом — собственный ассет из tools/blender: каменный цоколь, фахверк
+        // с раскосами, черепица рядами, слуховое окно, крыльцо и труба с
+        // колпаком. Раньше это была коробка с конусом сверху.
+        //
+        // Свет остаётся за кодом: модель не умеет светиться окнами и
+        // дымить трубой, а именно это делает деревню обжитой.
+        if (Gfx.CustomProp(transform, "cottage", baseP, 3.6f * scale, yaw) != null)
+        {
+            HouseLights(baseP, rot, scale, wall);
+            return;
+        }
+
+        // Запасная сборка из примитивов, если модель не загрузилась.
         Material wallMat = Gfx.MatFull(wall, 0.05f, 0f, Color.black, 2.4f, 0.3f);
         GameObject body = Gfx.Box(transform, baseP + new Vector3(0f, 1.7f * scale, 0f),
             new Vector3(5.6f, 3.4f, 5f) * scale, wallMat);
@@ -298,5 +382,41 @@ public class HubWorld : WorldBuilder
         GameObject chimney = Gfx.Box(transform, baseP + rot * new Vector3(1.6f * scale, 5.2f * scale, -1f * scale),
             new Vector3(0.8f, 1.8f, 0.8f) * scale, Gfx.Mat(new Color(0.5f, 0.42f, 0.38f), 0.05f), false);
         chimney.transform.localRotation = rot;
+    }
+
+    // Свет и дым для дома-ассета. Каждый дом получает свой оттенок окон —
+    // издалека деревня читается россыпью тёплых огней, а не одинаковыми
+    // домиками.
+    private void HouseLights(Vector3 baseP, Quaternion rot, float scale, Color wall)
+    {
+        float s = scale * 0.72f;
+        Color warm = Color.Lerp(new Color(1f, 0.78f, 0.42f), wall, 0.25f);
+
+        // Ореолы в окнах фасада и боковых стен
+        Vector3[] win = {
+            new Vector3(-1.3f, 1.6f, 1.9f), new Vector3(1.3f, 1.6f, 1.9f),
+            new Vector3(-2.1f, 1.6f, -0.5f), new Vector3(2.1f, 1.6f, -0.5f)
+        };
+        for (int i = 0; i < win.Length; i++)
+        {
+            Vector3 p = baseP + rot * (win[i] * s);
+            Gfx.Glow(transform, p, 2.4f * s, new Color(warm.r, warm.g, warm.b, 0.45f));
+        }
+
+        // Фонарь над крыльцом и общий тёплый свет от дома
+        Vector3 porch = baseP + rot * (new Vector3(0f, 2.3f, 2.4f) * s);
+        Gfx.Glow(transform, porch, 1.6f * s, new Color(1f, 0.85f, 0.5f, 0.7f));
+        Gfx.PointLight(transform, porch, warm, 13f * s, 1.3f);
+        Gfx.PointLight(transform, baseP + new Vector3(0f, 2.6f * s, 0f), warm, 9f * s, 0.5f);
+
+        // Дым из трубы
+        Vector3 chim = baseP + rot * (new Vector3(1.5f, 5.1f, -1.1f) * s);
+        ParticleFx smoke = ParticleFx.Spawn(transform, chim, 14,
+            new Color(0.85f, 0.85f, 0.88f, 0.32f));
+        smoke.EmitExtents = new Vector3(0.16f, 0.1f, 0.16f);
+        smoke.BaseVelocity = new Vector3(0.25f, 1.3f, 0.1f);
+        smoke.Gravity = new Vector3(0.05f, 0.16f, 0f);
+        smoke.SpeedMin = 0.2f;
+        smoke.SpeedMax = 0.7f;
     }
 }

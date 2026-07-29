@@ -176,6 +176,8 @@ public class Spinner : MonoBehaviour
     public float BobSpeed = 1f;
     // Половина длины бревна: за её пределами бревно игрока не задевает.
     public float Reach = 5f;
+    // Крылья мельницы крутятся высоко над землёй и толкать никого не должны.
+    public bool Push = true;
 
     private Vector3 _basePos;
     private float _t;
@@ -200,6 +202,7 @@ public class Spinner : MonoBehaviour
     // проход насквозь, либо застревание. Толкаем вручную.
     private void Sweep()
     {
+        if (!Push) return;
         BearPlayer p = GameRoot.LocalBear;
         if (p == null) return;
 

@@ -855,6 +855,29 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void Windmill(Vector3 pos, Color wall, Color blade)
     {
+        // Мельница — собственный ассет: сужающаяся башня, опоясывающий
+        // балкон с перилами, купольный колпак и хвостовое бревно. Крылья
+        // отдельным файлом, потому что их надо вращать.
+        if (Gfx.CustomProp(transform, "windmill", pos, 15f, 0f) != null)
+        {
+            GameObject rotor = new GameObject("Blades");
+            rotor.transform.SetParent(transform, false);
+            rotor.transform.localPosition = pos + new Vector3(0f, 12.4f, 3.4f);
+            Gfx.CustomProp(rotor.transform, "windmill_blades", Vector3.zero, 9f, 0f);
+
+            Spinner rot = rotor.AddComponent<Spinner>();
+            rot.Axis = Vector3.forward;
+            rot.Speed = 22f;
+            // Махи крутятся в двенадцати метрах над землёй: толкать там
+            // некого, а Sweep рассчитан на бревно, лежащее плашмя.
+            rot.Push = false;
+
+            Gfx.PointLight(transform, pos + new Vector3(0f, 13.5f, 0f),
+                new Color(1f, 0.85f, 0.55f), 20f, 0.8f);
+            return;
+        }
+
+        // Запасная сборка из примитивов, если модель не загрузилась.
         Material wallMat = Gfx.MatFull(wall, 0.05f, 0f, Color.black, 2.5f, 0.35f);
         Gfx.Cyl(transform, pos + new Vector3(0f, 3f, 0f), new Vector3(4.4f, 3f, 4.4f), wallMat);
         GameObject roof = Gfx.Cone(transform, pos + new Vector3(0f, 6f, 0f), 2.9f, 2.2f,

@@ -1,3 +1,6 @@
 game/.godot/
 build/
 *.apk
+
+# Рендеры превью ассетов — пересобираются одной командой
+tools/blender/preview/
