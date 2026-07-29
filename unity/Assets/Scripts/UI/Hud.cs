@@ -21,6 +21,11 @@ public class Hud : MonoBehaviour
     private Text _victoryTitle;
     private Text _victoryText;
     private Button _menuButton;
+    private Image _achPanel;
+    private Text _achTitle;
+    private Text _achText;
+    private float _achTimer;
+    private Text _resText;
 
     private readonly List<Text> _labelPool = new List<Text>();
     private float _dialogTimer;
@@ -60,6 +65,27 @@ public class Hud : MonoBehaviour
         drt.anchorMax = new Vector2(0.5f, 0.5f);
         drt.anchoredPosition = Vector2.zero;
         _dialogPanel.gameObject.SetActive(false);
+
+        // Плашка достижения. Всплывает справа сверху и уезжает сама —
+        // диалог НПС для этого не годится, они могут прийти одновременно.
+        _achPanel = UiKit.MakePanel(c, Vector2.zero, new Vector2(420f * s, 78f * s),
+            new Color(0.10f, 0.13f, 0.09f, 0.94f));
+        _achTitle = UiKit.MakeText(_achPanel.transform, Vector2.zero,
+            new Vector2(390f * s, 30f * s), "", Mathf.RoundToInt(21f * s),
+            new Color(1f, 0.88f, 0.42f), TextAnchor.MiddleLeft);
+        _achText = UiKit.MakeText(_achPanel.transform, Vector2.zero,
+            new Vector2(390f * s, 30f * s), "", Mathf.RoundToInt(17f * s),
+            new Color(0.85f, 0.9f, 0.82f), TextAnchor.MiddleLeft);
+        RectTransform art = _achTitle.rectTransform;
+        art.anchorMin = new Vector2(0.5f, 0.5f); art.anchorMax = new Vector2(0.5f, 0.5f);
+        art.anchoredPosition = new Vector2(0f, 16f * s);
+        RectTransform arx = _achText.rectTransform;
+        arx.anchorMin = new Vector2(0.5f, 0.5f); arx.anchorMax = new Vector2(0.5f, 0.5f);
+        arx.anchoredPosition = new Vector2(0f, -14f * s);
+        _achPanel.gameObject.SetActive(false);
+
+        _resText = UiKit.MakeText(c, Vector2.zero, new Vector2(420f * s, 36f * s), "",
+            Mathf.RoundToInt(19f * s), new Color(0.85f, 0.8f, 0.7f), TextAnchor.MiddleLeft);
 
         _menuButton = UiKit.MakeButton(c, Vector2.zero, new Vector2(110f * s, 44f * s), "Меню",
             Mathf.RoundToInt(20f * s), OnMenu);
@@ -122,6 +148,8 @@ public class Hud : MonoBehaviour
         _info.rectTransform.anchoredPosition = new Vector2(w - 220f * s, h - 100f * s);
         _menuButton.image.rectTransform.anchoredPosition = new Vector2(w - 70f * s, h - 30f * s);
         _dialogPanel.rectTransform.anchoredPosition = new Vector2(w * 0.5f, 120f * s);
+        _achPanel.rectTransform.anchoredPosition = new Vector2(w - 230f * s, h - 190f * s);
+        _resText.rectTransform.anchoredPosition = new Vector2(20f * s + 210f * s, h - 108f * s);
         _loading.rectTransform.anchoredPosition = new Vector2(w * 0.5f, h * 0.5f);
         _victoryOverlay.rectTransform.anchoredPosition = new Vector2(w * 0.5f, h * 0.5f);
         _victoryTitle.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
@@ -161,7 +189,30 @@ public class Hud : MonoBehaviour
             if (_dialogTimer <= 0f) HideDialog();
         }
 
+        if (_achTimer > 0f)
+        {
+            _achTimer -= Time.deltaTime;
+            if (_achTimer <= 0f) _achPanel.gameObject.SetActive(false);
+        }
+
+        _resText.text = ResLine(net);
+
         DrawWorldLabels();
+    }
+
+    // Материалы показываем только те, что уже добыты: пустой список из
+    // четырёх нулей в углу экрана — шум.
+    private static string ResLine(NetManager net)
+    {
+        string line = "";
+        for (int i = 0; i < Res.Count; i++)
+        {
+            int n = net.ResCount(i);
+            if (n <= 0) continue;
+            if (line.Length > 0) line += "   ";
+            line += Res.Name(i) + ": " + n;
+        }
+        return line;
     }
 
     private static string QuestText(NetManager net)
@@ -230,6 +281,15 @@ public class Hud : MonoBehaviour
         _dialogText.text = text;
         _dialogPanel.gameObject.SetActive(true);
         _dialogTimer = 6f;
+    }
+
+    // Плашка достижения живёт своим таймером, не мешая репликам НПС.
+    public void ShowAchievement(string title, string text)
+    {
+        _achTitle.text = "Достижение: " + title;
+        _achText.text = text;
+        _achPanel.gameObject.SetActive(true);
+        _achTimer = 4.5f;
     }
 
     public void HideDialog()

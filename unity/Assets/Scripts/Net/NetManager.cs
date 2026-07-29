@@ -18,6 +18,8 @@ public enum Msg : byte
     Bye = 8,
     Ping = 9,
     ReqSpend = 10,
+    ReqBreak = 11,
+    ReqPlace = 12,
 
     Welcome = 20,
     Snapshot = 21,
@@ -27,7 +29,10 @@ public enum Msg : byte
     EvKill = 25,
     EvWorld = 26,
     EvQuest = 27,
-    EvVictory = 28
+    EvVictory = 28,
+    EvBreak = 29,
+    EvPlace = 30,
+    EvDay = 31
 }
 
 public class PlayerInfo
@@ -131,6 +136,10 @@ public class NetManager : MonoBehaviour
     public int UnlockedChars = Heroes.FreeChars;
     public int QuestStage;
     public bool VictoryReached;
+    // Время суток, 0..1: 0 — полночь, 0.25 — рассвет, 0.5 — полдень.
+    // Ход считает хозяин и рассылает клиентам, чтобы ночь наступала у всех
+    // одновременно.
+    public float DayTime = 0.25f;
     public string StatusMessage = "";
 
     public readonly Dictionary<int, PlayerInfo> Players = new Dictionary<int, PlayerInfo>();
@@ -138,6 +147,14 @@ public class NetManager : MonoBehaviour
 
     private readonly Dictionary<int, HashSet<int>> _collected = new Dictionary<int, HashSet<int>>();
     private readonly Dictionary<int, HashSet<int>> _killed = new Dictionary<int, HashSet<int>>();
+    // Разрушенный добываемый реквизит: камни, деревья, рудные жилы.
+    private readonly Dictionary<int, HashSet<int>> _broken = new Dictionary<int, HashSet<int>>();
+    // Блоки, поставленные игроками, по мирам. Ключ — упакованные
+    // координаты сетки, значение — тип блока.
+    private readonly Dictionary<int, Dictionary<int, int>> _blocks =
+        new Dictionary<int, Dictionary<int, int>>();
+    // Сколько чего добыто. Индекс — Res.Kind.
+    private readonly int[] _res = new int[Res.Count];
 
     // --- События для игрового слоя ---
     public event Action<int> OnWorldChanged;
@@ -147,6 +164,10 @@ public class NetManager : MonoBehaviour
     public event Action<int, int> OnEnemyRemoved;  // world, enemyId
     public event Action OnVictory;
     public event Action OnPlayersChanged;
+    public event Action OnResChanged;
+    public event Action<int, int> OnBrokenRemoved;   // world, propId
+    public event Action<int, int, int> OnBlockPlaced; // world, cell, kind
+    public event Action<int, int> OnBlockRemoved;     // world, cell
     public event Action<List<EnemyState>> OnEnemyStates;
     public event Action<string> OnJoinFailed;
     public event Action OnServerListUpdated;
@@ -402,6 +423,148 @@ public class NetManager : MonoBehaviour
         foreach (KeyValuePair<int, HashSet<int>> kv in src) _killed[kv.Key] = kv.Value;
     }
 
+    public Dictionary<int, HashSet<int>> ExportBroken() { return _broken; }
+
+    public void ImportBroken(Dictionary<int, HashSet<int>> src)
+    {
+        _broken.Clear();
+        if (src == null) return;
+        foreach (KeyValuePair<int, HashSet<int>> kv in src) _broken[kv.Key] = kv.Value;
+    }
+
+    // ---------- Материалы ----------
+
+    public int ResCount(int kind)
+    {
+        return kind >= 0 && kind < Res.Count ? _res[kind] : 0;
+    }
+
+    public void AddRes(int kind, int amount)
+    {
+        if (kind < 0 || kind >= Res.Count || amount == 0) return;
+        _res[kind] = Mathf.Max(0, _res[kind] + amount);
+        if (OnResChanged != null) OnResChanged();
+    }
+
+    // Списать материалы, только если хватает всех сразу.
+    public bool SpendRes(int[] cost)
+    {
+        if (cost == null) return false;
+        for (int i = 0; i < Res.Count && i < cost.Length; i++)
+            if (_res[i] < cost[i]) return false;
+        for (int i = 0; i < Res.Count && i < cost.Length; i++)
+            _res[i] -= cost[i];
+        if (OnResChanged != null) OnResChanged();
+        return true;
+    }
+
+    public string ExportResources()
+    {
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        for (int i = 0; i < Res.Count; i++)
+        {
+            if (_res[i] <= 0) continue;
+            if (sb.Length > 0) sb.Append(',');
+            sb.Append(Res.Keys[i]).Append(':').Append(_res[i]);
+        }
+        return sb.ToString();
+    }
+
+    public void ImportResources(string raw)
+    {
+        for (int i = 0; i < Res.Count; i++) _res[i] = 0;
+        if (string.IsNullOrEmpty(raw)) return;
+        string[] items = raw.Split(',');
+        for (int i = 0; i < items.Length; i++)
+        {
+            string[] pair = items[i].Split(':');
+            if (pair.Length != 2) continue;
+            int kind = Res.KindByKey(pair[0]);
+            if (kind >= 0) _res[kind] = Mathf.Max(0, SaveGame.ParseInt(pair[1]));
+        }
+        if (OnResChanged != null) OnResChanged();
+    }
+
+    // ---------- Поставленные блоки ----------
+
+    // Координаты сетки пакуются в одно число: по 11 бит на ось со сдвигом,
+    // то есть диапазон -1024..1023 по X и Z и -256..255 по высоте. Мир
+    // укладывается с запасом, а ключ остаётся одним int — и в словаре, и
+    // в сохранении, и в пакете.
+    public static int PackCell(int x, int y, int z)
+    {
+        int px = Mathf.Clamp(x + 1024, 0, 2047);
+        int py = Mathf.Clamp(y + 256, 0, 511);
+        int pz = Mathf.Clamp(z + 1024, 0, 2047);
+        return (px << 20) | (py << 11) | pz;
+    }
+
+    public static Vector3 CellCenter(int packed)
+    {
+        int pz = packed & 0x7FF;
+        int py = (packed >> 11) & 0x1FF;
+        int px = (packed >> 20) & 0x7FF;
+        return new Vector3(px - 1024, py - 256, pz - 1024) * BlockSize
+               + new Vector3(0f, BlockSize * 0.5f, 0f);
+    }
+
+    public const float BlockSize = 1.2f;
+
+    public static int CellAt(Vector3 worldPos)
+    {
+        return PackCell(
+            Mathf.FloorToInt(worldPos.x / BlockSize + 0.5f),
+            Mathf.FloorToInt(worldPos.y / BlockSize),
+            Mathf.FloorToInt(worldPos.z / BlockSize + 0.5f));
+    }
+
+    public Dictionary<int, int> BlocksOf(int world)
+    {
+        Dictionary<int, int> map;
+        if (!_blocks.TryGetValue(world, out map)) { map = new Dictionary<int, int>(); _blocks[world] = map; }
+        return map;
+    }
+
+    public string ExportBlocks()
+    {
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        foreach (KeyValuePair<int, Dictionary<int, int>> kv in _blocks)
+        {
+            if (kv.Value == null || kv.Value.Count == 0) continue;
+            if (sb.Length > 0) sb.Append(';');
+            sb.Append(kv.Key).Append(':');
+            bool first = true;
+            foreach (KeyValuePair<int, int> b in kv.Value)
+            {
+                if (!first) sb.Append(',');
+                first = false;
+                sb.Append(b.Key).Append('.').Append(b.Value);
+            }
+        }
+        return sb.ToString();
+    }
+
+    public void ImportBlocks(string raw)
+    {
+        _blocks.Clear();
+        if (string.IsNullOrEmpty(raw)) return;
+        string[] worlds = raw.Split(';');
+        for (int i = 0; i < worlds.Length; i++)
+        {
+            string[] pair = worlds[i].Split(':');
+            if (pair.Length != 2) continue;
+            Dictionary<int, int> map = BlocksOf(SaveGame.ParseInt(pair[0]));
+            string[] items = pair[1].Split(',');
+            for (int k = 0; k < items.Length; k++)
+            {
+                int dot = items[k].IndexOf('.');
+                if (dot <= 0) continue;
+                map[SaveGame.ParseInt(items[k].Substring(0, dot))] =
+                    SaveGame.ParseInt(items[k].Substring(dot + 1));
+            }
+        }
+    }
+
     // Прогресс пишем только у хозяина: у клиента он приходит по сети.
     // Покупка в лавке. Возвращает false, если не хватает монет.
     public bool Spend(int amount)
@@ -497,7 +660,107 @@ public class NetManager : MonoBehaviour
         SendToHost(ms);
     }
 
+    // Разрушение добываемого реквизита. Материал получает тот, кто ударил,
+    // поэтому запрос несёт и вид добычи.
+    public void RequestBreak(int world, int propId, int kind, int amount)
+    {
+        if (IsHost) { HostBreak(world, propId, kind, amount); return; }
+        MemoryStream ms; BinaryWriter w;
+        Begin(Msg.ReqBreak, out ms, out w);
+        w.Write(world); w.Write(propId); w.Write(kind); w.Write(amount);
+        SendToHost(ms);
+    }
+
+    public bool IsBroken(int world, int propId)
+    {
+        HashSet<int> set;
+        return _broken.TryGetValue(world, out set) && set.Contains(propId);
+    }
+
+    private HashSet<int> BrokenSet(int world)
+    {
+        HashSet<int> set;
+        if (!_broken.TryGetValue(world, out set)) { set = new HashSet<int>(); _broken[world] = set; }
+        return set;
+    }
+
+    // Поставить или снять блок. kind < 0 означает «снять».
+    public void RequestPlace(int world, int cell, int kind)
+    {
+        if (IsHost) { HostPlace(world, cell, kind); return; }
+        MemoryStream ms; BinaryWriter w;
+        Begin(Msg.ReqPlace, out ms, out w);
+        w.Write(world); w.Write(cell); w.Write(kind);
+        SendToHost(ms);
+    }
+
     // ---------- Обработка на хосте ----------
+
+    private void HostBreak(int world, int propId, int kind, int amount)
+    {
+        if (world != CurrentWorld) return;
+        HashSet<int> set = BrokenSet(world);
+        if (set.Contains(propId)) return;
+        set.Add(propId);
+        SaveProgress();
+        ApplyBreak(world, propId);
+        if (Online)
+        {
+            MemoryStream ms; BinaryWriter w;
+            Begin(Msg.EvBreak, out ms, out w);
+            w.Write(world); w.Write(propId);
+            BroadcastRepeat(ms, 2);
+        }
+    }
+
+    private void ApplyBreak(int world, int propId)
+    {
+        BrokenSet(world).Add(propId);
+        if (OnBrokenRemoved != null) OnBrokenRemoved(world, propId);
+    }
+
+    private void HostPlace(int world, int cell, int kind)
+    {
+        Dictionary<int, int> map = BlocksOf(world);
+        if (kind < 0)
+        {
+            if (!map.Remove(cell)) return;
+        }
+        else
+        {
+            if (map.ContainsKey(cell)) return;
+            // Потолок на мир, чтобы сохранение и пакеты не разрослись.
+            if (map.Count >= MaxBlocksPerWorld) return;
+            map[cell] = kind;
+        }
+        SaveProgress();
+        ApplyPlace(world, cell, kind);
+        if (Online)
+        {
+            MemoryStream ms; BinaryWriter w;
+            Begin(Msg.EvPlace, out ms, out w);
+            w.Write(world); w.Write(cell); w.Write(kind);
+            BroadcastRepeat(ms, 2);
+        }
+    }
+
+    private void ApplyPlace(int world, int cell, int kind)
+    {
+        Dictionary<int, int> map = BlocksOf(world);
+        if (kind < 0)
+        {
+            map.Remove(cell);
+            if (OnBlockRemoved != null) OnBlockRemoved(world, cell);
+        }
+        else
+        {
+            map[cell] = kind;
+            if (OnBlockPlaced != null) OnBlockPlaced(world, cell, kind);
+        }
+    }
+
+    public const int MaxBlocksPerWorld = 400;
+
 
     private void HostCollect(int world, int coinId)
     {
@@ -710,11 +973,20 @@ public class NetManager : MonoBehaviour
 
     // ---------- Цикл ----------
 
+    // Полный оборот суток. Двенадцать минут: ночь успевает стать событием,
+    // но не успевает надоесть.
+    public const float DayLength = 720f;
+    private float _daySendAccum;
+
     private void Update()
     {
         PollGame();
         PollDiscoveryServer();
         PollBrowse();
+
+        // Время идёт у хозяина; в одиночной игре хозяин — это игрок.
+        if (IsHost && !_joinedAsClient)
+            DayTime = Mathf.Repeat(DayTime + Time.deltaTime / DayLength, 1f);
 
         if (!Online) return;
 
@@ -724,6 +996,17 @@ public class NetManager : MonoBehaviour
             if (_stateAccum >= 0.05f) { _stateAccum = 0f; BroadcastPlayerStates(); }
             _snapAccum += Time.deltaTime;
             if (_snapAccum >= 0.5f) { _snapAccum = 0f; BroadcastSnapshot(); }
+            // Время суток шлём редко: клиент между посылками крутит его сам,
+            // а рассылка лишь поправляет расхождение.
+            _daySendAccum += Time.deltaTime;
+            if (_daySendAccum >= 4f)
+            {
+                _daySendAccum = 0f;
+                MemoryStream dm; BinaryWriter dw;
+                Begin(Msg.EvDay, out dm, out dw);
+                dw.Write(DayTime);
+                BroadcastToClients(dm);
+            }
             DropStaleClients();
         }
         else
@@ -844,6 +1127,12 @@ public class NetManager : MonoBehaviour
                 HostSpend(r.ReadInt32());
                 break;
             case Msg.ReqVictory: HostVictory(); break;
+            case Msg.ReqBreak:
+                HostBreak(r.ReadInt32(), r.ReadInt32(), r.ReadInt32(), r.ReadInt32());
+                break;
+            case Msg.ReqPlace:
+                HostPlace(r.ReadInt32(), r.ReadInt32(), r.ReadInt32());
+                break;
             case Msg.Bye:
                 if (conn != null)
                 {
@@ -920,6 +1209,21 @@ public class NetManager : MonoBehaviour
                     if (!IsKilled(world, enemy)) ApplyKill(world, enemy);
                     break;
                 }
+            case Msg.EvBreak:
+                {
+                    int world = r.ReadInt32(); int prop = r.ReadInt32();
+                    if (!IsBroken(world, prop)) ApplyBreak(world, prop);
+                    break;
+                }
+            case Msg.EvPlace:
+                {
+                    int world = r.ReadInt32(); int cell = r.ReadInt32(); int kind = r.ReadInt32();
+                    ApplyPlace(world, cell, kind);
+                    break;
+                }
+            case Msg.EvDay:
+                DayTime = Mathf.Repeat(r.ReadSingle(), 1f);
+                break;
             case Msg.EvWorld:
                 {
                     int world = r.ReadInt32();
