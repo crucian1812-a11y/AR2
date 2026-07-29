@@ -107,8 +107,20 @@ public abstract class WorldBuilder : MonoBehaviour
         // Модель из пака вместо стопки «клякс». Высота подбирается так,
         // чтобы прежний масштаб давал примерно тот же силуэт.
         int seedIdx = Mathf.Abs(Mathf.RoundToInt(pos.x * 7.3f + pos.z * 3.1f));
-        if (Gfx.Prop(transform, Heroes.Pick(Heroes.Trees, seedIdx), pos,
-                5.2f * scale, (seedIdx * 37) % 360, 0.5f * scale) != null) return;
+        // Разброс высоты и лёгкий наклон ствола. Ровный ряд одинаковых
+        // деревьев под прямым углом к земле — первое, что выдаёт в лесу
+        // расставленные копии одной модели.
+        float vary = 0.78f + ((seedIdx * 13) % 100) / 100f * 0.55f;
+        GameObject t = Gfx.Prop(transform, Heroes.Pick(Heroes.Trees, seedIdx), pos,
+            5.2f * scale * vary, (seedIdx * 37) % 360, 0.5f * scale);
+        if (t != null)
+        {
+            float tiltX = (((seedIdx * 7) % 100) / 100f - 0.5f) * 7f;
+            float tiltZ = (((seedIdx * 23) % 100) / 100f - 0.5f) * 7f;
+            t.transform.localRotation =
+                Quaternion.Euler(tiltX, (seedIdx * 37) % 360, tiltZ);
+            return;
+        }
 
         Material bark = Gfx.MatFull(new Color(0.42f, 0.28f, 0.15f), 0.05f, 0f, Color.black, 1.5f, 0.6f);
         Gfx.Cyl(transform, pos + new Vector3(0f, 1.2f * scale, 0f),
@@ -276,60 +288,88 @@ public abstract class WorldBuilder : MonoBehaviour
         if (fx != null) fx.Configure(_postIntensity, _postSaturation, _postTint, _postVignette);
     }
 
+    // Травинка из четырёх ярусов: 8 вершин, 6 треугольников.
+    private const int GrassLevels = 4;
+    private const int GrassVerts = GrassLevels * 2;
+    private const int GrassIndices = (GrassLevels - 1) * 6;
+
     protected void GrassField(Vector3 center, Vector2 extents, int count, Color baseCol, Color tipCol,
         bool followTerrain = false)
     {
-        count = Mathf.Clamp(count, 1, 12000);
-        Vector3[] verts = new Vector3[count * 4];
-        Vector2[] uvs = new Vector2[count * 4];
-        Vector2[] uv2 = new Vector2[count * 4];
-        Color[] colors = new Color[count * 4];
-        Vector3[] normals = new Vector3[count * 4];
-        int[] tris = new int[count * 6];
+        count = Mathf.Clamp(count, 1, 24000);
+        Vector3[] verts = new Vector3[count * GrassVerts];
+        Vector2[] uvs = new Vector2[count * GrassVerts];
+        Vector2[] uv2 = new Vector2[count * GrassVerts];
+        Color[] colors = new Color[count * GrassVerts];
+        Vector3[] normals = new Vector3[count * GrassVerts];
+        int[] tris = new int[count * GrassIndices];
 
         for (int i = 0; i < count; i++)
         {
             Vector3 p = center + new Vector3(
                 Random.Range(-extents.x, extents.x), 0f, Random.Range(-extents.y, extents.y));
             if (followTerrain) p.y = GroundHeight(p.x, p.z) + 0.02f;
+
             float yaw = Random.Range(0f, Mathf.PI);
-            float w = 0.055f * Random.Range(0.7f, 1.5f);
-            float h = 0.55f * Random.Range(0.6f, 1.7f);
+            float w = 0.05f * Random.Range(0.75f, 1.5f);
+            float h = 0.6f * Random.Range(0.55f, 1.8f);
             float phase = Random.value;
 
             Vector3 side = new Vector3(Mathf.Cos(yaw) * w, 0f, Mathf.Sin(yaw) * w);
-            // Травинка сужается кверху и слегка заваливается — плоские
-            // прямоугольники читались как пластиковые карточки.
-            float lean = Random.Range(0.1f, 0.35f);
-            float leanYaw = Random.Range(0f, Mathf.PI * 2f);
-            Vector3 up = new Vector3(Mathf.Cos(leanYaw) * lean * h, h,
-                                     Mathf.Sin(leanYaw) * lean * h);
 
-            int v = i * 4;
-            verts[v] = p - side;
-            verts[v + 1] = p + side;
-            verts[v + 2] = p + side * 0.18f + up;
-            verts[v + 3] = p - side * 0.18f + up;
+            // Наклон стебля: травинка не стоит по струнке, а изгибается —
+            // ярусы уходят в сторону всё сильнее (t в квадрате).
+            float bend = Random.Range(0.12f, 0.5f) * h;
+            float bendYaw = Random.Range(0f, Mathf.PI * 2f);
+            Vector3 bendDir = new Vector3(Mathf.Cos(bendYaw), 0f, Mathf.Sin(bendYaw));
 
-            uvs[v] = new Vector2(0f, 0f);
-            uvs[v + 1] = new Vector2(1f, 0f);
-            uvs[v + 2] = new Vector2(1f, 1f);
-            uvs[v + 3] = new Vector2(0f, 1f);
+            // Свой оттенок у каждой травинки. Раньше всё поле красилось двумя
+            // цветами на всех, и вблизи это читалось однородным ковром.
+            float shade = Random.Range(0.78f, 1.16f);
+            float warm = Random.Range(-0.04f, 0.06f);
 
-            for (int k = 0; k < 4; k++)
+            // Нормаль: в основном вверх, с примесью «лица» травинки —
+            // одинаковая нормаль у всех давала ровную заливку без объёма.
+            Vector3 face = Vector3.Cross(side.normalized, Vector3.up);
+            Vector3 nrm = (Vector3.up * 0.72f + face * 0.28f).normalized;
+
+            int v = i * GrassVerts;
+            for (int L = 0; L < GrassLevels; L++)
             {
-                uv2[v + k] = new Vector2(phase, 0f);
-                normals[v + k] = Vector3.up;
+                float t = (float)L / (GrassLevels - 1);
+                // Сужение к острию: верхний ярус почти сходится в точку.
+                float wk = Mathf.Lerp(1f, 0.06f, t * t * 0.85f + t * 0.15f);
+                Vector3 lvl = p + Vector3.up * (h * t) + bendDir * (bend * t * t);
+
+                int a = v + L * 2;
+                verts[a] = lvl - side * wk;
+                verts[a + 1] = lvl + side * wk;
+
+                uvs[a] = new Vector2(0f, t);
+                uvs[a + 1] = new Vector2(1f, t);
+                uv2[a] = new Vector2(phase, t);
+                uv2[a + 1] = new Vector2(phase, t);
+                normals[a] = nrm;
+                normals[a + 1] = nrm;
+
+                // У земли темнее — самозатенение делает ковёр объёмным.
+                Color c = Color.Lerp(baseCol, tipCol, t);
+                float ao = Mathf.Lerp(0.62f, 1f, Mathf.Clamp01(t * 1.6f));
+                c = new Color(c.r * shade * ao + warm, c.g * shade * ao,
+                              c.b * shade * ao - warm * 0.5f, 1f);
+                colors[a] = c;
+                colors[a + 1] = c;
             }
 
-            colors[v] = baseCol;
-            colors[v + 1] = baseCol;
-            colors[v + 2] = tipCol;
-            colors[v + 3] = tipCol;
-
-            int t = i * 6;
-            tris[t] = v; tris[t + 1] = v + 2; tris[t + 2] = v + 1;
-            tris[t + 3] = v; tris[t + 4] = v + 3; tris[t + 5] = v + 2;
+            int tri = i * GrassIndices;
+            for (int L = 0; L < GrassLevels - 1; L++)
+            {
+                int a = v + L * 2;
+                int b = a + 2;
+                tris[tri] = a; tris[tri + 1] = b; tris[tri + 2] = a + 1;
+                tris[tri + 3] = a + 1; tris[tri + 4] = b; tris[tri + 5] = b + 1;
+                tri += 6;
+            }
         }
 
         Mesh mesh = new Mesh();
@@ -858,22 +898,34 @@ public abstract class WorldBuilder : MonoBehaviour
         // Мельница — собственный ассет: сужающаяся башня, опоясывающий
         // балкон с перилами, купольный колпак и хвостовое бревно. Крылья
         // отдельным файлом, потому что их надо вращать.
-        if (Gfx.CustomProp(transform, "windmill", pos, 15f, 0f) != null)
+        // Высота 15 м при домах в 5 делала мельницу не ориентиром, а
+        // великаном посреди деревни. 10.5 — вдвое выше дома, этого хватает.
+        const float MillHeight = 10.5f;
+        // Вал крыльев в модели сидит на 0.862 её высоты (см. build_assets.py).
+        const float HubFraction = 0.862f;
+        const float BladeSpan = 7.4f;
+
+        if (Gfx.CustomProp(transform, "windmill", pos, MillHeight, 0f) != null)
         {
             GameObject rotor = new GameObject("Blades");
             rotor.transform.SetParent(transform, false);
-            rotor.transform.localPosition = pos + new Vector3(0f, 12.4f, 3.4f);
-            Gfx.CustomProp(rotor.transform, "windmill_blades", Vector3.zero, 9f, 0f);
+            rotor.transform.localPosition =
+                pos + new Vector3(0f, MillHeight * HubFraction, 2.4f);
+            // anchorCenter: втулка крыльев должна попасть НА ось вращения.
+            // Иначе модель сдвигается низом в ноль, центр уезжает на
+            // пол-размаха вверх, и махи ходят огромным кругом, ныряя под землю.
+            Gfx.CustomProp(rotor.transform, "windmill_blades", Vector3.zero,
+                BladeSpan, 0f, true);
 
             Spinner rot = rotor.AddComponent<Spinner>();
             rot.Axis = Vector3.forward;
             rot.Speed = 22f;
-            // Махи крутятся в двенадцати метрах над землёй: толкать там
-            // некого, а Sweep рассчитан на бревно, лежащее плашмя.
+            // Махи крутятся в девяти метрах над землёй: толкать там некого,
+            // а Sweep рассчитан на бревно, лежащее плашмя.
             rot.Push = false;
 
-            Gfx.PointLight(transform, pos + new Vector3(0f, 13.5f, 0f),
-                new Color(1f, 0.85f, 0.55f), 20f, 0.8f);
+            Gfx.PointLight(transform, pos + new Vector3(0f, MillHeight, 0f),
+                new Color(1f, 0.85f, 0.55f), 18f, 0.8f);
             return;
         }
 

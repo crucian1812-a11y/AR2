@@ -56,8 +56,14 @@ public class ModelImportSettings : AssetPostprocessor
         mi.importCameras = false;
         mi.importLights = false;
         mi.isReadable = false;
-        mi.meshCompression = ModelImporterMeshCompression.Medium;
+        // Сжатие меша квантует координаты вершин и нормалей. На низкополигональных
+        // моделях пака это видно прямо в кадре: грани дрожат, стыки листвы
+        // расходятся, силуэт кроны становится рваным — то самое «пиксельное»
+        // дерево. Место на диске нам не дороже картинки.
+        mi.meshCompression = ModelImporterMeshCompression.Off;
         mi.importNormals = ModelImporterNormals.Import;
+        mi.optimizeMeshPolygons = true;
+        mi.optimizeMeshVertices = true;
     }
 
     // Blender называет тейки «MonsterArmature|Idle». Отрезаем префикс,
@@ -98,14 +104,34 @@ public class ModelImportSettings : AssetPostprocessor
         TextureImporter ti = assetImporter as TextureImporter;
         if (ti == null) return;
 
+        string file = System.IO.Path.GetFileNameWithoutExtension(assetPath).ToLowerInvariant();
+
+        // Карты нормалей помечались как обычные цветные текстуры, то есть
+        // sRGB: видеокарта раскодировала им гамму, и в шейдер приходил
+        // искажённый вектор — рельеф освещался неверно и выглядел грязным.
+        //
+        // Тип оставляем Default намеренно. NormalMap переупаковал бы данные
+        // в каналы (A, G), а Bear/Terrain распаковывает нормаль вручную
+        // (sample * 2 - 1) и ждёт обычный RGB. Достаточно снять sRGB.
+        bool isNormal = file.Contains("_nor") || file.Contains("normal");
         ti.textureType = TextureImporterType.Default;
+        ti.sRGBTexture = !isNormal;
+
         ti.mipmapEnabled = true;
-        ti.textureCompression = TextureImporterCompression.Compressed;
-        ti.filterMode = FilterMode.Bilinear;
 
         // Текстуры поверхностей тайлятся по рельефу, атласы монстров — нет.
         bool tiling = assetPath.StartsWith(TextureDir + "world/");
-        ti.maxTextureSize = tiling ? 1024 : 512;
+
+        // Билинейная фильтрация без анизотропии — главная причина «пикселей»
+        // на земле: под острым углом (а камера смотрит именно так) мип-уровни
+        // сменяются ступеньками, и трава разваливается на квадраты.
+        ti.filterMode = FilterMode.Trilinear;
+        ti.anisoLevel = tiling ? 12 : 4;
+
+        ti.maxTextureSize = tiling ? 2048 : 1024;
+        ti.textureCompression = tiling
+            ? TextureImporterCompression.CompressedHQ
+            : TextureImporterCompression.Compressed;
         ti.wrapMode = tiling ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
     }
 }

@@ -165,13 +165,17 @@ def join(objs, name):
     bpy.ops.object.join()
     obj = bpy.context.active_object
     obj.name = name
-    obj.location = (0, 0, 0)
-    # Склейка наследует трансформ ПЕРВОЙ детали, а у неё масштаб почти
-    # всегда неединичный: остальные меши пересчитываются в её систему
-    # координат. Пока объект не трогают, это незаметно, но стоит задать
-    # ему собственный масштаб — и модель разъезжается (дом вытягивался
-    # в башню). Запекаем масштаб в вершины, оставляя объекту единицу.
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    # Склейка наследует трансформ ПЕРВОЙ детали, а у неё и сдвиг, и поворот,
+    # и масштаб почти всегда неединичные: остальные меши пересчитываются в
+    # её систему координат. Пока объект не трогают, это незаметно, но стоит
+    # задать ему свой трансформ — и модель разъезжается. Так дом вытягивался
+    # в башню (масштаб), крест крыльев уходил в другую плоскость (поворот
+    # втулки на 90 градусов), а башня мельницы проваливалась на 4.6 м под
+    # землю (сдвиг первого яруса на z=4).
+    #
+    # Запекаем всё в вершины: у объекта остаётся единичный трансформ, а меш
+    # лежит ровно там, где его построили — основанием в нуле.
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     return obj
 
 
@@ -524,10 +528,15 @@ def build_windmill():
     shade(tail, m["woodDark"], False)
     parts.append(tail)
 
-    # Вал под крылья
-    shaft = add_cyl((0, 1.9, 7.9), 0.20, 1.5, 12, (math.pi / 2, 0, 0))
+    # Вал под крылья — сквозной. Односторонний торчал с той стороны
+    # колпака, где крыльев нет, и не доставал до втулки.
+    shaft = add_cyl((0, 0, 7.9), 0.20, 4.6, 12, (math.pi / 2, 0, 0))
     shade(shaft, m["iron"])
     parts.append(shaft)
+    for sy in (-1, 1):
+        collar = add_cyl((0, 2.0 * sy, 7.9), 0.30, 0.28, 12, (math.pi / 2, 0, 0))
+        shade(collar, m["woodDark"])
+        parts.append(collar)
 
     # Дверь с косяком
     door = add_cube((0, 2.18, 1.15), (0.55, 0.12, 1.0))
@@ -794,28 +803,34 @@ def build_cart():
     export("cart")
 
 
+# Пропорции мельницы — те же, что в WorldBuilder.Windmill.
+MILL_H = 10.5      # высота башни в игре
+MILL_HUB = 0.862   # доля высоты, на которой сидит вал крыльев
+MILL_SPAN = 7.4    # размах крыльев
+
+
 def build_windmill_assembled():
-    """Только для превью: башня и крылья в одной сцене.
+    """Только для превью: мельница в игровых пропорциях, с землёй.
 
-    В игре это два объекта — иначе крылья не покрутить, — но судить о
-    силуэте мельницы по одной голой башне бессмысленно.
+    В игре это два объекта — иначе крылья не покрутить, — но проверять
+    надо именно связку: крылья центрированы вокруг втулки, и стоит
+    ошибиться с точкой привязки, как круг махов уходит под землю.
     """
-    build_windmill()
-    m = village_palette()
-    parts = []
-    for i in range(4):
-        a = i * math.pi / 2.0
-        ca, sa = math.cos(a), math.sin(a)
-        sp = bar_along((ca * 2.2, 2.9, 7.9 + sa * 2.2), 2.2, 0.11, ca, sa, 0.16)
-        shade(sp, m["woodDark"], False)
-        parts.append(sp)
-        for k in range(9):
-            d = 0.9 + k * 0.42
-            slat = bar_along((ca * d, 2.9, 7.9 + sa * d), 0.62, 0.05, -sa, ca)
-            shade(slat, m["wood"], False)
-            parts.append(slat)
+    global SCENE_MODE
+    reset()
+    SCENE_MODE = True
 
-    join(parts, "BladesPreview")
+    ground = add_cyl((0, 0, -0.3), 13, 0.6, 48)
+    shade(ground, material("grass", (0.34, 0.52, 0.26), 0.95))
+
+    _place(build_windmill, 0, 0, 0, 0, MILL_H / 9.17)
+    # Крылья привязаны ЦЕНТРОМ к валу — как anchorCenter в игре.
+    _place(build_windmill_blades, 0, -2.4, MILL_H * MILL_HUB, 0, MILL_SPAN / 8.9)
+
+    # Дом рядом для масштаба: мельница должна быть ориентиром, а не великаном.
+    _place(build_cottage, 11, 4, 0, -40, 1.05)
+
+    SCENE_MODE = False
 
 
 def _place(builder, x, y, z, yaw, scale):
@@ -870,8 +885,10 @@ def build_village_scene():
     for (hx, hy, hyaw, hs) in houses:
         _place(build_cottage, hx, hy, 0, hyaw, hs)
 
-    _place(build_windmill, -48, -36, 0, 0, 1.55)
-    _place(build_windmill_blades, -48, -39.4, 12.4, 0, 1.0)
+    # Те же числа, что в игре: башня 10.5 м, вал на 0.862 её высоты,
+    # размах крыльев 7.4 м. Модель башни в блендере ~9.17 м, крыльев ~8.9.
+    _place(build_windmill, -48, -36, 0, 0, MILL_H / 9.17)
+    _place(build_windmill_blades, -48, -38.4, MILL_H * MILL_HUB, 0, MILL_SPAN / 8.9)
 
     _place(build_well, -14, 12, 0, 28, 1.15)
     _place(build_cart, 13.5, 3.2, 0, -60, 1.3)

@@ -17,6 +17,13 @@ public class Bootstrap : MonoBehaviour
         // который собирается в BuildScript.
         Input.multiTouchEnabled = true;
 
+        // Анизотропия. Камера смотрит на землю под острым углом, и без неё
+        // текстура травы под ногами разваливается на ступеньки мип-уровней —
+        // ровно то, что выглядит «пиксельным». Уровень задаётся у каждой
+        // текстуры в ModelImportSettings, здесь только разрешаем его учитывать.
+        QualitySettings.anisotropicFiltering = AnisotropicFiltering.Enable;
+        QualitySettings.globalTextureMipmapLimit = 0;
+
         NetManager.Create();
         Snd.Create();
 

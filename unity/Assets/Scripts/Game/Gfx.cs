@@ -311,9 +311,9 @@ public static class Gfx
     // Собственный ассет из Resources/Models/custom с коллайдером по мешу —
     // по такой модели можно ходить, как по обычной геометрии уровня.
     public static GameObject CustomProp(Transform parent, string id, Vector3 pos,
-        float targetHeight, float yaw)
+        float targetHeight, float yaw, bool anchorCenter = false)
     {
-        GameObject go = LoadProp(parent, "Models/custom/" + id, pos, targetHeight, yaw);
+        GameObject go = LoadProp(parent, "Models/custom/" + id, pos, targetHeight, yaw, anchorCenter);
         if (go == null) return null;
         MeshFilter[] filters = go.GetComponentsInChildren<MeshFilter>();
         for (int i = 0; i < filters.Length; i++)
@@ -327,11 +327,44 @@ public static class Gfx
 
     // trunkRadius > 0 добавляет капсулу у основания: камера перестаёт
     // уезжать внутрь кроны, а сквозь ствол нельзя пройти насквозь.
+    // Материалы, пришедшие из FBX, заменяются нашими: кроне достаётся
+    // Bear/Foliage, и она начинает качаться на ветру, остальному — Bear/Lit.
+    //
+    // Дело не только в ветре. Импортированные материалы сидят на URP/Lit, а
+    // он тянет в сборку десятки тысяч вариантов шейдера; свои — ровно один.
+    // Цвет при этом берётся из самого материала, так что палитра пака
+    // сохраняется.
+    private static void Naturalize(GameObject go)
+    {
+        Renderer[] rends = go.GetComponentsInChildren<Renderer>();
+        for (int i = 0; i < rends.Length; i++)
+        {
+            Material[] src = rends[i].sharedMaterials;
+            if (src == null || src.Length == 0) continue;
+            Material[] dst = new Material[src.Length];
+            for (int k = 0; k < src.Length; k++)
+            {
+                if (src[k] == null) { dst[k] = Mat(new Color(0.5f, 0.5f, 0.5f)); continue; }
+
+                Color c = src[k].color;
+                string n = src[k].name.ToLowerInvariant();
+                bool leafy = n.Contains("leaf") || n.Contains("foliage") ||
+                             n.Contains("green") || n.Contains("needle") ||
+                             n.Contains("grass") || n.Contains("bush");
+                dst[k] = leafy
+                    ? FoliageMat(c, c * 1.45f)
+                    : MatFull(c, 0.04f, 0f, Color.black, 2.2f, 0.45f);
+            }
+            rends[i].sharedMaterials = dst;
+        }
+    }
+
     public static GameObject Prop(Transform parent, string id, Vector3 pos,
         float targetHeight, float yaw, float trunkRadius)
     {
         GameObject go = LoadProp(parent, "Models/nature/" + id, pos, targetHeight, yaw);
         if (go == null) return null;
+        Naturalize(go);
 
         if (trunkRadius > 0f && targetHeight > 0f)
         {
@@ -348,7 +381,7 @@ public static class Gfx
 
     // Загрузка и нормировка модели по высоте, общая для любого реквизита.
     private static GameObject LoadProp(Transform parent, string path, Vector3 pos,
-        float targetHeight, float yaw)
+        float targetHeight, float yaw, bool anchorCenter = false)
     {
         if (string.IsNullOrEmpty(path)) return null;
         GameObject prefab = Resources.Load<GameObject>(path);
@@ -378,7 +411,13 @@ public static class Gfx
         {
             float k = Mathf.Clamp(targetHeight / (maxY - minY), 0.05f, 60f);
             go.transform.localScale = new Vector3(k, k, k);
-            go.transform.localPosition = pos + new Vector3(0f, -minY * k, 0f);
+            // Обычный реквизит ставится НИЗОМ в точку — так дерево стоит на
+            // земле. Но для вращающейся детали это неверно: крылья мельницы
+            // симметричны относительно втулки, и от сдвига «низом в ноль»
+            // их центр уезжал на пол-размаха вверх, а весь круг махов
+            // проваливался под землю.
+            float shift = anchorCenter ? -(minY + maxY) * 0.5f * k : -minY * k;
+            go.transform.localPosition = pos + new Vector3(0f, shift, 0f);
         }
         return go;
     }

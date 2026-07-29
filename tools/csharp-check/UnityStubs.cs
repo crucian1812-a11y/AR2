@@ -566,6 +566,8 @@ namespace UnityEngine
 
     public enum FogMode { Linear = 1, Exponential = 2, ExponentialSquared = 3 }
 
+    public enum AnisotropicFiltering { Disable, Enable, ForceEnable }
+
     public static class QualitySettings
     {
         public static int antiAliasing { get; set; }
@@ -573,6 +575,8 @@ namespace UnityEngine
         public static float shadowDistance { get; set; }
         public static ShadowResolution shadowResolution { get; set; }
         public static int pixelLightCount { get; set; }
+        public static AnisotropicFiltering anisotropicFiltering { get; set; }
+        public static int globalTextureMipmapLimit { get; set; }
         public static Rendering.RenderPipelineAsset renderPipeline { get; set; }
     }
 
@@ -1009,6 +1013,8 @@ namespace UnityEditor
         public bool isReadable { get; set; }
         public ModelImporterMeshCompression meshCompression { get; set; }
         public ModelImporterNormals importNormals { get; set; }
+        public bool optimizeMeshPolygons { get; set; }
+        public bool optimizeMeshVertices { get; set; }
         public float globalScale { get; set; }
         public ModelImporterClipAnimation[] defaultClipAnimations { get { return null; } }
         public ModelImporterClipAnimation[] clipAnimations { get; set; }
@@ -1020,6 +1026,8 @@ namespace UnityEditor
     public class TextureImporter : AssetImporter
     {
         public TextureImporterType textureType { get; set; }
+        public bool sRGBTexture { get; set; }
+        public int anisoLevel { get; set; }
         public bool mipmapEnabled { get; set; }
         public int maxTextureSize { get; set; }
         public TextureImporterCompression textureCompression { get; set; }
