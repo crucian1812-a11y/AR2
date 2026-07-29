@@ -1,16 +1,17 @@
 using UnityEngine;
 
 // Каталог играбельных персонажей и моделей для врагов.
-// Все модели — из пака Cute Animated Monsters (Quaternius, CC0),
-// лежат в Assets/Resources/Models/monsters.
+// Модели зверей — из пака Cute Animated Monsters (Quaternius, CC0),
+// лежат в Assets/Resources/Models/monsters. Исключение — «Железный
+// человечек»: он собран нами, кодом, в tools/blender/build_hero.py.
 public static class Heroes
 {
-    // Первые три доступны сразу, остальные открываются в лавке.
-    public const int FreeChars = 3;
+    // Первые четыре доступны сразу, остальные открываются в лавке.
+    public const int FreeChars = 4;
 
     public static readonly string[] Ids =
     {
-        "Panda", "Yeti", "GreenDemon",
+        "Panda", "Yeti", "GreenDemon", "IronSteve",
         "Pig", "Chicken", "Penguin", "Deer", "Crab",
         "Mushroom", "Cactus", "Ghost", "Skull",
         "Cyclops", "Alien", "Alien_Tall", "Demon", "Tree",
@@ -20,7 +21,7 @@ public static class Heroes
     };
     public static readonly string[] Names =
     {
-        "Панда", "Йети", "Зелёный демон",
+        "Панда", "Йети", "Зелёный демон", "Железный человечек",
         "Поросёнок", "Цыплёнок", "Пингвин", "Олень", "Краб",
         "Грибок", "Кактус", "Призрак", "Череп",
         "Циклоп", "Пришелец", "Длинный пришелец", "Демон", "Древень",

@@ -111,7 +111,24 @@ public class BearPlayer : MonoBehaviour
 
         _model = CharacterModel.Spawn(_body, Heroes.Id(CharIndex), Heroes.BodyHeight);
         if (_model == null) BuildProceduralBear();
+        ApplyHeroFx();
         _renderers = GetComponentsInChildren<Renderer>();
+    }
+
+    // Свечение, которое нельзя запечь в модель: FBX не переносит эмиссию
+    // надёжно, а реактор в груди — половина образа Железного человечка.
+    // Ореол и точечный свет живут под _body, поэтому ездят вместе с ним.
+    private void ApplyHeroFx()
+    {
+        if (Heroes.Id(CharIndex) != "IronSteve") return;
+        Color arc = new Color(0.45f, 0.9f, 1f);
+        // Модель смотрит в +Z: в блендере лицевая панель на -Y, а экспорт
+        // с axis_forward=-Z переводит блендеровское -Y в юнитивское +Z.
+        Gfx.Glow(_body, new Vector3(0f, 1.16f, 0.3f), 0.75f,
+            new Color(arc.r, arc.g, arc.b, 0.8f));
+        Gfx.Glow(_body, new Vector3(0f, 1.58f, 0.3f), 0.45f,
+            new Color(arc.r, arc.g, arc.b, 0.55f));
+        Gfx.PointLight(_body, new Vector3(0f, 1.2f, 0.34f), arc, 5f, 1.1f);
     }
 
     private void Init()
@@ -131,6 +148,7 @@ public class BearPlayer : MonoBehaviour
         BuildNodes();
         _model = CharacterModel.Spawn(_body, Heroes.Id(CharIndex), Heroes.BodyHeight);
         if (_model == null) BuildProceduralBear();
+        ApplyHeroFx();
         BuildSwipe();
         BuildTeamRing();
         _renderers = GetComponentsInChildren<Renderer>();
