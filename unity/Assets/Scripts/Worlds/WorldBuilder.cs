@@ -28,6 +28,11 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected abstract void Build();
 
+    // Палитра воды. Тропическая по умолчанию — в референсе именно такая:
+    // на мели светящаяся бирюза, в глубине плотный синий.
+    protected virtual Color ShallowWater { get { return new Color(0.42f, 0.92f, 0.92f); } }
+    protected virtual Color DeepWater { get { return new Color(0.04f, 0.32f, 0.55f); } }
+
     public void Construct(int worldIndex)
     {
         // Детерминированная генерация: декор одинаков у всех игроков.
@@ -160,12 +165,14 @@ public abstract class WorldBuilder : MonoBehaviour
             RenderSettings.skybox = sky;
         }
 
-        // Заливающий свет держим умеренным: при высоком ambient картинка
-        // становится плоской и выцветшей, тени пропадают.
+        // Заливающий свет держим НИЗКИМ. Это выяснилось на рендере грота:
+        // при ambient в 0.6 от неба сцена тонет в синем, зелень становится
+        // мятной, камень белёсым, а огонь факелов не читается вовсе. Небо
+        // должно быть ярким, но светить слабо — весь объём даёт солнце.
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-        RenderSettings.ambientSkyColor = top * 0.6f;
-        RenderSettings.ambientEquatorColor = horizon * 0.5f;
-        RenderSettings.ambientGroundColor = ground * 0.42f;
+        RenderSettings.ambientSkyColor = top * 0.32f;
+        RenderSettings.ambientEquatorColor = horizon * 0.26f;
+        RenderSettings.ambientGroundColor = ground * 0.20f;
 
         RenderSettings.fog = fogDensity > 0f;
         if (fogDensity > 0f)
@@ -180,7 +187,8 @@ public abstract class WorldBuilder : MonoBehaviour
         sunGo.transform.localRotation = Quaternion.Euler(sunEuler);
         Light sun = sunGo.AddComponent<Light>();
         sun.type = LightType.Directional;
-        sun.intensity = sunIntensity;
+        // Заливку убрали — свет и объём теперь целиком на солнце.
+        sun.intensity = sunIntensity * 1.45f;
         sun.color = new Color(1f, 0.97f, 0.9f);
         sun.shadows = LightShadows.Soft;
         sun.shadowStrength = 0.85f;
@@ -209,10 +217,52 @@ public abstract class WorldBuilder : MonoBehaviour
         return go;
     }
 
+    // Платформа. По умолчанию — мшистый камень: в референсе почти всё
+    // сложено из него, и одна эта замена меняет вид игры сильнее, чем
+    // любой отдельный ассет. Плоскую окраску оставляем для льда и металла.
     protected GameObject Platform(Vector3 pos, Vector3 size, Color color, float smoothness = 0.1f,
         float metallic = 0f)
     {
-        return Gfx.Box(transform, pos, size, Gfx.Mat(color, smoothness, metallic));
+        if (metallic > 0.01f || smoothness > 0.3f)
+            return Gfx.Box(transform, pos, size, Gfx.Mat(color, smoothness, metallic));
+
+        // Цвет мира задаёт оттенок мха, камень под ним общий: так каждая
+        // локация остаётся узнаваемой, а материал — одним и тем же.
+        Color moss = Color.Lerp(color, new Color(0.34f, 0.62f, 0.26f), 0.55f);
+        Color stone = Color.Lerp(new Color(0.60f, 0.58f, 0.55f), color, 0.18f);
+        return Gfx.Box(transform, pos, size,
+            Gfx.MossyMat(stone, moss, Mathf.Clamp(size.x * 0.22f, 0.5f, 1.4f)));
+    }
+
+    // Платформа, обжитая зеленью: по краям папоротники, снизу лианы.
+    // Именно эта обводка не даёт камню выглядеть положенным поверх мира.
+    protected GameObject LushPlatform(Vector3 pos, Vector3 size, Color color,
+        int ferns = 3, int vines = 3)
+    {
+        GameObject go = Platform(pos, size, color);
+        Color leaf = Color.Lerp(color, new Color(0.3f, 0.6f, 0.28f), 0.7f);
+
+        float hx = size.x * 0.5f, hz = size.z * 0.5f, top = pos.y + size.y * 0.5f;
+        for (int i = 0; i < ferns; i++)
+        {
+            float a = Random.Range(0f, 6.28f);
+            Vector3 edge = new Vector3(Mathf.Cos(a) * hx * 0.82f, 0f, Mathf.Sin(a) * hz * 0.82f);
+            Fern(new Vector3(pos.x, top, pos.z) + edge, leaf, Random.Range(0.7f, 1.15f));
+        }
+        if (ferns > 2)
+            FlowerPatch(new Vector3(pos.x, top, pos.z) +
+                new Vector3(Random.Range(-hx * 0.6f, hx * 0.6f), 0f,
+                            Random.Range(-hz * 0.6f, hz * 0.6f)),
+                new Color(0.95f, 0.55f, 0.75f), 0.9f);
+
+        for (int i = 0; i < vines; i++)
+        {
+            float a = Random.Range(0f, 6.28f);
+            Vector3 edge = new Vector3(Mathf.Cos(a) * hx * 0.95f, 0f, Mathf.Sin(a) * hz * 0.95f);
+            Vine(new Vector3(pos.x, pos.y - size.y * 0.5f + 0.05f, pos.z) + edge,
+                Random.Range(1.2f, 3.4f), leaf);
+        }
+        return go;
     }
 
     protected void Tree(Vector3 pos, Color leaf, float scale)
@@ -505,6 +555,135 @@ public abstract class WorldBuilder : MonoBehaviour
         mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
     }
 
+    // ---------- Зелень на камне ----------
+
+    // Свисающая лиана: лента из сегментов, качается на ветру шейдером
+    // листвы. В референсе они висят с каждого уступа и с каждой ветки —
+    // именно они связывают камень с зеленью, чтобы платформа не выглядела
+    // положенной сверху.
+    protected void Vine(Vector3 top, float length, Color leaf, float width = 0.16f)
+    {
+        Material mat = Gfx.FoliageMat(leaf, leaf * 1.5f);
+        int segs = Mathf.Clamp(Mathf.RoundToInt(length / 0.55f), 2, 9);
+        // Лиана слегка отклоняется — вертикальная струна выглядит верёвкой.
+        float driftYaw = Random.Range(0f, 6.28f);
+        float drift = Random.Range(0.04f, 0.14f);
+
+        for (int i = 0; i < segs; i++)
+        {
+            float t = (i + 0.5f) / segs;
+            float h = length / segs;
+            Vector3 p = top + new Vector3(
+                Mathf.Cos(driftYaw) * drift * length * t * t,
+                -length * t,
+                Mathf.Sin(driftYaw) * drift * length * t * t);
+            // Книзу лиана тоньше, а листья крупнее.
+            float w = width * (1.15f - t * 0.5f);
+            GameObject seg = Gfx.Box(transform, p, new Vector3(w, h * 1.05f, w * 0.55f), mat, false);
+            seg.transform.localRotation = Quaternion.Euler(0f, driftYaw * Mathf.Rad2Deg, 0f);
+            Gfx.NoShadow(seg);
+
+            if (i % 2 == 1)
+            {
+                GameObject leafBit = Gfx.Ball(transform,
+                    p + new Vector3(Mathf.Cos(driftYaw + t * 5f) * w * 2.2f, 0f,
+                                    Mathf.Sin(driftYaw + t * 5f) * w * 2.2f),
+                    new Vector3(w * 3.4f, w * 1.6f, w * 3.4f), mat);
+                Gfx.NoShadow(leafBit);
+            }
+        }
+    }
+
+    // Папоротник: веер длинных листьев от одной точки. В референсе такими
+    // кустами закрыты все стыки камня с землёй — без них платформа
+    // выглядит поставленной на пол.
+    protected void Fern(Vector3 pos, Color leaf, float scale = 1f)
+    {
+        Material mat = Gfx.FoliageMat(leaf, leaf * 1.55f);
+        int blades = Random.Range(6, 10);
+        for (int i = 0; i < blades; i++)
+        {
+            float a = (i / (float)blades) * 6.28f + Random.Range(-0.2f, 0.2f);
+            float len = (0.75f + Random.Range(-0.15f, 0.35f)) * scale;
+            float lean = Random.Range(38f, 68f);
+            // Лист — вытянутая пластина, наклонённая от центра наружу.
+            GameObject blade = Gfx.Box(transform,
+                pos + new Vector3(Mathf.Cos(a) * len * 0.42f, len * 0.42f,
+                                  Mathf.Sin(a) * len * 0.42f),
+                new Vector3(0.1f * scale, len, 0.34f * scale), mat, false);
+            blade.transform.localRotation =
+                Quaternion.Euler(0f, -a * Mathf.Rad2Deg, lean);
+            Gfx.NoShadow(blade);
+        }
+        // Центр куста — плотный ком, чтобы не просвечивал.
+        Gfx.NoShadow(Gfx.Ball(transform, pos + new Vector3(0f, 0.12f * scale, 0f),
+            new Vector3(0.3f, 0.22f, 0.3f) * scale, mat));
+    }
+
+    // Кустик цветов — тёплые точки в зелени.
+    protected void FlowerPatch(Vector3 pos, Color petal, float scale = 1f)
+    {
+        Material stem = Gfx.FoliageMat(new Color(0.28f, 0.5f, 0.24f), new Color(0.5f, 0.8f, 0.4f));
+        Material bloom = Gfx.MatFull(petal, 0.4f, 0f, petal * 0.35f, 0f, 0f);
+        for (int i = 0; i < 5; i++)
+        {
+            float a = i * 1.26f + Random.Range(-0.3f, 0.3f);
+            float r = Random.Range(0.1f, 0.34f) * scale;
+            Vector3 p = pos + new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r);
+            float h = Random.Range(0.24f, 0.42f) * scale;
+            Gfx.NoShadow(Gfx.Box(transform, p + new Vector3(0f, h * 0.5f, 0f),
+                new Vector3(0.035f, h, 0.035f) * scale, stem, false));
+            Gfx.NoShadow(Gfx.Ball(transform, p + new Vector3(0f, h, 0f),
+                new Vector3(0.13f, 0.09f, 0.13f) * scale, bloom));
+        }
+    }
+
+    // Настенный факел: тёплый свет, мерцание и угольки. В референсе они
+    // расставлены по всей каменной кладке и держат на себе весь тёплый
+    // полюс картинки против холодной воды и неба.
+    protected void WallTorch(Vector3 pos, float yaw, float scale = 1f)
+    {
+        Quaternion rot = Quaternion.Euler(0f, yaw, 0f);
+        Material iron = Gfx.MatFull(new Color(0.22f, 0.2f, 0.2f), 0.3f, 0.7f,
+            Color.black, 0f, 0f);
+        Material wood = Gfx.Mat(new Color(0.36f, 0.24f, 0.14f), 0.06f);
+
+        // Кронштейн из стены и наклонная рукоять.
+        Gfx.NoShadow(Gfx.Box(transform, pos, new Vector3(0.16f, 0.3f, 0.16f) * scale, iron, false));
+        GameObject shaft = Gfx.Cyl(transform, pos + rot * new Vector3(0f, 0.28f, 0.2f) * scale,
+            new Vector3(0.07f, 0.3f, 0.07f) * scale, wood, false);
+        shaft.transform.localRotation = rot * Quaternion.Euler(28f, 0f, 0f);
+        Gfx.NoShadow(shaft);
+
+        Vector3 tip = pos + rot * new Vector3(0f, 0.56f, 0.42f) * scale;
+        // Чаша и само пламя.
+        Gfx.NoShadow(Gfx.Cyl(transform, tip + new Vector3(0f, -0.06f, 0f),
+            new Vector3(0.19f, 0.07f, 0.19f) * scale, iron, false));
+        Campfire.Create(transform, tip, new Color(1f, 0.68f, 0.34f), 13f * scale);
+    }
+
+    // Друза кристаллов в породе — холодные светящиеся точки, которыми в
+    // референсе набита вся пещера.
+    protected void GemCluster(Vector3 pos, Color tint, float scale = 1f)
+    {
+        Material gem = Gfx.MatFull(tint, 0.9f, 0.25f, tint * 0.85f, 0f, 0f);
+        int n = Random.Range(3, 6);
+        for (int i = 0; i < n; i++)
+        {
+            float a = i * (6.28f / n) + Random.Range(-0.4f, 0.4f);
+            float r = Random.Range(0.05f, 0.24f) * scale;
+            Gfx.NoShadow(Gfx.Crystal(transform,
+                pos + new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r),
+                Random.Range(0.09f, 0.17f) * scale,
+                Random.Range(0.35f, 0.8f) * scale, gem,
+                Random.Range(-24f, 24f)));
+        }
+        Gfx.Glow(transform, pos + new Vector3(0f, 0.28f * scale, 0f), 2.4f * scale,
+            new Color(tint.r, tint.g, tint.b, 0.55f));
+        Gfx.PointLight(transform, pos + new Vector3(0f, 0.34f * scale, 0f), tint,
+            7f * scale, 0.85f);
+    }
+
     // ---------- Вода ----------
 
     public readonly List<Checkpoint> Checkpoints = new List<Checkpoint>();
@@ -644,6 +823,13 @@ public abstract class WorldBuilder : MonoBehaviour
             m.SetTexture("_BumpMap", Gfx.WaterNormal());
             float tile = Mathf.Max(size.x, size.y) * 0.35f;
             m.SetTextureScale("_BumpMap", new Vector2(tile, tile));
+            // Тропическая вода: на мели почти бирюза, в глубине насыщенный
+            // синий, и широкая полоса пены у берега. Прежние цвета были
+            // «просто синими» и мели от глубины не отличали.
+            m.SetColor("_ShallowColor", ShallowWater);
+            m.SetColor("_DeepColor", DeepWater);
+            m.SetFloat("_DepthFade", 3.4f);
+            m.SetFloat("_FoamWidth", 1.1f);
             mr.sharedMaterial = m;
         }
         else

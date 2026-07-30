@@ -77,6 +77,27 @@ public class CaveWorld : WorldBuilder
         AddBoss(new Vector3(34f, 10.2f, -8f), new Vector3(34f, 10.2f, -30f),
             "bigdragon", 4.8f, 8, 1.7f);
         BuildAtmosphere();
+
+        // Факелы по кладке и друзы в породе. В референсе именно они держат
+        // тёплый полюс картинки против холодной воды и кристаллов.
+        for (int i = 0; i < 14; i++)
+        {
+            float a = i * 25.7f * Mathf.Deg2Rad;
+            float r = Radius - 16f;
+            WallTorch(new Vector3(Mathf.Cos(a) * r, 3.2f + (i % 3) * 1.6f, Mathf.Sin(a) * r),
+                -a * Mathf.Rad2Deg + 180f, 1.2f);
+        }
+        for (int i = 0; i < 16; i++)
+        {
+            float a = i * 137.5f * Mathf.Deg2Rad;
+            float r = 22f + (i % 6) * 9f;
+            GemCluster(OnGround(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0.1f),
+                i % 3 == 0 ? Rose : (i % 3 == 1 ? Cyan : Violet), 1.1f);
+        }
+        // Лианы с уступов пропасти — камень должен зарастать.
+        for (int i = 0; i < 8; i++)
+            Vine(new Vector3(26f + (i % 4) * 4f, 7.9f, -6f - (i / 4) * 22f),
+                Random.Range(2f, 4.5f), new Color(0.24f, 0.5f, 0.3f));
         // Кристалл водится только под землёй — ради него и лезут в пещеру.
         for (int i = 0; i < 10; i++)
         {

@@ -689,6 +689,34 @@ public static class Gfx
         }
     }
 
+    private static Shader _mossy;
+
+    // Шейдер мшистого камня: серый камень с кладкой, мох на верхних гранях.
+    // Главный материал каменных построек — он и даёт «обжитый» вид, ради
+    // которого в референсе всё поросло зеленью.
+    public static Material MossyMat(Color stone, Color moss, float blockSize = 0.9f,
+        float mossAmount = 0.75f)
+    {
+        string key = "mossy|" + stone.r + "_" + stone.g + "_" + stone.b + "|" +
+                     moss.r + "_" + moss.g + "|" + blockSize + "|" + mossAmount;
+        Material cached;
+        if (_matCache.TryGetValue(key, out cached) && cached != null) return cached;
+
+        if (_mossy == null) _mossy = Shader.Find("Bear/MossyStone");
+        // Без шейдера — обычный камень: лучше блёкло, чем розовым.
+        if (_mossy == null) return Mat(stone, 0.06f);
+
+        Material m = new Material(_mossy);
+        m.SetColor("_Color", stone);
+        m.SetColor("_StoneDark", stone * 0.48f);
+        m.SetColor("_MossColor", moss);
+        m.SetColor("_MossBright", Color.Lerp(moss, new Color(0.72f, 0.95f, 0.45f), 0.55f));
+        m.SetFloat("_BlockSize", blockSize);
+        m.SetFloat("_MossAmount", mossAmount);
+        _matCache[key] = m;
+        return m;
+    }
+
     public static Material FoliageMat(Color color, Color rim)
     {
         string key = "foliage|" + color.r + "_" + color.g + "_" + color.b + "|" + rim.r + "_" + rim.g;

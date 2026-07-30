@@ -54,6 +54,17 @@ public class HubWorld : WorldBuilder
         AddEnemy(OnGround(-58f, -14f, 0.1f), OnGround(-64f, -26f, 0.1f), "mushroom", 2.6f);
         AddEnemy(OnGround(30f, 44f, 0.1f), OnGround(44f, 44f, 0.1f), "mushroom", 2.3f);
         BuildAtmosphere();
+        // Зелень по камню: без неё платформы выглядят положенными сверху.
+        for (int i = 0; i < 14; i++)
+        {
+            float a = i * 137.5f * Mathf.Deg2Rad;
+            float r = 26f + (i % 5) * 8f;
+            Fern(OnGround(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0.05f),
+                new Color(0.22f, 0.5f, 0.24f), Random.Range(0.8f, 1.4f));
+            if (i % 3 == 0)
+                FlowerPatch(OnGround(Mathf.Cos(a) * (r + 4f), Mathf.Sin(a) * (r + 4f), 0.05f),
+                    i % 2 == 0 ? new Color(0.95f, 0.6f, 0.8f) : new Color(0.98f, 0.85f, 0.45f));
+        }
         BuildResources();
 
         // Старейшина и порталы вокруг площади

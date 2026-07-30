@@ -95,7 +95,9 @@ public class DayCycle : MonoBehaviour
             _sun.color = Color.Lerp(c, moon, _darkness);
             // Луна светит слабо, но не в ноль: иначе ночью не видно ничего,
             // а на телефоне это просто чёрный экран.
-            _sun.intensity = Mathf.Lerp(_daySunIntensity, _daySunIntensity * 0.16f, _darkness);
+            // Дневная сила — та же, что задаёт SetupSky с множителем 1.45.
+            float day = _daySunIntensity * 1.45f;
+            _sun.intensity = Mathf.Lerp(day, day * 0.16f, _darkness);
             _sun.shadowStrength = Mathf.Lerp(0.85f, 0.35f, _darkness);
         }
 
@@ -115,9 +117,11 @@ public class DayCycle : MonoBehaviour
             _sky.SetColor("_GroundColor", gnd);
         }
 
-        RenderSettings.ambientSkyColor = top * 0.6f;
-        RenderSettings.ambientEquatorColor = hor * 0.5f;
-        RenderSettings.ambientGroundColor = gnd * 0.42f;
+        // Те же коэффициенты, что в SetupSky: заливка низкая, объём даёт
+        // солнце. Иначе смена суток вернула бы выцветшую картинку обратно.
+        RenderSettings.ambientSkyColor = top * 0.32f;
+        RenderSettings.ambientEquatorColor = hor * 0.26f;
+        RenderSettings.ambientGroundColor = gnd * 0.20f;
 
         if (_fogDensity > 0f)
         {
