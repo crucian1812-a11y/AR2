@@ -107,7 +107,9 @@ jobs:
           echo "deb [signed-by=/usr/share/keyrings/unityhub-ci.gpg] https://hub-dist.unity3d.com/artifactory/hub-debian-prod-local stable main" \
             | sudo tee /etc/apt/sources.list.d/unityhub-ci.list > /dev/null
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends unityhub
+          # xvfb нужен обёртке ниже: Hub тянет графические библиотеки даже
+          # в headless-режиме.
+          sudo apt-get install -y --no-install-recommends unityhub xvfb
 
           echo "=========== файлы пакета unityhub ==========="
           dpkg -L unityhub | grep -iE 'unityhub|appimage' || true
@@ -123,6 +125,23 @@ jobs:
           fi
           echo "UNITY_HUB_PATH=$HUB" >> "$GITHUB_ENV"
           echo "Unity Hub: $HUB"
+
+          # Ссылка по старому адресу: на него смотрит и проверка доступа в
+          # unity-setup, и обёртка, которую он себе пишет.
+          sudo mkdir -p /opt/unityhub
+          sudo ln -sfn "$HUB" /opt/unityhub/unityhub
+
+          # На Linux unity-setup запускает Hub не по пути, а по имени
+          # команды: executable = platform === 'linux' ? 'unity-hub' : ...
+          # Обёртку /usr/bin/unity-hub он создаёт только когда сам ставит
+          # пакет; у нас пакет уже стоит, установка пропускается — отсюда
+          # «spawn unity-hub ENOENT». Пишем обёртку сами, на найденный путь.
+          printf '#!/bin/bash\nxvfb-run --auto-servernum %s "$@" 2>/dev/null\n' "$HUB" \
+            | sudo tee /usr/bin/unity-hub > /dev/null
+          sudo chmod 755 /usr/bin/unity-hub
+
+          echo "проверка обёртки:"
+          unity-hub --headless help 2>&1 | head -n 5 || true
 
       # Ставит Unity Hub, редактор и модуль Android (SDK/NDK/JDK внутри).
       - name: Установить Unity
