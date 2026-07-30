@@ -89,6 +89,41 @@ jobs:
           docker-images: true
           swap-storage: true
 
+      # unity-setup ищет Unity Hub строго в /opt/unityhub/unityhub и падает
+      # с ENOENT ещё до того, как сборка увидит проект (сборки #69 и #70:
+      # три минуты вместо двадцати двух). Пакет при этом ставится и
+      # числится в dpkg как «уже новейшей версии» — то есть либо Hub 3.20
+      # разложил файлы иначе, либо их подчистил шаг освобождения диска.
+      #
+      # Путь переопределяется переменной UNITY_HUB_PATH, поэтому ставим Hub
+      # сами и спрашиваем его расположение у dpkg вместо угадывания. Заодно
+      # это делает шаг независимым от порядка очистки диска.
+      - name: Поставить Unity Hub и определить путь к нему
+        run: |
+          set -euo pipefail
+          sudo install -d -m 0755 /usr/share/keyrings
+          curl -fsSL https://hub.unity3d.com/linux/keys/public \
+            | sudo gpg --dearmor -o /usr/share/keyrings/unityhub-ci.gpg
+          echo "deb [signed-by=/usr/share/keyrings/unityhub-ci.gpg] https://hub-dist.unity3d.com/artifactory/hub-debian-prod-local stable main" \
+            | sudo tee /etc/apt/sources.list.d/unityhub-ci.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends unityhub
+
+          echo "=========== файлы пакета unityhub ==========="
+          dpkg -L unityhub | grep -iE 'unityhub|appimage' || true
+
+          HUB=""
+          while read -r f; do
+            if [ -f "$f" ] && [ -x "$f" ]; then HUB="$f"; break; fi
+          done < <(dpkg -L unityhub | grep -iE '/unityhub$|[Aa]pp[Ii]mage$')
+
+          if [ -z "$HUB" ]; then
+            echo "::error::Бинарник Unity Hub не найден — смотрите список файлов выше"
+            exit 1
+          fi
+          echo "UNITY_HUB_PATH=$HUB" >> "$GITHUB_ENV"
+          echo "Unity Hub: $HUB"
+
       # Ставит Unity Hub, редактор и модуль Android (SDK/NDK/JDK внутри).
       - name: Установить Unity
         uses: RageAgainstThePixel/unity-setup@v2
