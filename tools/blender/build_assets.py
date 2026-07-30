@@ -913,6 +913,184 @@ def build_village_scene():
     SCENE_MODE = False
 
 
+
+# ---------- каменная архитектура ----------
+
+def stone_palette():
+    """Камень для построек. Мох в игре дорисовывает шейдер Bear/MossyStone,
+    поэтому здесь только порода — иначе зелень легла бы дважды."""
+    return {
+        "stone": material("archStone", (0.44, 0.42, 0.39), 0.88),
+        "stoneDark": material("archStoneDark", (0.24, 0.23, 0.22), 0.92),
+        "stoneWarm": material("archStoneWarm", (0.50, 0.44, 0.37), 0.86),
+        "moss": material("archMoss", (0.16, 0.36, 0.13), 0.95),
+    }
+
+
+def carved_block(loc, half, mats, i=0):
+    """Тёсаный блок с фаской: скошенная кромка ловит свет, и кладка
+    читается объёмной даже без карты нормалей."""
+    b = add_cube(loc, half)
+    shade(b, mats["stoneWarm"] if i % 3 == 0 else mats["stone"], False)
+    # Фаска — тонкая тёмная пластина по верхнему ребру.
+    edge = add_cube((loc[0], loc[1], loc[2] + half[2] * 0.94),
+                    (half[0] * 0.97, half[1] * 0.97, half[2] * 0.07))
+    shade(edge, mats["stoneDark"], False)
+    return [b, edge]
+
+
+def build_stone_arch():
+    """Арка-проём: две опоры, клинчатый свод, замковый камень.
+
+    В референсе такими проёмами прорублена вся скала, и именно свод из
+    отдельных клиньев отличает постройку от вырезанной в камне дыры.
+    """
+    reset()
+    m = stone_palette()
+    parts = []
+
+    W, H, D = 1.5, 3.2, 0.6      # полупролёт, высота опоры, полутолщина
+
+    # Опоры из блоков.
+    for sx in (-1, 1):
+        for r in range(6):
+            parts += carved_block((sx * W, 0, 0.28 + r * 0.52), (0.42, D, 0.26), m, r)
+        # База шире — постройка стоит, а не висит.
+        parts += carved_block((sx * W, 0, 0.12), (0.54, D + 0.1, 0.12), m, 1)
+
+    # Свод: клинья по дуге от опоры к опоре.
+    #
+    # Угол считается один раз и правильно. Клин должен лежать ВДОЛЬ дуги:
+    # точка дуги (-cos a * W, H + sin a * R), её касательная (sin a, cos a).
+    # Поворот вокруг Y переводит локальный X в (cos t, 0, -sin t), значит
+    # нужный угол t = a - pi/2. Со знаком наоборот свод разлетается
+    # обломками — именно это и вышло с первой попытки.
+    voussoirs = 11
+    R = W * 0.92
+    for i in range(voussoirs):
+        t = i / float(voussoirs - 1)
+        a = math.pi * t
+        x = -math.cos(a) * W
+        z = H + math.sin(a) * R
+        # Клин вытянут по дуге и толще по радиусу — как настоящий.
+        wedge = add_cube((x, 0, z), (0.26, D, 0.30), (0, a - math.pi / 2, 0))
+        shade(wedge, m["stoneDark"] if i % 3 == 1 else m["stone"], False)
+        parts.append(wedge)
+
+    # Замковый камень в вершине — крупнее остальных.
+    key = add_cube((0, 0, H + R + 0.12), (0.34, D + 0.06, 0.34))
+    shade(key, m["stoneWarm"], False)
+    parts.append(key)
+
+    # Карниз над сводом.
+    cornice = add_cube((0, 0, H + R + 0.5), (W + 0.7, D + 0.22, 0.14))
+    shade(cornice, m["stone"], False)
+    parts.append(cornice)
+
+    join(parts, "StoneArch")
+    export("stone_arch")
+
+
+def build_stone_column():
+    """Колонна: база, ствол с каннелюрами, капитель."""
+    reset()
+    m = stone_palette()
+    parts = []
+
+    parts += carved_block((0, 0, 0.16), (0.62, 0.62, 0.16), m, 0)
+    parts += carved_block((0, 0, 0.42), (0.5, 0.5, 0.12), m, 1)
+
+    shaft = add_cyl((0, 0, 2.3), 0.36, 3.6, 16)
+    shade(shaft, m["stone"])
+    parts.append(shaft)
+
+    # Каннелюры: вертикальные ложбинки по стволу.
+    for i in range(10):
+        a = i * math.pi / 5.0
+        fl = add_cyl((math.cos(a) * 0.35, math.sin(a) * 0.35, 2.3), 0.06, 3.5, 8)
+        shade(fl, m["stoneDark"])
+        parts.append(fl)
+
+    # Капитель — расширяющаяся кверху.
+    cap = add_cone((0, 0, 4.28), 0.42, 0.62, 0.36, 16)
+    shade(cap, m["stoneWarm"])
+    parts.append(cap)
+    parts += carved_block((0, 0, 4.6), (0.66, 0.66, 0.14), m, 2)
+
+    join(parts, "StoneColumn")
+    export("stone_column")
+
+
+def build_ruin_wall():
+    """Обломок стены: кладка с обвалившимся верхом.
+
+    Ставится за платформами и в проёмах — даёт ощущение, что мир построили
+    задолго до игрока, а не собрали из кубиков.
+    """
+    reset()
+    m = stone_palette()
+    parts = []
+
+    rows = 7
+    for r in range(rows):
+        # Верх стены обваливается: чем выше, тем короче ряд.
+        span = 3.0 - r * 0.34
+        n = max(1, int(span / 0.62))
+        offset = (r % 2) * 0.31
+        for i in range(n):
+            x = -span * 0.5 + offset + i * 0.62
+            if abs(x) > span * 0.5:
+                continue
+            # Кое-где блок выпал.
+            if (r * 7 + i * 13) % 11 == 0 and r > 2:
+                continue
+            parts += carved_block((x, 0, 0.26 + r * 0.5), (0.29, 0.34, 0.25), m, r + i)
+
+    # Осыпь у подножия.
+    for i in range(7):
+        a = i * 0.9
+        rub = add_sphere((math.cos(a) * 1.6, math.sin(a) * 0.5, 0.16),
+                         (0.26, 0.22, 0.16), 8, 6)
+        shade(rub, m["stoneDark"])
+        parts.append(rub)
+
+    join(parts, "RuinWall")
+    export("ruin_wall")
+
+
+def build_stone_stairs():
+    """Марш тёсаных ступеней.
+
+    Перила отсюда убраны намеренно. Дважды не сошлись с маршем: их длина
+    и наклон считаются от лестницы, и любая правка размеров ступеней их
+    отвязывает. Читаемость лестницы держится на самих ступенях, а перила
+    в кадре платформера всё равно теряются — ставим лишнюю деталь только
+    когда она работает.
+    """
+    reset()
+    m = stone_palette()
+    parts = []
+
+    steps = 6
+    rise, run, halfw = 0.42, 0.34, 0.9     # подъём круче проступи: это лестница
+    for i in range(steps):
+        # Ступени чуть сужаются кверху — марш выглядит уходящим вдаль.
+        w = halfw * (1.0 - i * 0.035)
+        # Ступень СПЛОШНАЯ от земли до своего верха. С плитой на своей
+        # высоте (половина высоты подъёма) марш выходил висящей в воздухе
+        # чередой плашек, а сбоку читался канавой, а не лестницей.
+        h = rise * (i + 1)
+        parts += carved_block((0, -i * run * 2, h * 0.5), (w, run, h * 0.5), m, i)
+        # Подступёнок темнее проступи: ступени различимы в тени.
+        riser = add_cube((0, -i * run * 2 + run, h - rise * 0.5),
+                         (w * 0.99, 0.03, rise * 0.46))
+        shade(riser, m["stoneDark"], False)
+        parts.append(riser)
+
+    join(parts, "StoneStairs")
+    export("stone_stairs")
+
+
 ASSETS = {
     "turtle": build_turtle,
     "mill_full": build_windmill_assembled,
@@ -927,6 +1105,10 @@ ASSETS = {
     "fence": build_fence,
     "barrel": build_barrel,
     "cart": build_cart,
+    "arch": build_stone_arch,
+    "column": build_stone_column,
+    "ruin": build_ruin_wall,
+    "stairs": build_stone_stairs,
 }
 
 

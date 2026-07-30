@@ -27,6 +27,8 @@ public static class BuildScript
         "Bear/Foliage",
         "Bear/Terrain",
         "Bear/MossyStone",
+        "Bear/Waterfall",
+        "Bear/Shaft",
         "UI/Default",
         "Sprites/Default"
         // Universal Render Pipeline/Lit сюда добавлять нельзя: у него

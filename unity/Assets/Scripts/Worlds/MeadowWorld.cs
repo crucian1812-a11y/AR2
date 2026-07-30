@@ -61,6 +61,31 @@ public class MeadowWorld : WorldBuilder
         AddBoss(OnGround(38f, -30f) + new Vector3(-9f, 20.4f, 0f),
             OnGround(38f, -30f) + new Vector3(9f, 20.4f, 0f), "alpaking", 3.2f, 4, 1.5f);
         BuildAtmosphere();
+
+        // Каменные руины и арки: мир должен выглядеть построенным задолго
+        // до игрока, а не собранным из кубиков к его приходу.
+        for (int i = 0; i < 4; i++)
+        {
+            float a = 0.6f + i * 92f * Mathf.Deg2Rad;
+            float r = 38f + (i % 2) * 9f;
+            StoneProp("ruin_wall", OnGround(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0.1f),
+                3.8f, -a * Mathf.Rad2Deg + 90f, Plat);
+        }
+        for (int i = 0; i < 3; i++)
+        {
+            float a = 1.9f + i * 118f * Mathf.Deg2Rad;
+            float r = 30f;
+            StoneProp("stone_column", OnGround(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0.1f),
+                5.8f, i * 47f, Plat);
+        }
+        // Лучи солнца сквозь листву — те самые столбы света в референсе.
+        for (int i = 0; i < 4; i++)
+        {
+            float a = i * 97f * Mathf.Deg2Rad;
+            float r = 24f + (i % 3) * 12f;
+            LightShaft(OnGround(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 17f),
+                16f, 2.2f, new Color(1f, 0.96f, 0.74f), 0.1f);
+        }
         // Зелень по камню: без неё платформы выглядят положенными сверху.
         for (int i = 0; i < 14; i++)
         {

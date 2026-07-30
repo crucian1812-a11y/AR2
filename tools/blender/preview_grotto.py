@@ -66,6 +66,61 @@ def emit(name, rgb, strength):
     return mat
 
 
+def haze(name, rgb, strength):
+    """Аддитивное свечение — то же, что делает Bear/Shaft в игре.
+
+    Ставить эмиссию на Principled и глушить её полем Alpha БЕСПОЛЕЗНО:
+    в Cycles альфа гасит только сам BSDF, а эмиссия прибавляется поверх
+    неё в полную силу. Первая попытка так и вышла — три белых конуса в
+    полкадра при alpha 0.085. Здесь граф собран честно: Transparent BSDF
+    пропускает фон, Add Shader прибавляет свет.
+
+    Множитель (1 - Facing) гасит луч на силуэте: у кромки конуса взгляд
+    проходит сквозь тонкий слой воздуха, в середине — сквозь всю толщу.
+    Ровно эту же зависимость считает шейдер в игре.
+    """
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.clear()
+
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    add = nt.nodes.new("ShaderNodeAddShader")
+    clear = nt.nodes.new("ShaderNodeBsdfTransparent")
+    em = nt.nodes.new("ShaderNodeEmission")
+    lw = nt.nodes.new("ShaderNodeLayerWeight")
+    inv = nt.nodes.new("ShaderNodeMath")
+    mul = nt.nodes.new("ShaderNodeMath")
+
+    em.inputs["Color"].default_value = (rgb[0], rgb[1], rgb[2], 1.0)
+    lw.inputs["Blend"].default_value = 0.3
+    inv.operation = "SUBTRACT"
+    inv.inputs[0].default_value = 1.0
+    mul.operation = "MULTIPLY"
+    mul.inputs[1].default_value = strength
+
+    nt.links.new(lw.outputs["Facing"], inv.inputs[1])
+    nt.links.new(inv.outputs[0], mul.inputs[0])
+    nt.links.new(mul.outputs[0], em.inputs["Strength"])
+    nt.links.new(clear.outputs[0], add.inputs[0])
+    nt.links.new(em.outputs[0], add.inputs[1])
+    nt.links.new(add.outputs[0], out.inputs["Surface"])
+    return mat
+
+
+def wet(name, rgb, alpha, rough=0.08):
+    """Полупрозрачная вода без свечения.
+
+    Именно без: см. haze — эмиссия игнорирует альфу, поэтому светящаяся
+    струя всегда выходит непрозрачной белой полосой.
+    """
+    mat = material(name, rgb, rough)
+    b = mat.node_tree.nodes.get("Principled BSDF")
+    if b and "Alpha" in b.inputs:
+        b.inputs["Alpha"].default_value = alpha
+    return mat
+
+
 def glass(name, rgb):
     mat = material(name, rgb, 0.05)
     b = mat.node_tree.nodes.get("Principled BSDF")
@@ -99,13 +154,17 @@ def mossy_slab(m, cx, cy, cz, hx, hy, hz):
             b = add_cube((x, cy - hy - 0.03, z), (step * 0.42, 0.04, 0.22))
             shade(b, m["stoneDark"] if (i + r) % 3 == 0 else m["stone"], False)
 
-    # Мох на верхней грани — пятнами, со свесом за край.
-    for i in range(int(hx * hy * 12) + 5):
+    # Мох сверху — сплошной ковёр с более светлыми пятнами. Раньше это была
+    # только россыпь приплюснутых сфер, и верхушка плиты читалась гроздью
+    # винограда; в игре мох тоже не комками, а весом в шейдере по n.y.
+    carpet = add_cube((cx, cy, cz + hz - 0.01), (hx * 0.995, hy * 0.995, 0.09))
+    shade(carpet, m["moss"], False)
+    for i in range(int(hx * hy * 6) + 4):
         px = cx + random.uniform(-hx, hx)
         py = cy + random.uniform(-hy, hy)
-        rad = random.uniform(0.22, 0.55)
-        blob = add_sphere((px, py, cz + hz - 0.02), (rad, rad, rad * 0.32), 10, 6)
-        shade(blob, m["mossLit"] if random.random() < 0.4 else m["moss"])
+        rad = random.uniform(0.3, 0.7)
+        blob = add_sphere((px, py, cz + hz + 0.04), (rad, rad, rad * 0.13), 10, 6)
+        shade(blob, m["mossLit"] if random.random() < 0.5 else m["moss"])
     for i in range(int(hx * 5) + 3):
         px = cx + random.uniform(-hx, hx)
         s = random.choice((-1, 1))
@@ -131,16 +190,17 @@ def vine(m, x, y, z, length):
 
 
 def fern(m, x, y, z, scale=1.0):
-    blades = random.randint(6, 9)
+    blades = random.randint(7, 11)
     for i in range(blades):
         a = i / blades * 6.28 + random.uniform(-0.2, 0.2)
         ln = random.uniform(0.6, 1.05) * scale
-        blade = add_cube((x + math.cos(a) * ln * 0.42, y + math.sin(a) * ln * 0.42,
-                          z + ln * 0.4),
-                         (0.05 * scale, 0.17 * scale, ln * 0.5),
+        # Лист СУЖАЕТСЯ к концу. Раньше это был брусок ровной толщины, и
+        # куст читался колючей звездой из палок, а не папоротником.
+        blade = add_cone((x + math.cos(a) * ln * 0.42, y + math.sin(a) * ln * 0.42,
+                          z + ln * 0.4), 0.15 * scale, 0.008, ln, 6,
                          (math.radians(random.uniform(34, 60)) * math.sin(a),
                           math.radians(random.uniform(34, 60)) * -math.cos(a), 0))
-        shade(blade, m["leafLit"] if i % 3 else m["leaf"], False)
+        shade(blade, m["leafLit"] if i % 3 else m["leaf"])
     core = add_sphere((x, y, z + 0.1 * scale), (0.2 * scale, 0.2 * scale, 0.13 * scale), 10, 6)
     shade(core, m["leaf"])
 
@@ -176,21 +236,59 @@ def gems(m, x, y, z, violet=False):
 
 
 def waterfall(m, x, y, ztop, height, width):
-    sheet = add_cube((x, y, ztop - height * 0.5), (width * 0.5, 0.06, height * 0.5))
-    shade(sheet, m["water"])
-    for i in range(9):
-        t = random.random()
-        strand = add_cube((x + random.uniform(-width * 0.45, width * 0.45), y - 0.08,
-                           ztop - height * t - height * 0.08),
-                          (0.05, 0.03, height * 0.09))
-        shade(strand, emit("spray%d" % i, (0.75, 0.95, 1.0), 1.6))
+    """Водопад в слоях: три полотна на разной глубине, отдельные струи,
+    валик на гребне и пенный вал у подошвы.
+
+    Две ошибки, которые здесь исправлены и хорошо видны на рендере. Первая:
+    полотна были из glass() с Transmission 0.85 — прозрачное стекло, масса
+    воды пропадала целиком, оставались только светящиеся струи. Вторая:
+    валик на гребне брал радиус width * 0.55 и лежал диском К КАМЕРЕ, то
+    есть был шире самой струи — водопад читался эскимо на палочке.
+    """
+    tag = "%d_%d" % (int(x * 10), int(y * 10))
+
+    # Порог, с которого падает вода. Без него струя начиналась в пустоте:
+    # на первом рендере оба водопада висели столбами в воздухе.
+    mossy_slab(m, x, y + 1.6, ztop - 0.5, width * 1.5, 1.5, 0.5)
+
+    # Полотна: дальнее пошире и разреженнее, среднее — основная масса.
+    for i, (dy, w, a) in enumerate(((-0.24, 1.08, 0.30),
+                                    (0.00, 1.00, 0.54),
+                                    (0.22, 0.84, 0.26))):
+        sheet = add_cube((x, y + dy, ztop - height * 0.5),
+                         (width * 0.5 * w, 0.02, height * 0.5))
+        shade(sheet, wet("fall%s_%d" % (tag, i), (0.16, 0.55, 0.68), a))
+
+    # Отдельные струи — узкие и плотнее массы, но не светящиеся.
     for i in range(7):
+        sh = height * random.uniform(0.5, 1.0)
+        strand = add_cube((x + random.uniform(-width * 0.45, width * 0.45), y - 0.3,
+                           ztop - sh * 0.5), (width * 0.05, 0.015, sh * 0.5))
+        shade(strand, wet("strand%s_%d" % (tag, i), (0.72, 0.92, 1.0), 0.8))
+
+    # Валик на гребне: цилиндр ВДОЛЬ кромки, по ширине струи.
+    crest = add_cyl((x, y, ztop - 0.02), 0.13, width * 1.04, 12,
+                    (0, math.radians(90), 0))
+    shade(crest, wet("crest%s" % tag, (0.80, 0.95, 1.0), 0.9))
+
+    # Подошва: приплюснутый пенный вал и брызги вокруг.
+    pool = add_sphere((x, y, ztop - height + 0.06),
+                      (width * 0.85, width * 0.62, 0.2), 16, 8)
+    shade(pool, wet("pool%s" % tag, (0.88, 0.97, 1.0), 0.72))
+    for i in range(11):
         a = random.uniform(0, 6.28)
-        r = random.uniform(0.1, width * 0.9)
-        mist = add_sphere((x + math.cos(a) * r, y + math.sin(a) * r * 0.5,
-                           ztop - height + random.uniform(0.05, 0.9)),
-                          (0.34, 0.34, 0.26), 8, 6)
-        shade(mist, glass("mist%d" % i, (0.8, 0.94, 1.0)))
+        r = random.uniform(0.15, width * 1.1)
+        s = random.uniform(0.07, 0.17)
+        sp = add_sphere((x + math.cos(a) * r, y + math.sin(a) * r * 0.6,
+                         ztop - height + random.uniform(0.1, 0.95)), (s, s, s), 8, 6)
+        shade(sp, wet("spray%s_%d" % (tag, i), (0.92, 0.98, 1.0), 0.6))
+
+
+def light_shaft(m, x, y, ztop, length, spread, rgb, strength=0.45):
+    """Луч света: конус аддитивного свечения вершиной в проёме."""
+    cone = add_cone((x, y, ztop - length * 0.5), spread, 0.05, length, 18,
+                    (math.radians(180), 0, 0))
+    shade(cone, haze("shaft%d_%d" % (int(x * 10), int(y * 10)), rgb, strength))
 
 
 def tree(m, x, y, z, scale=1.0):
@@ -219,15 +317,28 @@ def build():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     m = mats()
 
-    # Дальний план: вода залива и туманный горизонт.
-    sea = add_cube((6, 26, -0.6), (34, 20, 0.5))
+    # Вода: не только далёкий залив, но и всё дно кадра — в референсе
+    # платформы висят над бирюзовой водой. Прошлая плита стояла в y = 26 и
+    # уходила за горизонт, поэтому низ кадра был пустой синевой.
+    sea = add_cube((3, 12, -1.6), (30, 26, 0.5))
     shade(sea, m["water"])
 
     # Скальный массив справа, в котором прорублен вход — тёмная рамка кадра.
     mossy_slab(m, 12.5, 2.5, 1.6, 5.0, 4.0, 3.2)
     mossy_slab(m, 13.5, 2.0, 6.4, 4.2, 3.4, 2.0)
-    arch = add_cube((8.4, -1.2, 2.2), (0.5, 1.3, 2.2))
-    shade(arch, m["stoneDark"], False)
+    # Арка-проём в скале: опоры и клинчатый свод, как в собранном ассете.
+    for sx in (-1, 1):
+        for r in range(5):
+            pier = add_cube((8.4 + sx * 1.5, -1.2, 0.3 + r * 0.56), (0.34, 1.2, 0.28))
+            shade(pier, m["stone"] if r % 2 else m["stoneDark"], False)
+    for i in range(9):
+        a = math.pi * i / 8.0
+        # Клин лежит ВДОЛЬ дуги: угол a - pi/2 (см. build_stone_arch).
+        wedge = add_cube((8.4 - math.cos(a) * 1.5, -1.2, 3.1 + math.sin(a) * 1.35),
+                         (0.24, 1.2, 0.3), (0, a - math.pi / 2, 0))
+        shade(wedge, m["stoneDark"] if i % 3 == 1 else m["stone"], False)
+    key = add_cube((8.4, -1.2, 4.58), (0.3, 1.26, 0.3))
+    shade(key, m["stone"], False)
     torch(m, 8.0, -2.4, 2.6)
     torch(m, 11.2, -1.6, 5.6, 140)
     gems(m, 10.4, -1.9, 4.9)
@@ -244,8 +355,9 @@ def build():
              random.uniform(1.2, 3.0))
     torch(m, -10.2, -2.9, 2.9, 120)
 
-    # Дерево-великан у левого края.
-    tree(m, -10.0, 3.4, 2.7, 1.25)
+    # Дерево-великан у левого края. В x = -10 оно попадало точно в тень
+    # заслонения левой рамки, поэтому сдвинуто внутрь кадра.
+    tree(m, -8.0, 3.4, 2.7, 1.25)
 
     # Парящий островок с монетами.
     mossy_slab(m, 2.6, 3.0, 6.4, 2.2, 1.6, 0.5)
@@ -257,6 +369,18 @@ def build():
         vine(m, 2.6 + math.cos(a) * 2.0, 3.0 + math.sin(a) * 1.4, 5.9,
              random.uniform(1.0, 2.4))
     fern(m, 2.2, 3.0, 6.9, 0.8)
+
+    # Лучи света: из свода над скалой и сквозь листву у дерева. Теперь они
+    # честно прозрачные, поэтому могут быть шире — гасит их не размер.
+    # Силу пришлось мерить, а не подбирать на глаз. Замер конуса на фоне
+    # 0.15 линейных: при strength 0.13 центр давал прибавку 0.25 — вдвое
+    # больше номинала, потому что конус не отсекает грани и передняя со
+    # задней прибавляют каждая. Итого видимая яркость ≈ 2 * strength, и
+    # чтобы луч читался дымкой, а не молоком, прибавка должна быть заметно
+    # МЕНЬШЕ фона: отсюда сотые доли.
+    light_shaft(m, 8.4, 1.5, 11.0, 8.0, 1.5, (1.0, 0.94, 0.72), 0.05)
+    light_shaft(m, -6.4, 2.0, 12.0, 9.0, 1.9, (1.0, 0.96, 0.78), 0.04)
+    light_shaft(m, 2.6, 3.0, 11.5, 5.0, 1.1, (0.9, 0.96, 1.0), 0.035)
 
     # Водопады: один за платформой, один из скалы.
     waterfall(m, -2.0, 7.0, 8.6, 8.0, 1.5)
@@ -279,14 +403,30 @@ def build():
 
     # Тёмная рамка: близкая порода по углам кадра. В референсе именно она
     # держит глубину — светлая даль против почти чёрного переднего плана.
+    #
+    # Координаты здесь не на глаз: камера стоит в y = -26 с объективом 42 мм,
+    # поэтому на плане рамки (y = -14, то есть 12 м от камеры) видно всего
+    # x от -4.1 до 6.1 и z от 2.5 до 9.4. Прошлая рамка стояла в x = ±13.5 —
+    # целиком за кадром, отчего кадр и остался без тёмных углов.
+    # Ширина рамки — это компромисс, а не вкус: близкий блок отбрасывает
+    # широкую «тень заслонения» на дальний план. Кромка в x = -2.8 срезала
+    # всё левее x = -8.3 у дерева, и дерево пропадало из кадра целиком.
+    # Кромки -3.8 и 5.5 оставляют дерево и арку на виду.
     frame = material("frameRock", (0.05, 0.05, 0.06), 0.95)
-    for (fx, fz, hx, hz) in ((-13.0, 9.5, 3.6, 7.5), (14.5, 10.0, 3.6, 8.0),
-                             (-9.0, -6.5, 7.0, 3.0)):
+    for (fx, fz, hx, hz) in ((-6.9, 6.0, 3.1, 4.5), (8.25, 6.2, 2.75, 4.6)):
         blk = add_cube((fx, -14.0, fz), (hx, 1.5, hz))
         shade(blk, frame, False)
-    for i in range(11):
-        st = add_cone((random.uniform(-11, 13), -13.5, 15.0),
-                      random.uniform(0.4, 1.1), 0.02, random.uniform(2.0, 5.0), 7,
+    # Валуны по внутренней кромке: ровная вертикаль читалась серой шторой.
+    for (ex, sgn) in ((-3.8, -1), (5.5, 1)):
+        for i in range(7):
+            r = random.uniform(0.5, 1.3)
+            blk = add_sphere((ex - sgn * random.uniform(-0.3, 0.9), -14.2,
+                              random.uniform(1.8, 10.2)), (r, r * 0.7, r * 0.8), 9, 6)
+            shade(blk, frame)
+    # Сталактиты свисают из-за верхней кромки кадра (z = 9.4).
+    for i in range(9):
+        st = add_cone((random.uniform(-4.0, 6.0), -13.5, 10.6),
+                      random.uniform(0.35, 0.9), 0.02, random.uniform(2.0, 4.0), 7,
                       (math.radians(180), 0, 0))
         shade(st, frame)
 
@@ -317,8 +457,24 @@ def render():
         # заполняющим светом: пропадал контраст, мох становился мятным,
         # камень — белёсым, а огонь факелов не читался вовсе. Ровно эта же
         # ошибка сидит в игре — SetupSky берёт ambient как top * 0.6.
-        bg.inputs[0].default_value = (0.30, 0.58, 0.88, 1.0)
         bg.inputs[1].default_value = 0.32
+
+        # Ровная заливка одним синим давала плоский задник. В референсе даль
+        # светлая и мутная у горизонта, синяя вверху — это градиент, и он же
+        # стоит в игре в SetupSky (top / horizon / ground).
+        nt = world.node_tree
+        grad = nt.nodes.new("ShaderNodeValToRGB")
+        geo = nt.nodes.new("ShaderNodeNewGeometry")
+        sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+        mapr = nt.nodes.new("ShaderNodeMapRange")
+        mapr.inputs["From Min"].default_value = -0.15
+        mapr.inputs["From Max"].default_value = 0.55
+        grad.color_ramp.elements[0].color = (0.78, 0.87, 0.90, 1.0)
+        grad.color_ramp.elements[1].color = (0.24, 0.52, 0.86, 1.0)
+        nt.links.new(geo.outputs["Incoming"], sep.inputs[0])
+        nt.links.new(sep.outputs["Z"], mapr.inputs["Value"])
+        nt.links.new(mapr.outputs[0], grad.inputs["Fac"])
+        nt.links.new(grad.outputs["Color"], bg.inputs[0])
 
     sc = bpy.context.scene
     sc.render.engine = "CYCLES"

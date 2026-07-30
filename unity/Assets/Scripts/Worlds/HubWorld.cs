@@ -54,6 +54,31 @@ public class HubWorld : WorldBuilder
         AddEnemy(OnGround(-58f, -14f, 0.1f), OnGround(-64f, -26f, 0.1f), "mushroom", 2.6f);
         AddEnemy(OnGround(30f, 44f, 0.1f), OnGround(44f, 44f, 0.1f), "mushroom", 2.3f);
         BuildAtmosphere();
+
+        // Каменные руины и арки: мир должен выглядеть построенным задолго
+        // до игрока, а не собранным из кубиков к его приходу.
+        for (int i = 0; i < 4; i++)
+        {
+            float a = 0.6f + i * 92f * Mathf.Deg2Rad;
+            float r = 38f + (i % 2) * 9f;
+            StoneProp("ruin_wall", OnGround(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0.1f),
+                3.8f, -a * Mathf.Rad2Deg + 90f, PathCol);
+        }
+        for (int i = 0; i < 3; i++)
+        {
+            float a = 1.9f + i * 118f * Mathf.Deg2Rad;
+            float r = 30f;
+            StoneProp("stone_column", OnGround(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0.1f),
+                5.8f, i * 47f, PathCol);
+        }
+        // Лучи солнца сквозь листву — те самые столбы света в референсе.
+        for (int i = 0; i < 4; i++)
+        {
+            float a = i * 97f * Mathf.Deg2Rad;
+            float r = 24f + (i % 3) * 12f;
+            LightShaft(OnGround(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 17f),
+                16f, 2.2f, new Color(1f, 0.96f, 0.74f), 0.1f);
+        }
         // Зелень по камню: без неё платформы выглядят положенными сверху.
         for (int i = 0; i < 14; i++)
         {

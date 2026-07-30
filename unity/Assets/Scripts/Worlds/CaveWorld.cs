@@ -78,6 +78,37 @@ public class CaveWorld : WorldBuilder
             "bigdragon", 4.8f, 8, 1.7f);
         BuildAtmosphere();
 
+        // Каменная архитектура и лучи из свода. В референсе пещера — не
+        // просто дыра в породе, а прорубленное место: арки, колонны, руины.
+        for (int i = 0; i < 5; i++)
+        {
+            float a = i * 72f * Mathf.Deg2Rad + 0.4f;
+            float r = Radius - 28f;
+            ArchGate(OnGround(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0.1f),
+                -a * Mathf.Rad2Deg, 5.5f, RockLight);
+        }
+        for (int i = 0; i < 8; i++)
+        {
+            float a = i * 45f * Mathf.Deg2Rad;
+            float r = 44f;
+            StoneProp("stone_column", OnGround(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0.1f),
+                7.5f, i * 31f, RockLight);
+        }
+        for (int i = 0; i < 6; i++)
+        {
+            float a = 0.9f + i * 61f * Mathf.Deg2Rad;
+            float r = 62f;
+            StoneProp("ruin_wall", OnGround(Mathf.Cos(a) * r, Mathf.Sin(a) * r, 0.1f),
+                4.2f, -a * Mathf.Rad2Deg + 90f, RockCol);
+        }
+        StoneProp("stone_stairs", new Vector3(-14f, 17.9f, -26f), 3.4f, 0f, RockLight);
+
+        // Лучи сквозь трещины в своде — главный источник глубины в кадре.
+        LightShaft(new Vector3(0f, 25f, 52f), 24f, 3.4f, new Color(1f, 0.95f, 0.78f), 0.15f);
+        LightShaft(new Vector3(-34f, 24f, -16f), 22f, 3f, new Color(0.85f, 0.95f, 1f), 0.12f);
+        LightShaft(new Vector3(34f, 24f, -19f), 26f, 3.2f, new Color(1f, 0.86f, 0.6f), 0.13f);
+        LightShaft(new Vector3(-14f, 26f, -12f), 8f, 2.4f, new Color(1f, 0.92f, 0.7f), 0.15f);
+
         // Факелы по кладке и друзы в породе. В референсе именно они держат
         // тёплый полюс картинки против холодной воды и кристаллов.
         for (int i = 0; i < 14; i++)

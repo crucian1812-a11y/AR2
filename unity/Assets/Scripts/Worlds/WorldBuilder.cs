@@ -1072,37 +1072,191 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void Waterfall(Vector3 top, float width, float height, int particles = 90)
     {
-        Material sheet = Gfx.MatFull(new Color(0.6f, 0.85f, 1f), 0.9f, 0.1f,
-            new Color(0.15f, 0.35f, 0.55f), 0f, 0f);
-        GameObject fall = Gfx.Box(transform, top + new Vector3(0f, -height * 0.5f, 0f),
-            new Vector3(width, height, 0.4f), sheet, false);
-        Gfx.NoShadow(fall);
+        Shader ws = Shader.Find("Bear/Waterfall");
+        Vector3 center = top + new Vector3(0f, -height * 0.5f, 0f);
 
-        ParticleFx mist = ParticleFx.Spawn(transform, top + new Vector3(0f, -height, 0f),
-            particles, new Color(0.8f, 0.93f, 1f, 0.75f));
-        mist.EmitExtents = new Vector3(width * 0.5f, 0.4f, 0.5f);
-        mist.BaseVelocity = new Vector3(0f, 1.1f, 0f);
+        if (ws != null)
+        {
+            // Три полотна на разной глубине и с разной скоростью. Одно
+            // читалось плоской пластиной: у воды нет объёма, если она вся
+            // движется одним рисунком в одной плоскости.
+            float[] depth = { -0.22f, 0f, 0.26f };
+            float[] speed = { 1.35f, 1.9f, 2.5f };
+            float[] wide = { 1.06f, 1f, 0.82f };
+            float[] alpha = { 0.55f, 0.85f, 0.45f };
+            for (int i = 0; i < 3; i++)
+            {
+                Material m = new Material(ws);
+                m.SetFloat("_Speed", speed[i]);
+                m.SetFloat("_Alpha", alpha[i]);
+                m.SetFloat("_Tiling", Mathf.Max(1.4f, height * 0.16f));
+                m.SetColor("_Color", new Color(0.40f, 0.74f, 0.90f));
+                GameObject sheet = Gfx.Box(transform,
+                    center + new Vector3(0f, 0f, depth[i]),
+                    new Vector3(width * wide[i], height, 0.04f), m, false);
+                Gfx.NoShadow(sheet);
+            }
+
+            // Отдельные струи, сорвавшиеся с гребня: узкие и быстрые.
+            int strands = Mathf.Clamp(Mathf.RoundToInt(width * 2.2f), 2, 7);
+            for (int i = 0; i < strands; i++)
+            {
+                Material m = new Material(ws);
+                m.SetFloat("_Speed", Random.Range(2.4f, 3.4f));
+                m.SetFloat("_Alpha", 0.7f);
+                m.SetFloat("_Tiling", 3.2f);
+                m.SetFloat("_EdgeFade", 0.45f);
+                float sx = Random.Range(-width * 0.46f, width * 0.46f);
+                float sh = height * Random.Range(0.55f, 1f);
+                GameObject strand = Gfx.Box(transform,
+                    top + new Vector3(sx, -sh * 0.5f, Random.Range(-0.3f, 0.34f)),
+                    new Vector3(width * Random.Range(0.07f, 0.16f), sh, 0.03f), m, false);
+                Gfx.NoShadow(strand);
+            }
+        }
+        else
+        {
+            Material sheet = Gfx.MatFull(new Color(0.6f, 0.85f, 1f), 0.9f, 0.1f,
+                new Color(0.15f, 0.35f, 0.55f), 0f, 0f);
+            Gfx.NoShadow(Gfx.Box(transform, center,
+                new Vector3(width, height, 0.4f), sheet, false));
+        }
+
+        // Гребень: вода перед срывом собирается в валик с пеной.
+        Gfx.NoShadow(Gfx.Cyl(transform, top + new Vector3(0f, 0.05f, 0f),
+            new Vector3(width * 1.08f, 0.09f, 0.5f),
+            Gfx.MatFull(new Color(0.86f, 0.96f, 1f), 0.8f, 0f,
+                new Color(0.3f, 0.55f, 0.7f), 0f, 0f), false));
+
+        // Пенное кольцо у подошвы — там, где струя бьёт в воду.
+        Vector3 foot = top + new Vector3(0f, -height, 0f);
+        Material foamMat = Gfx.AdditiveMat(new Color(0.9f, 0.98f, 1f, 0.5f), Gfx.GlowTexture());
+        for (int i = 0; i < 3; i++)
+        {
+            GameObject ring = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Collider qc = ring.GetComponent<Collider>();
+            if (qc != null) Object.Destroy(qc);
+            ring.name = "FallFoam";
+            ring.transform.SetParent(transform, false);
+            ring.transform.localPosition = foot + new Vector3(0f, 0.08f + i * 0.05f, 0f);
+            ring.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            float r = width * (1.5f + i * 0.7f);
+            ring.transform.localScale = new Vector3(r, r, 1f);
+            ring.GetComponent<MeshRenderer>().sharedMaterial = foamMat;
+            Gfx.NoShadow(ring);
+        }
+
+        ParticleFx mist = ParticleFx.Spawn(transform, foot, particles,
+            new Color(0.8f, 0.93f, 1f, 0.75f));
+        mist.EmitExtents = new Vector3(width * 0.7f, 0.4f, 0.6f);
+        mist.BaseVelocity = new Vector3(0f, 1.4f, 0f);
         mist.Gravity = new Vector3(0f, -0.5f, 0f);
         mist.SpeedMin = 0.3f;
-        mist.SpeedMax = 1.4f;
-        mist.SizeMin = 0.12f;
-        mist.SizeMax = 0.3f;
-        mist.LifeMin = 1f;
-        mist.LifeMax = 2.2f;
+        mist.SpeedMax = 1.6f;
+        mist.SizeMin = 0.16f;
+        mist.SizeMax = 0.44f;
+        mist.LifeMin = 1.2f;
+        mist.LifeMax = 2.6f;
         mist.Prewarm();
 
-        ParticleFx spray = ParticleFx.Spawn(transform, top + new Vector3(0f, -height * 0.4f, 0f),
-            particles, new Color(0.9f, 0.96f, 1f, 0.6f));
-        spray.EmitExtents = new Vector3(width * 0.45f, height * 0.4f, 0.3f);
-        spray.BaseVelocity = new Vector3(0f, -6f, 0f);
+        ParticleFx spray = ParticleFx.Spawn(transform, center, particles,
+            new Color(0.9f, 0.96f, 1f, 0.6f));
+        spray.EmitExtents = new Vector3(width * 0.5f, height * 0.45f, 0.35f);
+        spray.BaseVelocity = new Vector3(0f, -7f, 0f);
         spray.Gravity = new Vector3(0f, -3f, 0f);
         spray.SpeedMin = 0.1f;
-        spray.SpeedMax = 0.6f;
-        spray.SizeMin = 0.08f;
-        spray.SizeMax = 0.16f;
-        spray.LifeMin = 0.6f;
+        spray.SpeedMax = 0.8f;
+        spray.SizeMin = 0.06f;
+        spray.SizeMax = 0.15f;
+        spray.LifeMin = 0.5f;
         spray.LifeMax = 1.1f;
         spray.Prewarm();
+    }
+
+    // Каменная постройка из собственных ассетов. Мох ей дорисовывает
+    // шейдер: CustomProp приносит материалы из FBX, поэтому подменяем их
+    // на Bear/MossyStone — иначе арка вышла бы чисто вымытой, а вокруг
+    // всё поросшим.
+    protected GameObject StoneProp(string id, Vector3 pos, float height, float yaw,
+        Color tint)
+    {
+        GameObject go = Gfx.CustomProp(transform, id, pos, height, yaw);
+        if (go == null) return null;
+
+        Color moss = Color.Lerp(tint, new Color(0.3f, 0.58f, 0.24f), 0.6f);
+        Color stone = Color.Lerp(new Color(0.56f, 0.54f, 0.51f), tint, 0.2f);
+        Material m = Gfx.MossyMat(stone, moss, 0.55f, 0.6f);
+        Renderer[] rs = go.GetComponentsInChildren<Renderer>();
+        for (int i = 0; i < rs.Length; i++)
+        {
+            if (rs[i] == null) continue;
+            Material[] set = new Material[rs[i].sharedMaterials.Length];
+            for (int k = 0; k < set.Length; k++) set[k] = m;
+            rs[i].sharedMaterials = set;
+        }
+        return go;
+    }
+
+    // Арка-проём с лучом света и факелами по сторонам — готовый узел,
+    // из которого в референсе собрана вся каменная часть.
+    protected void ArchGate(Vector3 pos, float yaw, float height, Color tint,
+        bool shaft = true)
+    {
+        StoneProp("stone_arch", pos, height, yaw, tint);
+        Quaternion rot = Quaternion.Euler(0f, yaw, 0f);
+        float half = height * 0.32f;
+        for (int sx = -1; sx <= 1; sx += 2)
+            WallTorch(pos + rot * new Vector3(sx * half, height * 0.45f, 0f),
+                yaw + sx * 90f, 1f);
+        // Свет из проёма падает внутрь — арка перестаёт быть плоской рамкой.
+        if (shaft)
+            LightShaft(pos + new Vector3(0f, height * 0.92f, 0f),
+                height * 0.9f, half * 1.3f,
+                new Color(1f, 0.93f, 0.72f), 0.16f);
+        Vine(pos + rot * new Vector3(-half * 0.8f, height * 0.86f, 0f),
+            Random.Range(1f, 2.2f), Color.Lerp(tint, new Color(0.3f, 0.6f, 0.3f), 0.7f));
+        Vine(pos + rot * new Vector3(half * 0.8f, height * 0.86f, 0f),
+            Random.Range(1f, 2.2f), Color.Lerp(tint, new Color(0.3f, 0.6f, 0.3f), 0.7f));
+    }
+
+    // Объёмный луч света: конус аддитивного свечения от проёма вниз.
+    // Вершина конуса — сам проём, поэтому позиция задаётся по низу луча.
+    //
+    // Про strength: конус рисуется без отсечения грани, поэтому передняя и
+    // задняя стенки прибавляют свет каждая — видимая яркость выходит около
+    // 2 * strength. Замер на превью показал, что при 0.13 прибавка к фону
+    // была 0.25, то есть вдвое ярче самого фона, и луч читался белым
+    // молоком. Рабочий диапазон — сотые и первые десятые доли.
+    protected void LightShaft(Vector3 apex, float length, float spread, Color tint,
+        float strength = 0.16f)
+    {
+        Shader sh = Shader.Find("Bear/Shaft");
+        if (sh == null) return;
+
+        Material m = new Material(sh);
+        m.SetColor("_Color", tint);
+        m.SetFloat("_Strength", strength);
+
+        // Конус строится вершиной вверх от своей позиции, значит ставим его
+        // на дальний конец луча, а вершина сама придётся на проём.
+        GameObject go = Gfx.Cone(transform, apex + new Vector3(0f, -length, 0f),
+            spread, length, m);
+        Gfx.NoShadow(go);
+
+        // Пылинки в луче — без них он выглядит нарисованным.
+        ParticleFx dust = ParticleFx.Spawn(transform,
+            apex + new Vector3(0f, -length * 0.5f, 0f), 26,
+            new Color(tint.r, tint.g, tint.b, 0.5f));
+        dust.EmitExtents = new Vector3(spread * 0.5f, length * 0.45f, spread * 0.5f);
+        dust.BaseVelocity = new Vector3(0.15f, -0.3f, 0.1f);
+        dust.Gravity = new Vector3(0.05f, -0.08f, 0.03f);
+        dust.SpeedMin = 0.04f;
+        dust.SpeedMax = 0.2f;
+        dust.SizeMin = 0.04f;
+        dust.SizeMax = 0.1f;
+        dust.LifeMin = 4f;
+        dust.LifeMax = 8f;
+        dust.Prewarm();
     }
 
     protected void Bridge(Vector3 from, Vector3 to, float width, Color plank)
