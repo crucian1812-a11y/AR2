@@ -147,7 +147,7 @@ def build_body(m):
     return parts
 
 
-def merge(parts):
+def merge(parts, name="IronSteveBody"):
     """Склеить детали в один меш, дав каждой свою весовую группу."""
     for obj, bone in parts:
         vg = obj.vertex_groups.new(name=bone)
@@ -161,7 +161,7 @@ def merge(parts):
     bpy.context.view_layer.objects.active = objs[0]
     bpy.ops.object.join()
     body = bpy.context.active_object
-    body.name = "IronSteveBody"
+    body.name = name
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     return body
 
@@ -336,9 +336,9 @@ def build_actions(arm):
 
 # ---------- экспорт ----------
 
-def export():
+def export(name=None):
     os.makedirs(OUT_DIR, exist_ok=True)
-    path = os.path.join(OUT_DIR, NAME + ".fbx")
+    path = os.path.join(OUT_DIR, (name or NAME) + ".fbx")
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.export_scene.fbx(
         filepath=path,
@@ -359,16 +359,28 @@ def export():
     print("готово:", os.path.relpath(path, ROOT))
 
 
-def build():
-    bpy.ops.wm.read_factory_settings(use_empty=True)
-    bpy.context.scene.render.fps = FPS
+def assemble(name, parts):
+    """Общая сборка игрового героя: склеить, оснастить, оживить.
 
-    m = palette()
-    body = merge(build_body(m))
+    Вынесено отдельно, потому что скелет, привязка и все семь клипов у
+    всех героев одни и те же — различается только геометрия. Так новый
+    персонаж это одна функция с коробками, а не копия всего файла.
+    """
+    body = merge(parts, name + "Body")
     arm = build_armature()
     bind(body, arm)
     build_actions(arm)
     return arm
+
+
+def reset():
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.context.scene.render.fps = FPS
+
+
+def build():
+    reset()
+    return assemble(NAME, build_body(palette()))
 
 
 def main():
