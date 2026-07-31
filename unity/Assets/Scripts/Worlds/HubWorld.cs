@@ -38,7 +38,6 @@ public class HubWorld : WorldBuilder
         BuildHouses();
         BuildLake();
         AddCheckpoint(new Vector3(0f, 0.5f, 12f));
-        BuildForest();
         // Звёзды — цель мира, каждая на своём постаменте с батутом
         AddStarPedestal(OnGround(-52f, 40f), 12f);
         AddStarPedestal(OnGround(46f, -30f), 9f);
@@ -56,6 +55,10 @@ public class HubWorld : WorldBuilder
         // Кубические — тоже за околицей: площадь остаётся безопасной.
         AddEnemy(OnGround(-38f, 48f, 0.1f), OnGround(-48f, 52f, 0.1f), "creeper", 2.1f);
         AddEnemy(OnGround(54f, 16f, 0.1f), OnGround(58f, 28f, 0.1f), "zombie", 2f);
+        // Лес сажаем последним из крупного: к этому моменту площадь,
+        // домики, постаменты и полоса препятствий уже отметили свои
+        // пятна, и дерево в них просто не встанет.
+        BuildForest();
         BuildAtmosphere();
 
         // Каменные руины и арки: мир должен выглядеть построенным задолго
@@ -118,7 +121,7 @@ public class HubWorld : WorldBuilder
             "Сердце горы пропало в ту же ночь, когда потухли все печи в деревне.\nСовпадение? Старейшина говорит, что нет.");
         AddShopkeeper(new Vector3(10f, 0f, 5f), "Торговка", "Chicken", 1.4f);
         // Костёр у края площади — отсюда запускаются совместные забавы.
-        AddCampfire(new Vector3(-6f, 0.1f, -10f));
+        AddPartyFire(new Vector3(-6f, 0.1f, -10f));
         AddVillager(new Vector3(-13f, 0f, 9f), "Путешественник", "Cyclops", 2.1f,
             "Я видел город на спинах спящих черепах.\nОн всплывает, только когда в деревне снова становится тепло.");
     }
@@ -225,6 +228,8 @@ public class HubWorld : WorldBuilder
         Gfx.Cyl(transform, new Vector3(0f, 1.6f, 0f), new Vector3(1.1f, 0.85f, 1.1f), basin);
         Gfx.Ball(transform, new Vector3(0f, 2.6f, 0f), new Vector3(1.5f, 1.5f, 1.5f),
             Gfx.MatFull(new Color(0.85f, 0.85f, 0.9f), 0.5f, 0.2f, new Color(0.1f, 0.15f, 0.2f), 0f, 0f));
+        // Площадь целиком: фонтан, скамейки и всё вокруг них.
+        Reserve(Vector3.zero, 15f);
         Fountain(new Vector3(0f, 3.3f, 0f), 55);
         Gfx.PointLight(transform, new Vector3(0f, 3.5f, 0f), new Color(0.6f, 0.85f, 1f), 18f, 0.8f);
 
@@ -267,8 +272,9 @@ public class HubWorld : WorldBuilder
             Vector3 p = OnGround(spots[i].x, spots[i].z, 0.05f);
             if (Gfx.CustomProp(transform, "lamp_post", p, 4.2f, i * 37f) == null) continue;
             Vector3 head = p + new Vector3(0f, 3.45f, 0f);
-            Gfx.Glow(transform, head, 2.2f, new Color(1f, 0.87f, 0.55f, 0.65f));
-            Gfx.PointLight(transform, head, new Color(1f, 0.84f, 0.5f), 15f, 1.35f);
+            // Днём фонарь почти не горит, ночью светит в полную силу.
+            // Прежние 1.35 круглые сутки: днём лишние, ночью мало.
+            NightLamp(head, new Color(1f, 0.84f, 0.5f), 17f, 0.15f, 3.1f, 2.4f);
         }
     }
 
@@ -325,6 +331,7 @@ public class HubWorld : WorldBuilder
         Garden(new Vector3(-31f, 0f, 15f), 68f, 4, 7.2f);
         Garden(new Vector3(42f, 0f, -6f), -95f, 4, 8f);
 
+        Reserve(OnGround(-48f, -36f), 9f);
         Windmill(OnGround(-48f, -36f), new Color(0.85f, 0.82f, 0.74f), new Color(0.92f, 0.9f, 0.85f));
     }
 
@@ -443,6 +450,9 @@ public class HubWorld : WorldBuilder
 
     private void House(Vector3 pos, Color wall, float yaw, float scale)
     {
+        // Домик занимает пятно по своему размеру: без этого лес
+        // вырастал прямо сквозь крыши.
+        Reserve(pos, 4.2f * scale);
         Quaternion rot = Quaternion.Euler(0f, yaw, 0f);
         Vector3 baseP = OnGround(pos.x, pos.z);
 

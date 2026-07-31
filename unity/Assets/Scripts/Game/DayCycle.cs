@@ -97,7 +97,7 @@ public class DayCycle : MonoBehaviour
             // а на телефоне это просто чёрный экран.
             // Дневная сила — та же, что задаёт SetupSky с множителем 1.45.
             float day = _daySunIntensity * 1.45f;
-            _sun.intensity = Mathf.Lerp(day, day * 0.16f, _darkness);
+            _sun.intensity = Mathf.Lerp(day, day * 0.26f, _darkness);
             _sun.shadowStrength = Mathf.Lerp(0.85f, 0.35f, _darkness);
         }
 
@@ -119,9 +119,17 @@ public class DayCycle : MonoBehaviour
 
         // Те же коэффициенты, что в SetupSky: заливка низкая, объём даёт
         // солнце. Иначе смена суток вернула бы выцветшую картинку обратно.
-        RenderSettings.ambientSkyColor = top * 0.32f;
-        RenderSettings.ambientEquatorColor = hor * 0.26f;
-        RenderSettings.ambientGroundColor = gnd * 0.20f;
+        //
+        // Ночью к заливке добавляется небольшой холодный пол. Считая по
+        // палитре деревни, к полуночи ambient падал примерно до 0.013,
+        // 0.024 и 0.050 по каналам — это не «темно», это чёрный
+        // прямоугольник, в котором на телефоне не видно ни края
+        // платформы, ни подошедшего врага. Пол поднимает дно, не трогая
+        // день: множитель на _darkness днём равен нулю.
+        Color floor = new Color(0.055f, 0.065f, 0.095f) * _darkness;
+        RenderSettings.ambientSkyColor = top * 0.32f + floor;
+        RenderSettings.ambientEquatorColor = hor * 0.26f + floor;
+        RenderSettings.ambientGroundColor = gnd * 0.20f + floor * 0.7f;
 
         if (_fogDensity > 0f)
         {

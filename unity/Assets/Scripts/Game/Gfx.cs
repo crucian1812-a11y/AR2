@@ -359,6 +359,33 @@ public static class Gfx
         }
     }
 
+    // Собственное дерево из Resources/Models/custom. От CustomProp
+    // отличается двумя вещами, и обе важны.
+    //
+    // Коллайдер только на стволе, а не по мешу: по мешу игрок вставал бы
+    // на листву как на пол. И материалы прогоняются через Naturalize —
+    // кроне достаётся Bear/Foliage, и она начинает качаться на ветру, а
+    // из сборки уходит URP/Lit с его десятками тысяч вариантов.
+    public static GameObject NatureCustomProp(Transform parent, string id, Vector3 pos,
+        float targetHeight, float yaw, float trunkRadius)
+    {
+        GameObject go = LoadProp(parent, "Models/custom/" + id, pos, targetHeight, yaw);
+        if (go == null) return null;
+        Naturalize(go);
+
+        if (trunkRadius > 0f && targetHeight > 0f)
+        {
+            GameObject trunk = new GameObject("Trunk");
+            trunk.transform.SetParent(go.transform.parent, false);
+            trunk.transform.localPosition = pos + new Vector3(0f, targetHeight * 0.42f, 0f);
+            CapsuleCollider cap = trunk.AddComponent<CapsuleCollider>();
+            cap.radius = trunkRadius;
+            cap.height = targetHeight * 0.84f;
+            cap.direction = 1;
+        }
+        return go;
+    }
+
     public static GameObject Prop(Transform parent, string id, Vector3 pos,
         float targetHeight, float yaw, float trunkRadius)
     {

@@ -55,13 +55,19 @@ public class TurtleWorld : WorldBuilder
         BuildFerry();
         AddCheckpoint(new Vector3(0f, ShellHeight[0] + 0.9f, 6f));
         AddCheckpoint(new Vector3(-2f, ShellHeight[0] + 7.9f, 6f));
+        // Крупные постройки отмечают свои места ДО того, как сядет зелень.
+        // Постаменты просто переставлены выше, а вот полосу препятствий и
+        // вертушки двигать нельзя: они раздают монеты из общего счётчика,
+        // и перестановка перенумеровала бы их вместе с сохранённым
+        // списком собранного. Поэтому у них отмечается только пятно.
+        AddStarPedestal(OnGround(-86f, -62f), 10f);
+        AddStarPedestal(OnGround(84f, 64f), 12f);
+        AddStarPedestal(OnGround(-94f, 70f), 9f);
+        Reserve(OnGround(-92f, -30f, 1.5f), 13f);
         BuildShore();
         // Звёзды — цель мира, каждая на своём постаменте с батутом
         // Постаменты стоят на берегу: центр лагуны опущен на -6 и залит
         // водой, и внутри неё батут оказывался под поверхностью.
-        AddStarPedestal(OnGround(-86f, -62f), 10f);
-        AddStarPedestal(OnGround(84f, 64f), 12f);
-        AddStarPedestal(OnGround(-94f, 70f), 9f);
         // Плоты и брёвна над лагуной
         ObstacleRun(OnGround(-92f, -30f, 1.5f), new Vector3(1f, 0f, 0.4f), 8, 1.2f,
             new Color(0.62f, 0.44f, 0.28f));

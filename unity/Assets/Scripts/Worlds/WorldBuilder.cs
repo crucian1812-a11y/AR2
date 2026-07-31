@@ -124,8 +124,73 @@ public abstract class WorldBuilder : MonoBehaviour
         MakeBreakable(host, kind, amount, 3, 1.1f * scale, 1.4f * scale);
     }
 
+    // Фонарь, зажигающийся к ночи. Ставится там, куда игрок ходит:
+    // у контрольных точек и порталов — их и надо находить в темноте.
+    protected Light NightLamp(Vector3 pos, Color tint, float range,
+        float dayI, float nightI, float haloSize)
+    {
+        GameObject halo = Gfx.Glow(transform, pos, haloSize,
+            new Color(tint.r, tint.g, tint.b, 0.6f));
+        Light l = Gfx.PointLight(transform, pos, tint, range, nightI);
+        NightLight.Attach(l, dayI, nightI,
+            halo != null ? halo.GetComponent<Renderer>() : null);
+        return l;
+    }
+
+    // ---------- Занятые места ----------
+    //
+    // Украшения расставляются по кругам и спиралям с постоянным радиусом
+    // и о постройках ничего не знают. Отсюда деревья, растущие сквозь
+    // домики, папоротники внутри постаментов и валуны поперёк полосы
+    // препятствий: формула честно выдаёт точку, а что там уже стоит —
+    // никого не спрашивают.
+    //
+    // Поэтому всё важное отмечает своё пятно, а украшения перед посадкой
+    // спрашивают, свободно ли. Проверка идёт по кругу на плоскости плюс
+    // разница высот: этажи в платформере стоят друг над другом, и без
+    // учёта высоты нижняя площадка запрещала бы верхнюю.
+    private struct Spot
+    {
+        public float X, Y, Z, R;
+    }
+
+    private readonly List<Spot> _spots = new List<Spot>();
+
+    // Разница высот, ниже которой два пятна считаются одним этажом.
+    private const float SameFloor = 4.5f;
+
+    protected void Reserve(Vector3 pos, float radius)
+    {
+        Spot s;
+        s.X = pos.x; s.Y = pos.y; s.Z = pos.z; s.R = radius;
+        _spots.Add(s);
+    }
+
+    protected bool IsFree(Vector3 pos, float radius)
+    {
+        for (int i = 0; i < _spots.Count; i++)
+        {
+            Spot s = _spots[i];
+            if (Mathf.Abs(s.Y - pos.y) > SameFloor) continue;
+            float dx = s.X - pos.x;
+            float dz = s.Z - pos.z;
+            float rr = s.R + radius;
+            if (dx * dx + dz * dz < rr * rr) return false;
+        }
+        return true;
+    }
+
+    // Занять место, если свободно. false — здесь уже что-то стоит.
+    protected bool Occupy(Vector3 pos, float radius)
+    {
+        if (!IsFree(pos, radius)) return false;
+        Reserve(pos, radius);
+        return true;
+    }
+
     protected void AddChest(Vector3 pos, float yaw, int coins, int resKind, int resAmount)
     {
+        Reserve(pos, 1.8f);
         Chest c = Chest.Create(transform, pos, yaw, ChestIdBase + _chestCounter++,
             coins, resKind, resAmount);
         if (c != null) Chests.Add(c);
@@ -269,6 +334,7 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void Tree(Vector3 pos, Color leaf, float scale)
     {
+        if (!Occupy(pos, 2.2f * scale)) return;
         // Модель из пака вместо стопки «клякс». Высота подбирается так,
         // чтобы прежний масштаб давал примерно тот же силуэт.
         int seedIdx = Mathf.Abs(Mathf.RoundToInt(pos.x * 7.3f + pos.z * 3.1f));
@@ -276,6 +342,22 @@ public abstract class WorldBuilder : MonoBehaviour
         // деревьев под прямым углом к земле — первое, что выдаёт в лесу
         // расставленные копии одной модели.
         float vary = 0.78f + ((seedIdx * 13) % 100) / 100f * 0.55f;
+
+        // Сначала наши деревья: ствол с корнями, ветви и крона слоями.
+        // У пака Kenney ствол прямой как труба, а крона в один-два шара —
+        // вблизи сразу видно расставленные копии одной модели.
+        string own = (seedIdx % 3 == 0) ? "tree_birch_natural" : "tree_oak_natural";
+        GameObject mine = Gfx.NatureCustomProp(transform, own, pos,
+            5.2f * scale * vary, (seedIdx * 37) % 360, 0.42f * scale);
+        if (mine != null)
+        {
+            float mx = (((seedIdx * 7) % 100) / 100f - 0.5f) * 6f;
+            float mz = (((seedIdx * 23) % 100) / 100f - 0.5f) * 6f;
+            mine.transform.localRotation =
+                Quaternion.Euler(mx, (seedIdx * 37) % 360, mz);
+            return;
+        }
+
         GameObject t = Gfx.Prop(transform, Heroes.Pick(Heroes.Trees, seedIdx), pos,
             5.2f * scale * vary, (seedIdx * 37) % 360, 0.5f * scale);
         if (t != null)
@@ -319,7 +401,24 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void Pine(Vector3 pos, bool snowy, float scale)
     {
+        if (!Occupy(pos, 1.8f * scale)) return;
         int seedIdx = Mathf.Abs(Mathf.RoundToInt(pos.x * 5.1f + pos.z * 9.7f));
+
+        // Своя ель: ярусы лап со сбитыми вершинами и корневой наплыв.
+        GameObject own = Gfx.NatureCustomProp(transform, "tree_pine_natural", pos,
+            6.2f * scale, (seedIdx * 53) % 360, 0.34f * scale);
+        if (own != null)
+        {
+            if (snowy)
+            {
+                // Шапка снега сверху — ель в снежном мире без неё чужая.
+                Gfx.Ball(transform, pos + new Vector3(0f, 5.6f * scale, 0f),
+                    new Vector3(0.9f, 0.4f, 0.9f) * scale,
+                    Gfx.Mat(new Color(0.95f, 0.96f, 1f), 0.25f));
+            }
+            return;
+        }
+
         if (Gfx.Prop(transform, Heroes.Pick(Heroes.Pines, seedIdx), pos,
                 6f * scale, (seedIdx * 53) % 360, 0.45f * scale) != null) return;
 
@@ -345,6 +444,7 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void Rock(Vector3 pos, float size, Color color)
     {
+        if (!Occupy(pos, size * 0.5f)) return;
         int seedIdx = Mathf.Abs(Mathf.RoundToInt(pos.x * 11.7f + pos.z * 5.9f + size * 31f));
         string[] set = size > 2.5f ? Heroes.RocksLarge : Heroes.RocksSmall;
         GameObject prop = Gfx.Prop(transform, Heroes.Pick(set, seedIdx), pos,
@@ -370,6 +470,7 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void Bush(Vector3 pos, Color color)
     {
+        if (!Occupy(pos, 0.9f)) return;
         int seedIdx = Mathf.Abs(Mathf.RoundToInt(pos.x * 3.7f + pos.z * 13.1f));
         if (Gfx.Prop(transform, Heroes.Pick(Heroes.Bushes, seedIdx), pos,
                 1.3f, (seedIdx * 41) % 360) != null) return;
@@ -381,6 +482,7 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void Flower(Vector3 pos, Color color)
     {
+        if (!Occupy(pos, 0.45f)) return;
         Gfx.Cyl(transform, pos + new Vector3(0f, 0.2f, 0f), new Vector3(0.06f, 0.2f, 0.06f),
             Gfx.Mat(new Color(0.3f, 0.55f, 0.25f)), false);
         Gfx.Ball(transform, pos + new Vector3(0f, 0.45f, 0f), new Vector3(0.22f, 0.18f, 0.22f), Gfx.Mat(color));
@@ -601,6 +703,7 @@ public abstract class WorldBuilder : MonoBehaviour
     // выглядит поставленной на пол.
     protected void Fern(Vector3 pos, Color leaf, float scale = 1f)
     {
+        if (!Occupy(pos, 0.7f * scale)) return;
         Material mat = Gfx.FoliageMat(leaf, leaf * 1.55f);
         int blades = Random.Range(6, 10);
         for (int i = 0; i < blades; i++)
@@ -625,6 +728,7 @@ public abstract class WorldBuilder : MonoBehaviour
     // Кустик цветов — тёплые точки в зелени.
     protected void FlowerPatch(Vector3 pos, Color petal, float scale = 1f)
     {
+        if (!Occupy(pos, 0.8f * scale)) return;
         Material stem = Gfx.FoliageMat(new Color(0.28f, 0.5f, 0.24f), new Color(0.5f, 0.8f, 0.4f));
         Material bloom = Gfx.MatFull(petal, 0.4f, 0f, petal * 0.35f, 0f, 0f);
         for (int i = 0; i < 5; i++)
@@ -758,6 +862,9 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void AddCheckpoint(Vector3 pos)
     {
+        Reserve(pos, 2.4f);
+        NightLamp(pos + new Vector3(0f, 1.6f, 0f),
+            new Color(1f, 0.82f, 0.5f), 16f, 0.12f, 2.6f, 2.4f);
         Checkpoints.Add(Checkpoint.Create(transform, pos));
         // У каждой контрольной точки лежит сердце: до него игрок как раз
         // добирается потрёпанным, и лечиться прыжком в пропасть больше не надо.
@@ -1461,11 +1568,13 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void AddBouncePad(Vector3 pos, float power)
     {
+        Reserve(pos, 2.2f);
         BouncePad.Create(transform, pos, power);
     }
 
     protected void AddCampfire(Vector3 pos, Color color, float range)
     {
+        Reserve(pos, 2.6f);
         Campfire.Create(transform, pos, color, range);
     }
 
@@ -1501,6 +1610,7 @@ public abstract class WorldBuilder : MonoBehaviour
     // достижимой из любой точки под ней и заметной издалека.
     protected void AddStarPedestal(Vector3 groundPos, float height)
     {
+        Reserve(groundPos, 4.5f);
         height = Mathf.Clamp(height, 4f, 22f);
 
         // Над батутом ничего быть не должно: раньше игрок упирался головой
@@ -1565,9 +1675,11 @@ public abstract class WorldBuilder : MonoBehaviour
     public virtual Vector3 DefendPoint() { return SpawnPoint; }
     public virtual Vector3[] RaidSpawns() { return null; }
 
-    // Костёр, у которого договариваются, во что играть.
-    protected void AddCampfire(Vector3 pos)
+    // Костёр забав. Имя другое, потому что рядом живёт декоративный
+    // AddCampfire — тот просто греет картинку, а этот открывает панель.
+    protected void AddPartyFire(Vector3 pos)
     {
+        Reserve(pos, 3.2f);
         Npc n = Npc.Spawn(transform, pos, "Костёр", "", 1.2f);
         n.IsParty = true;
         n.CustomLine = "У костра договариваются, во что играть.";
@@ -1606,12 +1718,17 @@ public abstract class WorldBuilder : MonoBehaviour
 
     protected void AddPortal(Vector3 pos, int target, string label, Color color, float yaw = 0f)
     {
+        Reserve(pos, 4f);
+        // Портал ночью и так светится, но своим цветом и слабо —
+        // подсвечиваем площадку под ним, чтобы к нему было видно путь.
+        NightLamp(pos + new Vector3(0f, 2.2f, 0f), color, 18f, 0.1f, 2.2f, 3f);
         Portal p = Portal.Spawn(transform, pos, target, label, color, yaw);
         Portals.Add(p);
     }
 
     protected void AddNpc(Vector3 pos)
     {
+        Reserve(pos, 2.2f);
         Elder = Npc.Spawn(transform, pos);
         Npcs.Add(Elder);
     }
