@@ -53,6 +53,9 @@ public class HubWorld : WorldBuilder
         AddEnemy(OnGround(42f, -26f, 0.1f), OnGround(50f, -34f, 0.1f), "mushroom", 2.4f);
         AddEnemy(OnGround(-58f, -14f, 0.1f), OnGround(-64f, -26f, 0.1f), "mushroom", 2.6f);
         AddEnemy(OnGround(30f, 44f, 0.1f), OnGround(44f, 44f, 0.1f), "mushroom", 2.3f);
+        // Кубические — тоже за околицей: площадь остаётся безопасной.
+        AddEnemy(OnGround(-38f, 48f, 0.1f), OnGround(-48f, 52f, 0.1f), "creeper", 2.1f);
+        AddEnemy(OnGround(54f, 16f, 0.1f), OnGround(58f, 28f, 0.1f), "zombie", 2f);
         BuildAtmosphere();
 
         // Каменные руины и арки: мир должен выглядеть построенным задолго

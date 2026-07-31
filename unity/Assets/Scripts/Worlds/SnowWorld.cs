@@ -371,6 +371,10 @@ public class SnowWorld : WorldBuilder
         AddEnemy(OnGround(-10f, 46f), OnGround(10f, 46f), "slime", 2.5f);
         AddEnemy(OnGround(22f, 50f), OnGround(34f, 42f), "slime", 2.9f);
         AddEnemy(OnGround(-30f, 20f), OnGround(-20f, 28f), "slime", 2.3f);
+        AddEnemy(OnGround(-24f, 40f), OnGround(-14f, 36f), "zombie", 2.2f);
+        AddEnemy(OnGround(14f, 34f), OnGround(26f, 30f), "skeleton", 2.4f);
+        AddEnemy(OnGround(0f, 54f), OnGround(12f, 58f), "cubeslime", 2f);
+        AddEnemy(OnGround(-36f, 30f), OnGround(-28f, 38f), "creeper", 2.3f);
     }
 
     private void BuildAtmosphere()

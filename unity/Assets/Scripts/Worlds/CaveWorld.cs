@@ -266,6 +266,13 @@ public class CaveWorld : WorldBuilder
         AddEnemy(new Vector3(-14f, 0.6f, 16f), new Vector3(14f, 0.6f, 16f), "bat", 3.4f);
         AddEnemy(new Vector3(18f, 0.6f, -8f), new Vector3(-4f, 0.6f, -18f), "bat", 3f);
         AddEnemy(new Vector3(24f, 0.6f, 30f), new Vector3(40f, 0.6f, 22f), "bat", 3.6f);
+        // Кубические ходят по тому же полу, что и маршруты мышей: высота
+        // 0.6 здесь проверена, наугад взятая точка легко попадает в
+        // пропасть или в стену.
+        AddEnemy(new Vector3(-12f, 0.6f, 10f), new Vector3(12f, 0.6f, 10f), "spider", 2.6f);
+        AddEnemy(new Vector3(16f, 0.6f, -12f), new Vector3(-2f, 0.6f, -20f), "skeleton", 2.2f);
+        AddEnemy(new Vector3(26f, 0.6f, 26f), new Vector3(38f, 0.6f, 20f), "creeper", 2.3f);
+        AddEnemy(new Vector3(-16f, 0.6f, 20f), new Vector3(-4f, 0.6f, 24f), "enderman", 2.4f);
 
         for (int i = 0; i < 14; i++)
         {

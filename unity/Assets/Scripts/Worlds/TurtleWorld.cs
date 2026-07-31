@@ -329,6 +329,11 @@ public class TurtleWorld : WorldBuilder
         }
         AddEnemy(Shells[0] + new Vector3(-10f, ShellHeight[0] + 0.6f, 8f),
                  Shells[0] + new Vector3(10f, ShellHeight[0] + 0.6f, 8f), "crab", 3f);
+        // Кубические — на тех же панцирях: высота панциря уже известна.
+        AddEnemy(Shells[2] + new Vector3(-6f, ShellHeight[2] + 0.6f, -6f),
+                 Shells[2] + new Vector3(6f, ShellHeight[2] + 0.6f, -6f), "cubeslime", 2.2f);
+        AddEnemy(Shells[3] + new Vector3(-5f, ShellHeight[3] + 0.6f, 5f),
+                 Shells[3] + new Vector3(5f, ShellHeight[3] + 0.6f, 5f), "creeper", 2.4f);
     }
 
     // ---------- Берег ----------
@@ -359,6 +364,7 @@ public class TurtleWorld : WorldBuilder
         Dock(OnGround(0f, 90f, 0.3f), 10f, 0f);
         AddCoin(OnGround(0f, 86f, 1.6f));
         AddEnemy(OnGround(-13f, 90f, 0.1f), OnGround(13f, 90f, 0.1f), "crab", 2.4f);
+        AddEnemy(OnGround(-20f, 84f, 0.1f), OnGround(-8f, 88f, 0.1f), "spider", 2.6f);
     }
 
     private void BuildAtmosphere()

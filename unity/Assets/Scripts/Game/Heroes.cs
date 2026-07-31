@@ -108,6 +108,15 @@ public static class Heroes
 
     public static float EnemyHeight(string kind)
     {
+        // Кубические мобы: рост считан с их же пропорций в BlockMob,
+        // где всё меряется пикселями майнкрафта по 0.06 метра.
+        if (kind == "creeper") return 1.56f;      // 26 px
+        if (kind == "zombie") return 1.92f;       // 32 px
+        if (kind == "skeleton") return 1.92f;     // 32 px
+        if (kind == "spider") return 0.8f;        // низкий и широкий
+        if (kind == "enderman") return 3f;        // 50 px
+        if (kind == "cubeslime") return 0.96f;    // 16 px
+
         if (kind == "bat") return 1.1f;
         if (kind == "bee") return 0.9f;
         if (kind == "beetle") return 1.7f;

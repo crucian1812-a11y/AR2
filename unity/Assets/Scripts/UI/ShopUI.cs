@@ -12,7 +12,9 @@ public class ShopUI : MonoBehaviour
     private Image _panel;
     private Text _title;
     private Text _wallet;
+    private Image _walletIcon;
     private Button _heartBtn;
+    private Image _heartIcon;
     private Button _charBtn;
     private Button _closeBtn;
     // Примерочная: купленное надо ещё и надеть, и делать это логично
@@ -20,11 +22,28 @@ public class ShopUI : MonoBehaviour
     private Button _prevBtn;
     private Button _nextBtn;
     private Text _wearLabel;
+    private Text _offerLabel;
     private Text _note;
+
+    // Две живые витрины: слева надетый герой, справа тот, что в продаже.
+    // Списком имён выбор был вслепую — из двадцати девяти названий
+    // игроку не говорит ничего ни одно.
+    private ShopPreview _wornView;
+    private ShopPreview _offerView;
+    private Image _wornFrame;
+    private Image _offerFrame;
+    private RawImage _wornRaw;
+    private RawImage _offerRaw;
+
     // Верстак: рецепты из добытого. Списком, а не сеткой 3x3 — на телефоне
     // перетаскивать по клеткам мучительно, а выбор из списка честный.
     private Button[] _craftBtn;
+    // Значки материалов в цене рецепта: по картинке цена читается сразу,
+    // строку «3 камня + 2 железа» приходилось разбирать глазами.
+    private Image[,] _craftIcon;
+    private Text[,] _craftCount;
     private Text _craftTitle;
+    private const int MaxCostIcons = 4;
     private int _lastW, _lastH;
 
     // Рецепт: что стоит и что даёт.
@@ -42,12 +61,14 @@ public class ShopUI : MonoBehaviour
     {
         get
         {
+            // Цена ушла из названия в значки слева от строки, поэтому
+            // здесь осталось только то, что рецепт ДАЁТ.
             return new Recipe[]
             {
-                Make("Доски: 4 дерева → 12 монет", C(4, 0, 0, 0), 12, 0, -1, 0),
-                Make("Слиток: 3 камня + 2 железа → 26 монет", C(0, 3, 2, 0), 26, 0, -1, 0),
-                Make("Сердце: 2 железа + 1 кристалл", C(0, 0, 2, 1), 0, 1, -1, 0),
-                Make("Дробить камень: 1 камень → 3 дерева", C(0, 1, 0, 0), 0, 0, Res.Wood, 3)
+                Make("Доски → 12 монет", C(4, 0, 0, 0), 12, 0, -1, 0),
+                Make("Слиток → 26 монет", C(0, 3, 2, 0), 26, 0, -1, 0),
+                Make("Сердце: +1 к пределу", C(0, 0, 2, 1), 0, 1, -1, 0),
+                Make("Дробить камень → 3 дерева", C(0, 1, 0, 0), 0, 0, Res.Wood, 3)
             };
         }
     }
@@ -86,41 +107,82 @@ public class ShopUI : MonoBehaviour
         Transform c = _canvas.transform;
         float s = UiKit.Scale;
 
-        _panel = UiKit.MakePanel(c, Vector2.zero, new Vector2(600f * s, 690f * s),
+        _panel = UiKit.MakePanel(c, Vector2.zero, new Vector2(620f * s, 690f * s),
             new Color(0.1f, 0.13f, 0.2f, 0.95f));
-        _title = UiKit.MakeText(c, Vector2.zero, new Vector2(520f * s, 44f * s),
-            "Лавка торговки", Mathf.RoundToInt(30f * s),
+        _title = UiKit.MakeText(c, Vector2.zero, new Vector2(520f * s, 40f * s),
+            "Лавка торговки", Mathf.RoundToInt(28f * s),
             new Color(1f, 0.85f, 0.4f), TextAnchor.MiddleCenter);
-        _wallet = UiKit.MakeText(c, Vector2.zero, new Vector2(520f * s, 34f * s), "",
-            Mathf.RoundToInt(21f * s), Color.white, TextAnchor.MiddleCenter);
+        _walletIcon = UiKit.MakeImage(c, Vector2.zero, new Vector2(26f * s, 26f * s),
+            Icons.CoinIcon, Color.white);
+        _wallet = UiKit.MakeText(c, Vector2.zero, new Vector2(480f * s, 30f * s), "",
+            Mathf.RoundToInt(19f * s), Color.white, TextAnchor.MiddleLeft);
 
-        _heartBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(440f * s, 52f * s), "",
-            Mathf.RoundToInt(21f * s), BuyHeart);
-        _charBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(440f * s, 52f * s), "",
-            Mathf.RoundToInt(21f * s), BuyChar);
-        _prevBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(60f * s, 52f * s), "◀",
-            Mathf.RoundToInt(24f * s), PrevChar);
-        _wearLabel = UiKit.MakeText(c, Vector2.zero, new Vector2(300f * s, 52f * s), "",
-            Mathf.RoundToInt(20f * s), Color.white, TextAnchor.MiddleCenter);
-        _nextBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(60f * s, 52f * s), "▶",
-            Mathf.RoundToInt(24f * s), NextChar);
+        // Витрины. Рамка — просто подложка чуть больше картинки, чтобы
+        // модель не висела в пустоте панели.
+        _wornView = ShopPreview.Create(transform, 0);
+        _offerView = ShopPreview.Create(transform, 1);
+        _wornFrame = UiKit.MakePanel(c, Vector2.zero, new Vector2(140f * s, 156f * s),
+            new Color(0.05f, 0.07f, 0.12f, 1f));
+        _wornRaw = UiKit.MakeRaw(c, Vector2.zero, new Vector2(132f * s, 148f * s),
+            _wornView.Texture);
+        _offerFrame = UiKit.MakePanel(c, Vector2.zero, new Vector2(140f * s, 156f * s),
+            new Color(0.05f, 0.07f, 0.12f, 1f));
+        _offerRaw = UiKit.MakeRaw(c, Vector2.zero, new Vector2(132f * s, 148f * s),
+            _offerView.Texture);
 
-        _craftTitle = UiKit.MakeText(c, Vector2.zero, new Vector2(520f * s, 32f * s),
-            "Верстак", Mathf.RoundToInt(22f * s),
+        _prevBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(38f * s, 50f * s), "◀",
+            Mathf.RoundToInt(22f * s), PrevChar);
+        _nextBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(38f * s, 50f * s), "▶",
+            Mathf.RoundToInt(22f * s), NextChar);
+        _wearLabel = UiKit.MakeText(c, Vector2.zero, new Vector2(200f * s, 48f * s), "",
+            Mathf.RoundToInt(17f * s), Color.white, TextAnchor.UpperCenter);
+        _offerLabel = UiKit.MakeText(c, Vector2.zero, new Vector2(200f * s, 48f * s), "",
+            Mathf.RoundToInt(17f * s), new Color(0.85f, 0.92f, 1f), TextAnchor.UpperCenter);
+
+        _charBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(460f * s, 46f * s), "",
+            Mathf.RoundToInt(19f * s), BuyChar);
+        _heartBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(460f * s, 46f * s), "",
+            Mathf.RoundToInt(19f * s), BuyHeart);
+        _heartIcon = UiKit.MakeImage(c, Vector2.zero, new Vector2(26f * s, 26f * s),
+            Icons.HeartIcon, Color.white);
+
+        _craftTitle = UiKit.MakeText(c, Vector2.zero, new Vector2(520f * s, 28f * s),
+            "Верстак", Mathf.RoundToInt(20f * s),
             new Color(0.8f, 0.92f, 0.7f), TextAnchor.MiddleCenter);
         Recipe[] rs = Recipes;
         _craftBtn = new Button[rs.Length];
+        _craftIcon = new Image[rs.Length, MaxCostIcons];
+        _craftCount = new Text[rs.Length, MaxCostIcons];
         for (int i = 0; i < rs.Length; i++)
         {
             int idx = i;
-            _craftBtn[i] = UiKit.MakeButton(c, Vector2.zero, new Vector2(500f * s, 46f * s), "",
-                Mathf.RoundToInt(18f * s), delegate { Craft(idx); });
+            _craftBtn[i] = UiKit.MakeButton(c, Vector2.zero, new Vector2(520f * s, 42f * s), "",
+                Mathf.RoundToInt(17f * s), delegate { Craft(idx); });
+            // Подпись кнопки сдвигаем вправо: слева встанет цена значками.
+            Text label = _craftBtn[i].GetComponentInChildren<Text>();
+            if (label != null)
+            {
+                label.alignment = TextAnchor.MiddleLeft;
+                label.rectTransform.sizeDelta = new Vector2(300f * s, 42f * s);
+                label.rectTransform.anchoredPosition = new Vector2(-10f * s, 0f);
+            }
+            // Значки создаются заранее на все четыре материала и прячутся
+            // прозрачностью — так их не нужно пересоздавать при каждом
+            // обновлении витрины.
+            for (int k = 0; k < MaxCostIcons; k++)
+            {
+                _craftIcon[i, k] = UiKit.MakeImage(c, Vector2.zero,
+                    new Vector2(22f * s, 22f * s), Icons.Material(k), Color.white);
+                _craftCount[i, k] = UiKit.MakeText(c, Vector2.zero,
+                    new Vector2(26f * s, 22f * s), "", Mathf.RoundToInt(15f * s),
+                    Color.white, TextAnchor.MiddleLeft);
+            }
         }
 
-        _note = UiKit.MakeText(c, Vector2.zero, new Vector2(520f * s, 60f * s), "",
-            Mathf.RoundToInt(18f * s), new Color(0.75f, 0.82f, 0.95f), TextAnchor.UpperCenter);
-        _closeBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(220f * s, 48f * s), "Закрыть",
-            Mathf.RoundToInt(21f * s), Close);
+        _note = UiKit.MakeText(c, Vector2.zero, new Vector2(560f * s, 44f * s), "",
+            Mathf.RoundToInt(16f * s), new Color(0.75f, 0.82f, 0.95f), TextAnchor.UpperCenter);
+        _closeBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(200f * s, 40f * s), "Закрыть",
+            Mathf.RoundToInt(19f * s), Close);
 
         Layout();
         Refresh();
@@ -136,22 +198,41 @@ public class ShopUI : MonoBehaviour
         float cy = Screen.height * 0.5f;
 
         _panel.rectTransform.anchoredPosition = new Vector2(cx, cy);
-        _title.rectTransform.anchoredPosition = new Vector2(cx, cy + 300f * s);
-        _wallet.rectTransform.anchoredPosition = new Vector2(cx, cy + 262f * s);
-        _heartBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy + 210f * s);
-        _charBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy + 152f * s);
+        _title.rectTransform.anchoredPosition = new Vector2(cx, cy + 302f * s);
+        _walletIcon.rectTransform.anchoredPosition = new Vector2(cx - 250f * s, cy + 266f * s);
+        _wallet.rectTransform.anchoredPosition = new Vector2(cx - 8f * s, cy + 266f * s);
 
-        _prevBtn.image.rectTransform.anchoredPosition = new Vector2(cx - 200f * s, cy + 94f * s);
-        _wearLabel.rectTransform.anchoredPosition = new Vector2(cx, cy + 94f * s);
-        _nextBtn.image.rectTransform.anchoredPosition = new Vector2(cx + 200f * s, cy + 94f * s);
+        // Витрины по краям, стрелки примерочной — по бокам от левой.
+        float wx = cx - 150f * s;
+        float ox = cx + 150f * s;
+        _wornFrame.rectTransform.anchoredPosition = new Vector2(wx, cy + 170f * s);
+        _wornRaw.rectTransform.anchoredPosition = new Vector2(wx, cy + 170f * s);
+        _offerFrame.rectTransform.anchoredPosition = new Vector2(ox, cy + 170f * s);
+        _offerRaw.rectTransform.anchoredPosition = new Vector2(ox, cy + 170f * s);
+        _prevBtn.image.rectTransform.anchoredPosition = new Vector2(wx - 92f * s, cy + 170f * s);
+        _nextBtn.image.rectTransform.anchoredPosition = new Vector2(wx + 92f * s, cy + 170f * s);
+        _wearLabel.rectTransform.anchoredPosition = new Vector2(wx, cy + 66f * s);
+        _offerLabel.rectTransform.anchoredPosition = new Vector2(ox, cy + 66f * s);
 
-        _craftTitle.rectTransform.anchoredPosition = new Vector2(cx, cy + 36f * s);
+        _charBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy + 16f * s);
+        _heartBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 34f * s);
+        _heartIcon.rectTransform.anchoredPosition = new Vector2(cx - 200f * s, cy - 34f * s);
+
+        _craftTitle.rectTransform.anchoredPosition = new Vector2(cx, cy - 71f * s);
         for (int i = 0; i < _craftBtn.Length; i++)
-            _craftBtn[i].image.rectTransform.anchoredPosition =
-                new Vector2(cx, cy - 8f * s - i * 50f * s);
+        {
+            float ry = cy - 106f * s - i * 42f * s;
+            _craftBtn[i].image.rectTransform.anchoredPosition = new Vector2(cx, ry);
+            for (int k = 0; k < MaxCostIcons; k++)
+            {
+                float kx = cx + 110f * s + k * 48f * s;
+                _craftIcon[i, k].rectTransform.anchoredPosition = new Vector2(kx, ry);
+                _craftCount[i, k].rectTransform.anchoredPosition = new Vector2(kx + 17f * s, ry);
+            }
+        }
 
-        _note.rectTransform.anchoredPosition = new Vector2(cx, cy - 232f * s);
-        _closeBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 300f * s);
+        _note.rectTransform.anchoredPosition = new Vector2(cx, cy - 278f * s);
+        _closeBtn.image.rectTransform.anchoredPosition = new Vector2(cx, cy - 322f * s);
     }
 
     private void Update()
@@ -169,6 +250,9 @@ public class ShopUI : MonoBehaviour
         if (NetManager.I == null || !NetManager.I.Online) Time.timeScale = 0f;
         Ctrl.Reset();
         TouchControls.SetVisible(false);
+        // Камеры витрин включаются только на время показа: две лишние
+        // камеры, работающие весь уровень, телефону ни к чему.
+        PreviewCameras(true);
         Refresh();
     }
 
@@ -178,13 +262,21 @@ public class ShopUI : MonoBehaviour
         Snd.Play("click");
         Time.timeScale = 1f;
         TouchControls.SetVisible(true);
+        PreviewCameras(false);
         gameObject.SetActive(false);
+    }
+
+    private void PreviewCameras(bool on)
+    {
+        if (_wornView != null) _wornView.SetActive(on);
+        if (_offerView != null) _offerView.SetActive(on);
     }
 
     private void OnDisable()
     {
         Time.timeScale = 1f;
         TouchControls.SetVisible(true);
+        PreviewCameras(false);
     }
 
     public bool IsOpen { get { return gameObject.activeSelf; } }
@@ -194,13 +286,13 @@ public class ShopUI : MonoBehaviour
         NetManager net = NetManager.I;
         if (net == null) return;
 
-        _wallet.text = "Монет: " + net.CoinsTotal + "     Сердец: " + net.MaxHearts +
-                       "     Героев: " + net.UnlockedChars + " / " + Heroes.Ids.Length;
+        _wallet.text = net.CoinsTotal + " монет      Сердец: " + net.MaxHearts +
+                       "      Героев: " + net.UnlockedChars + " / " + Heroes.Ids.Length;
 
         bool heartsMaxed = net.MaxHearts >= MaxHeartsCap;
         SetButton(_heartBtn, heartsMaxed
-            ? "Сердца больше не нужны"
-            : "Лишнее сердце — " + HeartPrice + " монет", !heartsMaxed);
+            ? "     Сердца больше не нужны"
+            : "     Лишнее сердце — " + HeartPrice + " монет", !heartsMaxed);
 
         bool allChars = net.UnlockedChars >= Heroes.Ids.Length;
         SetButton(_charBtn, allChars
@@ -210,11 +302,20 @@ public class ShopUI : MonoBehaviour
 
         // Примерочная. Листать можно только по купленным.
         int owned = Mathf.Clamp(net.UnlockedChars, 1, Heroes.Ids.Length);
-        _wearLabel.text = "Надет: " + Heroes.Name(net.CharIndex) +
-                          "\n<" + (net.CharIndex + 1) + " из " + owned + ">";
+        _wearLabel.text = "Надет\n" + Heroes.Name(net.CharIndex) +
+                          " (" + (net.CharIndex + 1) + " из " + owned + ")";
         bool canSwitch = owned > 1;
         SetButton(_prevBtn, "◀", canSwitch);
         SetButton(_nextBtn, "▶", canSwitch);
+
+        // Витрины: слева надетый, справа очередной на продажу. Когда
+        // куплены все, справа показываем последнего — пустая рамка
+        // выглядела бы поломкой.
+        int offer = allChars ? Heroes.Ids.Length - 1 : net.UnlockedChars;
+        _offerLabel.text = (allChars ? "Открыт\n" : "В продаже\n") + Heroes.Name(offer) +
+                           (allChars ? "" : " — " + Heroes.Price(offer) + " монет");
+        _wornView.Show(net.CharIndex);
+        _offerView.Show(offer);
 
         Recipe[] rs = Recipes;
         for (int i = 0; i < _craftBtn.Length && i < rs.Length; i++)
@@ -222,10 +323,31 @@ public class ShopUI : MonoBehaviour
             bool can = true;
             for (int k = 0; k < Res.Count; k++)
                 if (net.ResCount(k) < rs[i].Cost[k]) can = false;
-            SetButton(_craftBtn[i], rs[i].Title + (can ? "" : "  (не хватает)"), can);
+            SetButton(_craftBtn[i], rs[i].Title, can);
+
+            // Цена — значками. Показываем только те материалы, что
+            // действительно нужны, остальные прячем прозрачностью:
+            // сдвигать значки по строке пришлось бы каждый раз заново.
+            int slot = 0;
+            for (int k = 0; k < Res.Count && k < MaxCostIcons; k++)
+            {
+                if (rs[i].Cost[k] <= 0) continue;
+                _craftIcon[i, slot].sprite = Icons.Material(k);
+                // Не хватает — значок гаснет, и видно, чего именно.
+                bool have = net.ResCount(k) >= rs[i].Cost[k];
+                _craftIcon[i, slot].color = have ? Color.white : new Color(1f, 0.5f, 0.5f, 0.5f);
+                _craftCount[i, slot].text = "" + rs[i].Cost[k];
+                _craftCount[i, slot].color = have ? Color.white : new Color(1f, 0.6f, 0.6f);
+                slot++;
+            }
+            for (int k = slot; k < MaxCostIcons; k++)
+            {
+                _craftIcon[i, k].color = new Color(0f, 0f, 0f, 0f);
+                _craftCount[i, k].text = "";
+            }
         }
 
-        _note.text = "Звёзды открывают миры, монеты тратятся здесь.\n" +
+        _note.text = "Звёзды открывают миры, монеты тратятся здесь. " +
                      "Материал добывается ударом по камням и деревьям.";
     }
 

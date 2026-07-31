@@ -24,6 +24,7 @@ public class Enemy : MonoBehaviour
     private Transform _wingL;
     private Transform _wingR;
     private CharacterModel _model;
+    private BlockMob.Rig _rig;
     private bool _flying;
     private bool _chasing;
 
@@ -89,6 +90,14 @@ public class Enemy : MonoBehaviour
         GameObject vis = new GameObject("Visual");
         vis.transform.SetParent(transform, false);
         _visual = vis.transform;
+
+        // Кубические мобы собираются коробками и до готовых моделей не
+        // доходят: EnemyModel для них вернул бы гриба по умолчанию.
+        if (BlockMob.Handles(Kind))
+        {
+            _rig = BlockMob.Build(_visual, Kind);
+            return;
+        }
 
         _model = CharacterModel.Spawn(_visual, Heroes.EnemyModel(Kind), Heroes.EnemyHeight(Kind));
         if (_model != null)
@@ -328,6 +337,12 @@ public class Enemy : MonoBehaviour
             return;
         }
 
+        if (_rig != null)
+        {
+            AnimateRig();
+            return;
+        }
+
         if (_wingL != null && _wingR != null)
         {
             float flap = Mathf.Sin(_bob) * 42f;
@@ -340,6 +355,31 @@ public class Enemy : MonoBehaviour
             Vector3 sc = _visual.localScale;
             sc.y = 1f + Mathf.Sin(_bob) * 0.05f;
             _visual.localScale = new Vector3(1f, sc.y, 1f);
+        }
+    }
+
+    // Шаг кубического моба: конечности качаются двумя противофазами
+    // вокруг запомненной при сборке позы.
+    private void AnimateRig()
+    {
+        if (_rig.Squash)
+        {
+            float k = Mathf.Sin(_bob);
+            _visual.localScale = new Vector3(1f + k * 0.09f, 1f - k * 0.12f, 1f + k * 0.09f);
+            return;
+        }
+        float deg = Mathf.Sin(_bob) * _rig.SwingDeg;
+        Swing(_rig.PhaseA, _rig.BaseA, deg);
+        Swing(_rig.PhaseB, _rig.BaseB, -deg);
+    }
+
+    private static void Swing(Transform[] set, Vector3[] baseRot, float deg)
+    {
+        if (set == null || baseRot == null) return;
+        for (int i = 0; i < set.Length && i < baseRot.Length; i++)
+        {
+            if (set[i] == null) continue;
+            set[i].localRotation = Quaternion.Euler(baseRot[i].x + deg, baseRot[i].y, baseRot[i].z);
         }
     }
 
@@ -372,8 +412,28 @@ public class Enemy : MonoBehaviour
         if (Kind == "slime") tint = new Color(0.5f, 0.75f, 1f);
         else if (Kind == "beetle") tint = new Color(0.7f, 0.5f, 1f);
         else if (Kind == "bat") tint = new Color(0.6f, 0.4f, 0.95f);
+        else if (Kind == "creeper" || Kind == "cubeslime") tint = new Color(0.45f, 0.9f, 0.3f);
+        else if (Kind == "zombie") tint = new Color(0.35f, 0.7f, 0.4f);
+        else if (Kind == "skeleton") tint = new Color(0.9f, 0.9f, 0.85f);
+        else if (Kind == "spider") tint = new Color(0.8f, 0.25f, 0.2f);
+        else if (Kind == "enderman") tint = new Color(0.8f, 0.4f, 1f);
         else tint = new Color(0.9f, 0.3f, 0.2f);
         Transform root = transform.parent != null ? transform.parent : null;
+
+        // Крипер уходит вспышкой: он и в первоисточнике запоминается
+        // взрывом, а не тем, как ходит. Урона от неё нет — только зрелище.
+        if (Kind == "creeper")
+        {
+            ParticleFx.Burst(root, transform.position + new Vector3(0f, 0.8f, 0f),
+                34, tint, 9f);
+            Gfx.Glow(transform, new Vector3(0f, 0.8f, 0f), 4.5f,
+                new Color(0.9f, 1f, 0.7f, 0.5f));
+            Snd.Play("bosshit", 1f);
+            BearPlayer near = GameRoot.LocalBear;
+            if (near != null) near.Shake(0.35f);
+            return;
+        }
+
         ParticleFx.Burst(root, transform.position + new Vector3(0f, 0.5f, 0f), 14, tint, 4.5f);
     }
 }

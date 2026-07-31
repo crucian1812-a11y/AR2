@@ -308,6 +308,9 @@ public class MeadowWorld : WorldBuilder
         AddEnemy(OnGround(-8f, 10f), OnGround(8f, 10f), "mushroom", 2.3f);
         AddEnemy(OnGround(6f, -12f), OnGround(-6f, -18f), "mushroom", 2.6f);
         AddEnemy(OnGround(20f, 32f), OnGround(34f, 30f), "mushroom", 2.1f);
+        AddEnemy(OnGround(-24f, 6f), OnGround(-34f, 12f), "creeper", 2.4f);
+        AddEnemy(OnGround(26f, -26f), OnGround(38f, -20f), "spider", 2.8f);
+        AddEnemy(OnGround(-6f, 44f), OnGround(8f, 48f), "zombie", 2.2f);
 
         for (int i = 0; i < 10; i++)
         {

@@ -392,6 +392,10 @@ public class DesertWorld : WorldBuilder
 
         AddEnemy(OnGround(-14f, 20f), OnGround(-26f, 14f), "beetle", 2.9f);
         AddEnemy(OnGround(44f, 44f), OnGround(30f, 50f), "beetle", 3.1f);
+        AddEnemy(OnGround(-20f, 26f), OnGround(-30f, 20f), "spider", 2.7f);
+        AddEnemy(OnGround(38f, 36f), OnGround(26f, 42f), "skeleton", 2.4f);
+        AddEnemy(OnGround(10f, 46f), OnGround(22f, 50f), "zombie", 2.2f);
+        AddEnemy(new Vector3(-16f, 0.4f, -24f), new Vector3(-6f, 0.4f, -30f), "creeper", 2.5f);
     }
 
     private void BuildAtmosphere()

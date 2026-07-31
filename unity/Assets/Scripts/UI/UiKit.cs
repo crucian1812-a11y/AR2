@@ -87,6 +87,20 @@ public static class UiKit
         return img;
     }
 
+    // Картинка из RenderTexture: витрина лавки рисует героя живой
+    // камерой, а Image умеет только спрайты — нужен именно RawImage.
+    public static RawImage MakeRaw(Transform parent, Vector2 pos, Vector2 size, Texture tex)
+    {
+        GameObject go = new GameObject("Raw");
+        RectTransform rt = Rect(go, parent);
+        rt.anchoredPosition = pos;
+        rt.sizeDelta = size;
+        RawImage img = go.AddComponent<RawImage>();
+        img.texture = tex;
+        img.raycastTarget = false;
+        return img;
+    }
+
     public static Image MakePanel(Transform parent, Vector2 pos, Vector2 size, Color color)
     {
         Image img = MakeImage(parent, pos, size, Gfx.WhiteSprite(), color);

@@ -257,6 +257,7 @@ namespace UnityEngine
         public void LookAt(Vector3 p) { }
         public void Translate(Vector3 v) { }
         public void Rotate(Vector3 v) { }
+        public void Rotate(float x, float y, float z) { }
         public Vector3 TransformDirection(Vector3 v) { return v; }
         public Vector3 InverseTransformDirection(Vector3 v) { return v; }
         public Vector3 TransformPoint(Vector3 v) { return v; }
@@ -345,6 +346,9 @@ namespace UnityEngine
     {
         public RenderTexture(int w, int h, int depth) { }
         public RenderTextureFormat format { get; set; }
+        public int antiAliasing { get; set; }
+        public bool Create() { return true; }
+        public void Release() { }
         public static RenderTexture GetTemporary(int w, int h, int depth) { return null; }
         public static RenderTexture GetTemporary(int w, int h, int depth, RenderTextureFormat f) { return null; }
         public static void ReleaseTemporary(RenderTexture rt) { }
@@ -525,6 +529,8 @@ namespace UnityEngine
         public bool allowHDR { get; set; }
         public int cullingMask { get; set; }
         public int depth { get; set; }
+        public RenderTexture targetTexture { get; set; }
+        public bool orthographic { get; set; }
         public Vector3 WorldToScreenPoint(Vector3 p) { return Vector3.zero; }
         public Vector3 ScreenToWorldPoint(Vector3 p) { return Vector3.zero; }
     }
@@ -888,6 +894,12 @@ namespace UnityEngine
             public Image.Type type { get; set; }
             public bool preserveAspect { get; set; }
             public enum Type { Simple, Sliced, Tiled, Filled }
+        }
+
+        public class RawImage : Graphic
+        {
+            public Texture texture { get; set; }
+            public Rect uvRect { get; set; }
         }
 
         public class Text : Graphic
