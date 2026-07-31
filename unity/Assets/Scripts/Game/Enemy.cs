@@ -13,6 +13,14 @@ public class Enemy : MonoBehaviour
     // Боссы держат несколько ударов; обычный враг умирает с одного.
     public int Hp = 1;
     public bool IsBoss;
+    // Марш: враг идёт в PointB и обратно не поворачивает. Так ходят
+    // волны в обороне деревни — им нужен не патруль, а цель.
+    public bool March;
+    // Упёрся в поставленный игроками блок и грызёт его. Признак ставит
+    // и снимает оборона деревни; враг при этом стоит намертво, даже
+    // если рядом игрок — иначе стену можно было бы обойти, просто
+    // показавшись из-за неё.
+    public bool Blocked;
 
     private Transform _visual;
     private Vector3 _target;
@@ -227,6 +235,10 @@ public class Enemy : MonoBehaviour
             // 8.2 и просто загоняли медведя в угол.
             speed = Mathf.Min(Speed * 1.7f, 6.0f);
         }
+        else if (March)
+        {
+            goal = PointB;
+        }
         else
         {
             if ((_target - pos).magnitude < 0.08f)
@@ -235,7 +247,7 @@ public class Enemy : MonoBehaviour
         }
 
         Vector3 to = goal - pos;
-        transform.localPosition = Vector3.MoveTowards(pos, goal, speed * dt);
+        if (!Blocked) transform.localPosition = Vector3.MoveTowards(pos, goal, speed * dt);
         if (new Vector2(to.x, to.z).magnitude > 0.01f)
             _visual.localRotation = Quaternion.Euler(0f, Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg, 0f);
     }

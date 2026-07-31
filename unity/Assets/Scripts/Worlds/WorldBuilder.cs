@@ -22,6 +22,8 @@ public abstract class WorldBuilder : MonoBehaviour
     private int _starCounter;
     private int _heartCounter;
     private int _enemyCounter;
+    // Отдельный счётчик для врагов, рождённых по ходу игры.
+    private int _raidCounter;
     private int _breakCounter;
     private int _chestCounter;
     private readonly List<EnemyState> _stateScratch = new List<EnemyState>();
@@ -1535,6 +1537,64 @@ public abstract class WorldBuilder : MonoBehaviour
         int id = _enemyCounter++;
         Enemy e = Enemy.Spawn(transform, a, b, kind, speed, id);
         Enemies[id] = e;
+    }
+
+    // ---------- Забавы ----------
+
+    // Враг, рождённый уже по ходу игры: волна в обороне деревни. В
+    // отличие от AddEnemy номер тут возвращается наружу — хосту надо
+    // разослать его клиентам, чтобы у всех появился тот же самый враг.
+    public Enemy SpawnRuntimeEnemy(Vector3 a, Vector3 b, string kind, float speed,
+        bool march, int forcedId)
+    {
+        // Номера волн идут из своего диапазона — см. NetManager.RaidIdBase.
+        if (_raidCounter < NetManager.RaidIdBase) _raidCounter = NetManager.RaidIdBase;
+        int id = forcedId >= 0 ? forcedId : _raidCounter++;
+        if (id >= _raidCounter) _raidCounter = id + 1;
+        if (Enemies.ContainsKey(id)) return Enemies[id];
+        Enemy e = Enemy.Spawn(transform, a, b, kind, speed, id);
+        e.March = march;
+        Enemies[id] = e;
+        return e;
+    }
+
+    // Маршрут гонки: кольца по порядку. Пусто — в этом мире гонки нет.
+    public virtual Vector3[] RaceRoute() { return null; }
+
+    // Что обороняют ночью и откуда приходят волны.
+    public virtual Vector3 DefendPoint() { return SpawnPoint; }
+    public virtual Vector3[] RaidSpawns() { return null; }
+
+    // Костёр, у которого договариваются, во что играть.
+    protected void AddCampfire(Vector3 pos)
+    {
+        Npc n = Npc.Spawn(transform, pos, "Костёр", "", 1.2f);
+        n.IsParty = true;
+        n.CustomLine = "У костра договариваются, во что играть.";
+        Npcs.Add(n);
+
+        Material logs = Gfx.Mat(new Color(0.32f, 0.2f, 0.11f), 0.1f);
+        Material stone = Gfx.Mat(new Color(0.45f, 0.44f, 0.42f), 0.08f);
+        for (int i = 0; i < 8; i++)
+        {
+            float a = i * 45f * Mathf.Deg2Rad;
+            Gfx.Ball(n.transform, new Vector3(Mathf.Cos(a) * 1.15f, 0.12f, Mathf.Sin(a) * 1.15f),
+                new Vector3(0.4f, 0.28f, 0.4f), stone);
+        }
+        for (int i = 0; i < 5; i++)
+        {
+            float a = i * 72f * Mathf.Deg2Rad;
+            GameObject log = Gfx.Cyl(n.transform,
+                new Vector3(Mathf.Cos(a) * 0.28f, 0.42f, Mathf.Sin(a) * 0.28f),
+                new Vector3(0.17f, 0.9f, 0.17f), logs, false);
+            log.transform.localRotation = Quaternion.Euler(26f * Mathf.Sin(a), 0f, -26f * Mathf.Cos(a));
+        }
+        Material flame = Gfx.MatFull(new Color(1f, 0.62f, 0.2f), 0.5f, 0f,
+            new Color(1f, 0.5f, 0.12f), 0f, 0f);
+        Gfx.Ball(n.transform, new Vector3(0f, 0.85f, 0f), new Vector3(0.6f, 0.85f, 0.6f), flame);
+        Gfx.Glow(n.transform, new Vector3(0f, 0.9f, 0f), 3.6f, new Color(1f, 0.6f, 0.25f, 0.55f));
+        Gfx.PointLight(n.transform, new Vector3(0f, 1.1f, 0f),
+            new Color(1f, 0.65f, 0.3f), 12f, 2.2f);
     }
 
     protected void AddBoss(Vector3 a, Vector3 b, string kind, float speed, int hp, float scale)

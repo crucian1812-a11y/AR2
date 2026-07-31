@@ -20,6 +20,7 @@ public enum Msg : byte
     ReqSpend = 10,
     ReqBreak = 11,
     ReqPlace = 12,
+    ReqMode = 13,
 
     Welcome = 20,
     Snapshot = 21,
@@ -32,7 +33,9 @@ public enum Msg : byte
     EvVictory = 28,
     EvBreak = 29,
     EvPlace = 30,
-    EvDay = 31
+    EvDay = 31,
+    EvMode = 32,
+    EvSpawn = 33
 }
 
 public class PlayerInfo
@@ -46,6 +49,11 @@ public class PlayerInfo
     public byte Anim;
     public float Flip;
     public float LastSeen;
+    // Забавы: очки и роль. Смысл зависит от режима — в гонке это номер
+    // взятого кольца, в прятках роль водящего. Держим здесь, а не в
+    // отдельном словаре, чтобы не заводить вторую таблицу игроков.
+    public int Score;
+    public byte Role;
 }
 
 public class EnemyState
@@ -82,7 +90,15 @@ public class NetManager : MonoBehaviour
 
     // Сундуки — тот же набор собранного, свой диапазон.
     public const int ChestIdBase = 30000;
-    public static bool IsChestId(int id) { return id >= ChestIdBase; }
+    public static bool IsChestId(int id) { return id >= ChestIdBase && id < RaidIdBase; }
+
+    // Враги из волн обороны. Свой диапазон нужен по той же причине, что
+    // и остальным: они рождаются по ходу игры и их номера не должны
+    // пересекаться с врагами самого мира. Иначе убитый в обороне номер 6
+    // осел бы в сохранении, и когда в деревню добавят седьмого гриба, он
+    // просто не появился бы — навсегда и без единого следа в логах.
+    public const int RaidIdBase = 50000;
+    public static bool IsRaidId(int id) { return id >= RaidIdBase; }
 
     // Звёзды открывают миры, монеты тратятся в лавке.
     // Всего до пещеры доступно 14 звёзд: деревня 2 плюс четыре мира по 3.
@@ -145,6 +161,37 @@ public class NetManager : MonoBehaviour
     // одновременно.
     public float DayTime = 0.25f;
     public string StatusMessage = "";
+
+    // ---------- Забавы ----------
+    // Совместные режимы: прятки, оборона деревни, гонка. Считает их
+    // всегда хозяин, остальные получают готовое состояние — так же, как
+    // с врагами. Состояние маленькое, поэтому шлём его целиком четыре
+    // раза в секунду, а не по событиям: пакет теряется, а картинка у
+    // всех всё равно сходится к правильной за четверть секунды.
+    public const int ModeNone = 0;
+    public const int ModeHide = 1;
+    public const int ModeNight = 2;
+    public const int ModeRace = 3;
+
+    // Фазы: 0 — выключено, 1 — подготовка (прячутся, отсчёт, стройка),
+    // 2 — сама игра, 3 — итог.
+    public const int PhaseOff = 0;
+    public const int PhaseWarmup = 1;
+    public const int PhaseRun = 2;
+    public const int PhaseOver = 3;
+
+    public int ModeKind;
+    public int ModePhase;
+    public float ModeTimer;
+    // Волна в обороне и здоровье фонтана; в других режимах не используются.
+    public int ModeWave;
+    public int ModeLives;
+    public string ModeText = "";
+
+    public event Action OnModeChanged;
+    // Враг, созданный уже по ходу игры (волны обороны). Мир у клиента
+    // построен своим кодом и таких врагов не знает — их надо создать.
+    public event Action<int, int, string, Vector3, Vector3, float> OnEnemySpawned;
 
     public readonly Dictionary<int, PlayerInfo> Players = new Dictionary<int, PlayerInfo>();
     public readonly Dictionary<string, FoundServer> FoundServers = new Dictionary<string, FoundServer>();
@@ -233,6 +280,12 @@ public class NetManager : MonoBehaviour
         MaxHearts = 3;
         UnlockedChars = Heroes.FreeChars;
         VictoryReached = false;
+        ModeKind = ModeNone;
+        ModePhase = PhaseOff;
+        ModeTimer = 0f;
+        ModeWave = 0;
+        ModeLives = 0;
+        ModeText = "";
         CurrentWorld = 0;
         MyId = 1;
         _nextId = 2;
@@ -411,7 +464,20 @@ public class NetManager : MonoBehaviour
         return result;
     }
 
-    public Dictionary<int, HashSet<int>> ExportKilled() { return _killed; }
+    // Волны в сохранение не идут: они живут только на время забавы.
+    public Dictionary<int, HashSet<int>> ExportKilled()
+    {
+        Dictionary<int, HashSet<int>> result = new Dictionary<int, HashSet<int>>();
+        foreach (KeyValuePair<int, HashSet<int>> kv in _killed)
+        {
+            if (kv.Value == null) continue;
+            HashSet<int> keep = new HashSet<int>();
+            foreach (int id in kv.Value)
+                if (!IsRaidId(id)) keep.Add(id);
+            if (keep.Count > 0) result[kv.Key] = keep;
+        }
+        return result;
+    }
 
     public void ImportCollected(Dictionary<int, HashSet<int>> src)
     {
@@ -875,6 +941,19 @@ public class NetManager : MonoBehaviour
         }
     }
 
+    // Убрать врага без награды и без записи в «убитых». Так исчезает моб,
+    // дошедший в обороне до фонтана: игроки его не победили, платить не
+    // за что, а в набор убитых он не попадает — там живут враги самого
+    // мира, и мусорить туда номерами волн ни к чему.
+    public void HostDespawnEnemy(int world, int enemyId)
+    {
+        if (!IsHost || !Online) return;
+        MemoryStream ms; BinaryWriter w;
+        Begin(Msg.EvKill, out ms, out w);
+        w.Write(world); w.Write(enemyId);
+        BroadcastRepeat(ms, 2);
+    }
+
     private void HostPortal(int target)
     {
         if (target < 0 || target >= WorldIds.Length) return;
@@ -1171,6 +1250,7 @@ public class NetManager : MonoBehaviour
             case Msg.ReqCollect: HostCollect(r.ReadInt32(), r.ReadInt32()); break;
             case Msg.ReqKill: HostKill(r.ReadInt32(), r.ReadInt32()); break;
             case Msg.ReqPortal: HostPortal(r.ReadInt32()); break;
+            case Msg.ReqMode: HostSetMode(r.ReadInt32()); break;
             case Msg.ReqQuest: HostQuest(); break;
             case Msg.ReqSpend:
                 HostSpend(r.ReadInt32());
@@ -1210,6 +1290,19 @@ public class NetManager : MonoBehaviour
                     break;
                 }
             case Msg.Snapshot: ReadSnapshot(r); break;
+            case Msg.EvMode: ReadMode(r); break;
+            case Msg.EvSpawn:
+                {
+                    int world = r.ReadInt32();
+                    int id = r.ReadInt32();
+                    string kind = r.ReadString();
+                    Vector3 pa = ReadVec(r);
+                    Vector3 pb = ReadVec(r);
+                    float speed = r.ReadSingle();
+                    if (OnEnemySpawned != null)
+                        OnEnemySpawned(world, id, kind, pa, pb, speed);
+                    break;
+                }
             case Msg.PlayerStates:
                 {
                     int count = r.ReadByte();
@@ -1417,6 +1510,123 @@ public class NetManager : MonoBehaviour
     }
 
     // ---------- Низкоуровневая отправка ----------
+
+    // ---------- Забавы ----------
+
+    // Просьба запустить или остановить режим. Решает всегда хозяин:
+    // иначе двое одновременно запустили бы разные забавы.
+    public void RequestMode(int kind)
+    {
+        if (IsHost) { HostSetMode(kind); return; }
+        MemoryStream ms; BinaryWriter w;
+        Begin(Msg.ReqMode, out ms, out w);
+        w.Write(kind);
+        SendToHost(ms);
+    }
+
+    private void HostSetMode(int kind)
+    {
+        if (!IsHost) return;
+        ModeKind = kind;
+        ModePhase = kind == ModeNone ? PhaseOff : PhaseWarmup;
+        ModeTimer = 0f;
+        ModeWave = 0;
+        ModeLives = 0;
+        ModeText = "";
+        foreach (KeyValuePair<int, PlayerInfo> kv in Players)
+        {
+            kv.Value.Score = 0;
+            kv.Value.Role = 0;
+        }
+        if (OnModeChanged != null) OnModeChanged();
+        BroadcastMode();
+    }
+
+    private float _modeSendAccum;
+
+    // Забаву ведёт Party на хосте; сюда он складывает результат.
+    //
+    // Party зовёт это каждый кадр, поэтому рассылать отсюда безоглядно
+    // нельзя: получилось бы шестьдесят пакетов в секунду каждому гостю
+    // ради поля, которое меняется на десятую долю. Шлём четыре раза в
+    // секунду, но смену фазы или подписи — сразу: именно по ним игрок
+    // понимает, что пора бежать.
+    public void HostPublishMode(int phase, float timer, int wave, int lives, string text)
+    {
+        if (!IsHost) return;
+        text = text ?? "";
+        bool important = phase != ModePhase || lives != ModeLives ||
+                         wave != ModeWave || text != ModeText;
+
+        ModePhase = phase;
+        ModeTimer = timer;
+        ModeWave = wave;
+        ModeLives = lives;
+        ModeText = text;
+        if (OnModeChanged != null) OnModeChanged();
+
+        _modeSendAccum += Time.unscaledDeltaTime;
+        if (!important && _modeSendAccum < 0.25f) return;
+        _modeSendAccum = 0f;
+        BroadcastMode();
+    }
+
+    public void BroadcastMode()
+    {
+        if (!Online || !IsHost || _conns.Count == 0) return;
+        MemoryStream ms; BinaryWriter w;
+        Begin(Msg.EvMode, out ms, out w);
+        w.Write(ModeKind);
+        w.Write(ModePhase);
+        w.Write(ModeTimer);
+        w.Write(ModeWave);
+        w.Write(ModeLives);
+        w.Write(ModeText);
+        w.Write((byte)Players.Count);
+        foreach (KeyValuePair<int, PlayerInfo> kv in Players)
+        {
+            w.Write(kv.Key);
+            w.Write(kv.Value.Score);
+            w.Write(kv.Value.Role);
+        }
+        BroadcastToClients(ms);
+    }
+
+    private void ReadMode(BinaryReader r)
+    {
+        ModeKind = r.ReadInt32();
+        ModePhase = r.ReadInt32();
+        ModeTimer = r.ReadSingle();
+        ModeWave = r.ReadInt32();
+        ModeLives = r.ReadInt32();
+        ModeText = r.ReadString();
+        int count = r.ReadByte();
+        for (int i = 0; i < count; i++)
+        {
+            int id = r.ReadInt32();
+            int score = r.ReadInt32();
+            byte role = r.ReadByte();
+            PlayerInfo p;
+            if (Players.TryGetValue(id, out p)) { p.Score = score; p.Role = role; }
+        }
+        if (OnModeChanged != null) OnModeChanged();
+    }
+
+    // Враг, рождённый по ходу игры. Клиент строит мир своим кодом и о
+    // волнах ничего не знает, поэтому каждого такого врага рассылаем.
+    public void HostSpawnEnemy(int world, int id, string kind, Vector3 a, Vector3 b, float speed)
+    {
+        if (!IsHost || !Online || _conns.Count == 0) return;
+        MemoryStream ms; BinaryWriter w;
+        Begin(Msg.EvSpawn, out ms, out w);
+        w.Write(world);
+        w.Write(id);
+        w.Write(kind);
+        WriteVec(w, a);
+        WriteVec(w, b);
+        w.Write(speed);
+        BroadcastToClients(ms);
+    }
 
     private static void Begin(Msg type, out MemoryStream ms, out BinaryWriter w)
     {

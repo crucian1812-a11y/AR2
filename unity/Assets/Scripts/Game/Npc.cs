@@ -31,6 +31,17 @@ public class Npc : MonoBehaviour
 
     private void Build()
     {
+        // Пустой ModelId — значит тела нет вовсе: так сделан костёр, у
+        // которого своя геометрия, а от НПС нужна только зона подхода.
+        // Без этой ветки запасной вариант собирал бы поверх костра
+        // медведя-старейшину.
+        if (string.IsNullOrEmpty(ModelId))
+        {
+            WorldLabel.Attach(transform, Title, new Vector3(0f, ModelHeight + 0.9f, 0f),
+                new Color(1f, 0.8f, 0.45f), 22);
+            return;
+        }
+
         // Житель — модель из пака. Медведь из шаров остался запасным
         // вариантом на случай, если модель не загрузится.
         _model = CharacterModel.Spawn(transform, ModelId, ModelHeight);
@@ -78,6 +89,8 @@ public class Npc : MonoBehaviour
 
     public string CustomLine = "";
     public bool IsShop;
+    // Костёр на площади: с него запускаются совместные забавы.
+    public bool IsParty;
 
     public string DialogText()
     {

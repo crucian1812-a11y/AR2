@@ -117,8 +117,62 @@ public class HubWorld : WorldBuilder
         AddVillager(new Vector3(-8f, 0f, -7f), "Пекарь", "Pig", 1.6f,
             "Сердце горы пропало в ту же ночь, когда потухли все печи в деревне.\nСовпадение? Старейшина говорит, что нет.");
         AddShopkeeper(new Vector3(10f, 0f, 5f), "Торговка", "Chicken", 1.4f);
+        // Костёр у края площади — отсюда запускаются совместные забавы.
+        AddCampfire(new Vector3(-6f, 0.1f, -10f));
         AddVillager(new Vector3(-13f, 0f, 9f), "Путешественник", "Cyclops", 2.1f,
             "Я видел город на спинах спящих черепах.\nОн всплывает, только когда в деревне снова становится тепло.");
+    }
+
+    // ---------- Забавы ----------
+
+    // Кольца гонки. Маршрут ведёт от площади к озеру, мимо мельницы и
+    // обратно: он должен проходить по местам, которые игрок уже знает,
+    // иначе гонка превращается в поиск следующего кольца.
+    //
+    // Высоту каждого кольца берём у самой земли — деревня холмистая, и
+    // кольцо на постоянной высоте где-нибудь непременно окажется либо
+    // под склоном, либо в воздухе.
+    private Vector3[] _route;
+
+    public override Vector3[] RaceRoute()
+    {
+        if (_route != null) return _route;
+        Vector2[] flat =
+        {
+            new Vector2(0f, 16f),      // старт у площади
+            new Vector2(24f, 26f),
+            new Vector2(38f, 4f),      // разворот у восточных руин
+            new Vector2(16f, -22f),
+            new Vector2(-18f, -26f),   // мимо тренировочной полосы
+            new Vector2(-34f, 2f),
+            new Vector2(-12f, 18f)     // финиш у фонтана
+        };
+        _route = new Vector3[flat.Length];
+        for (int i = 0; i < flat.Length; i++)
+            _route[i] = OnGround(flat[i].x, flat[i].y, 0.2f);
+        return _route;
+    }
+
+    // Обороняем фонтан на площади.
+    public override Vector3 DefendPoint()
+    {
+        return OnGround(0f, 0f, 0.6f);
+    }
+
+    // Волны приходят с окраин, со всех сторон разом: одному игроку все
+    // подходы не закрыть, в этом и смысл забавы.
+    private Vector3[] _raidSpawns;
+
+    public override Vector3[] RaidSpawns()
+    {
+        if (_raidSpawns != null) return _raidSpawns;
+        _raidSpawns = new Vector3[8];
+        for (int i = 0; i < 8; i++)
+        {
+            float a = i * 45f * Mathf.Deg2Rad;
+            _raidSpawns[i] = OnGround(Mathf.Cos(a) * 62f, Mathf.Sin(a) * 62f, 0.4f);
+        }
+        return _raidSpawns;
     }
 
     // Добыча и сундуки на окраинах. В самой деревне ничего не ломается —

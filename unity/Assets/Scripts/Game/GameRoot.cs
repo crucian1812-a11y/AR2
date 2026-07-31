@@ -19,6 +19,14 @@ public class GameRoot : MonoBehaviour
     private readonly Dictionary<int, BearPlayer> _players = new Dictionary<int, BearPlayer>();
     private readonly HashSet<int> _visited = new HashSet<int>();
 
+    // Медведь по сетевому номеру: забавам надо помечать водящих.
+    public static BearPlayer PlayerById(int id)
+    {
+        BearPlayer p;
+        if (I != null && I._players.TryGetValue(id, out p)) return p;
+        return null;
+    }
+
     // Ближайший к точке медведь — врагам нужно знать, за кем гнаться.
     // В одиночной игре это всегда локальный, в сети — любой из подключённых.
     public static BearPlayer NearestPlayer(Vector3 worldPos)
@@ -39,6 +47,7 @@ public class GameRoot : MonoBehaviour
     private Transform _playersHolder;
     private Hud _hud;
     private ShopUI _shop;
+    private PartyUI _party;
     private float _enemySendAccum;
     private bool _worldReady;
 
@@ -64,6 +73,8 @@ public class GameRoot : MonoBehaviour
         _hud = Hud.Create();
         _hud.transform.SetParent(transform, false);
         _shop = ShopUI.Create(transform);
+        _party = PartyUI.Create(transform);
+        Party.Create(transform);
 
         NetManager net = NetManager.I;
         net.OnWorldChanged += LoadWorld;
@@ -75,6 +86,7 @@ public class GameRoot : MonoBehaviour
         net.OnBrokenRemoved += OnBrokenRemoved;
         net.OnBlockPlaced += OnBlockPlaced;
         net.OnBlockRemoved += OnBlockRemoved;
+        net.OnEnemySpawned += OnEnemySpawned;
 
         if (net.IsHost)
         {
@@ -103,6 +115,7 @@ public class GameRoot : MonoBehaviour
             net.OnBrokenRemoved -= OnBrokenRemoved;
             net.OnBlockPlaced -= OnBlockPlaced;
             net.OnBlockRemoved -= OnBlockRemoved;
+            net.OnEnemySpawned -= OnEnemySpawned;
         }
         if (I == this) I = null;
     }
@@ -295,6 +308,11 @@ public class GameRoot : MonoBehaviour
                     _shop.Open();
                     Tutor.Show("shop", "У торговки меняют монеты на сердца и новых героев.");
                 }
+                if (npc.IsParty && _party != null)
+                {
+                    _party.Open();
+                    Tutor.Show("party", "У костра выбирают совместную забаву: прятки, оборону деревни или гонку.");
+                }
                 if (_hud != null) _hud.ShowDialog(npc.DialogText());
             }
             else if (left && _hud != null) _hud.HideDialog();
@@ -329,6 +347,16 @@ public class GameRoot : MonoBehaviour
     {
         if (World == null || NetManager.I == null || world != NetManager.I.CurrentWorld) return;
         World.RemoveEnemy(enemyId, true);
+    }
+
+    // Враг из волны обороны. Мир у клиента построен собственным кодом и
+    // о волнах не знает — поэтому каждого такого врага хост присылает
+    // отдельно, с тем же номером, чтобы дальше его двигали обычные
+    // рассылки позиций.
+    private void OnEnemySpawned(int world, int id, string kind, Vector3 a, Vector3 b, float speed)
+    {
+        if (World == null || NetManager.I == null || world != NetManager.I.CurrentWorld) return;
+        World.SpawnRuntimeEnemy(a, b, kind, speed, true, id);
     }
 
     private void OnBrokenRemoved(int world, int propId)
