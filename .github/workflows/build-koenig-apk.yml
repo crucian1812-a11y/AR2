@@ -1,0 +1,217 @@
+name: Build Koenig APK
+
+on:
+  push:
+    branches:
+      - claude/koenigsberg-bridges-travel
+    paths:
+      - "unity/**"
+      - ".github/workflows/build-koenig-apk.yml"
+  workflow_dispatch:
+
+env:
+  UNITY_VERSION: "6000.0.80f1"
+
+jobs:
+  check-credentials:
+    name: Проверка доступа к Unity
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          HAS_USERNAME: ${{ secrets.UNITY_USERNAME }}
+          HAS_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          missing=""
+          [ -z "$HAS_USERNAME" ] && missing="$missing UNITY_USERNAME"
+          [ -z "$HAS_PASSWORD" ] && missing="$missing UNITY_PASSWORD"
+
+          if [ -z "$missing" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Данные для активации Unity найдены — собираем APK."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Не заданы секреты:$missing — сборка APK пропущена."
+            echo " Нужны секреты UNITY_USERNAME и UNITY_PASSWORD (см. unity/LICENSE_SETUP.md)."
+          fi
+
+  build:
+    name: Сборка APK
+    needs: check-credentials
+    if: needs.check-credentials.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Unity Hub скачивает редактор по паре «версия + changeset», поэтому
+      # в ProjectVersion.txt обязателен хеш ревизии. Определяем его на лету.
+      - name: Определить changeset Unity
+        run: |
+          set -e
+          CHANGESET=$(npx --yes unity-changeset@3 "$UNITY_VERSION" | tr -d '[:space:]')
+          if ! printf '%s' "$CHANGESET" | grep -qE '^[0-9a-f]{12}$'; then
+            echo "::error::Не удалось определить changeset для $UNITY_VERSION (получено: '$CHANGESET')"
+            exit 1
+          fi
+          printf 'm_EditorVersion: %s\nm_EditorVersionWithRevision: %s (%s)\n' \
+            "$UNITY_VERSION" "$UNITY_VERSION" "$CHANGESET" \
+            > unity/ProjectSettings/ProjectVersion.txt
+          cat unity/ProjectSettings/ProjectVersion.txt
+
+      - name: Освободить место на диске
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      # unity-setup ищет Unity Hub строго в /opt/unityhub/unityhub и падает
+      # с ENOENT: в версии Hub 3.20 бинарник переехал в /usr/lib/unityhub.
+      # Путь переопределяется переменной UNITY_HUB_PATH, поэтому ставим Hub
+      # сами и спрашиваем его расположение у dpkg вместо угадывания.
+      - name: Поставить Unity Hub и определить путь к нему
+        run: |
+          set -euo pipefail
+          sudo install -d -m 0755 /usr/share/keyrings
+          curl -fsSL https://hub.unity3d.com/linux/keys/public \
+            | sudo gpg --dearmor -o /usr/share/keyrings/unityhub-ci.gpg
+          echo "deb [signed-by=/usr/share/keyrings/unityhub-ci.gpg] https://hub-dist.unity3d.com/artifactory/hub-debian-prod-local stable main" \
+            | sudo tee /etc/apt/sources.list.d/unityhub-ci.list > /dev/null
+          sudo apt-get update -qq
+          # xvfb нужен обёртке ниже: Hub тянет графические библиотеки даже
+          # в headless-режиме.
+          sudo apt-get install -y --no-install-recommends unityhub xvfb
+
+          echo "=========== файлы пакета unityhub ==========="
+          dpkg -L unityhub | grep -iE 'unityhub|appimage' || true
+
+          HUB=""
+          while read -r f; do
+            if [ -f "$f" ] && [ -x "$f" ]; then HUB="$f"; break; fi
+          done < <(dpkg -L unityhub | grep -iE '/unityhub$|[Aa]pp[Ii]mage$')
+
+          if [ -z "$HUB" ]; then
+            echo "::error::Бинарник Unity Hub не найден — смотрите список файлов выше"
+            exit 1
+          fi
+          echo "UNITY_HUB_PATH=$HUB" >> "$GITHUB_ENV"
+          echo "Unity Hub: $HUB"
+
+          # Ссылка по старому адресу: на него смотрит проверка доступа в
+          # unity-setup и обёртка, которую он себе пишет.
+          sudo mkdir -p /opt/unityhub
+          sudo ln -sfn "$HUB" /opt/unityhub/unityhub
+
+          # На Linux unity-setup запускает Hub по имени команды unity-hub;
+          # обёртку он создаёт только при установке пакета, а у нас пакет уже
+          # стоит. Пишем обёртку сами, на найденный путь.
+          printf '#!/bin/bash\nxvfb-run --auto-servernum %s "$@" 2>/dev/null\n' "$HUB" \
+            | sudo tee /usr/bin/unity-hub > /dev/null
+          sudo chmod 755 /usr/bin/unity-hub
+
+          echo "проверка обёртки:"
+          unity-hub --headless help 2>&1 | head -n 5 || true
+
+      - name: Установить Unity
+        uses: RageAgainstThePixel/unity-setup@v2
+        with:
+          unity-version: ${{ env.UNITY_VERSION }}
+          build-targets: Android
+          cache-installation: true
+
+      - name: Активировать лицензию Unity
+        uses: RageAgainstThePixel/activate-unity-license@v2
+        with:
+          license: Personal
+          username: ${{ secrets.UNITY_USERNAME }}
+          password: ${{ secrets.UNITY_PASSWORD }}
+
+      - name: Кэш Library
+        uses: actions/cache@v4
+        with:
+          path: unity/Library
+          key: Library-Koenig-${{ hashFiles('unity/Assets/**', 'unity/Packages/**', 'unity/ProjectSettings/**') }}
+          restore-keys: |
+            Library-Koenig-
+
+      - name: Собрать APK
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/build"
+          LOG="$GITHUB_WORKSPACE/unity-build.log"
+
+          set +e
+          "$UNITY_EDITOR_PATH" \
+            -quit -batchmode -nographics \
+            -projectPath "$GITHUB_WORKSPACE/unity" \
+            -executeMethod BuildScript.BuildKoenig \
+            -outputPath "$GITHUB_WORKSPACE/build/Koenigsberg.apk" \
+            -logFile "$LOG"
+          STATUS=$?
+          set -e
+
+          echo "=========== ошибки и предупреждения из лога ==========="
+          grep -nE "error CS|Error building|BuildScript:|Exception|Shader error|ERROR:" "$LOG" | head -n 120 || true
+          echo "=========== последние 250 строк лога Unity ==========="
+          tail -n 250 "$LOG" || true
+
+          if [ $STATUS -ne 0 ]; then
+            echo "::error::Unity завершился с кодом $STATUS — полный лог в артефакте unity-build-log"
+            exit $STATUS
+          fi
+
+      - name: Сохранить полный лог Unity
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: koenig-build-log
+          path: unity-build.log
+          if-no-files-found: ignore
+
+      - name: Найти собранный APK
+        id: findapk
+        run: |
+          set -e
+          APK=$(find build -name '*.apk' -print -quit)
+          if [ -z "$APK" ]; then
+            echo "::error::APK не найден"
+            find build -type f | head -50 || true
+            exit 1
+          fi
+          echo "apk=$APK" >> "$GITHUB_OUTPUT"
+          ls -la "$APK"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Koenigsberg-APK
+          path: ${{ steps.findapk.outputs.apk }}
+
+      - name: Опубликовать APK в релиз
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-koenig
+          name: "Кёнигсберг: Семь мостов — последний APK"
+          prerelease: true
+          make_latest: false
+          body: |
+            Автоматическая сборка игры-путешествия «Кёнигсберг: Семь мостов»
+            по Калининградской области (Зеленоградск → Светлогорск → Балтийск
+            → Калининград) для ребёнка с родителями.
+
+            **Как установить:**
+            1. Скачайте `Koenigsberg.apk` ниже на телефон.
+            2. Откройте файл и разрешите установку из неизвестных источников.
+
+            Требуется 64-битный Android (arm64), версия 7.0 и новее.
+            Ставится рядом с игрой про медведя — это отдельное приложение.
+
+            Разрешение на геолокацию нужно для отметки прибытия к точке;
+            AR-станции открываются в браузере и просят камеру там.
+          files: ${{ steps.findapk.outputs.apk }}

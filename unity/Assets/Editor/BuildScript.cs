@@ -13,6 +13,9 @@ using UnityEngine.SceneManagement;
 public static class BuildScript
 {
     private const string ScenePath = "Assets/Scenes/Main.unity";
+    // Вторая игра — путешествие по Калининградской области — собирается в
+    // отдельный APK из своей сцены и своим методом BuildKoenig.
+    private const string KoenigScenePath = "Assets/Scenes/Koenig.unity";
 
     // Все шейдеры создаются в рантайме через Shader.Find, поэтому их нужно
     // явно включить в сборку — иначе Unity вырежет их как неиспользуемые.
@@ -83,6 +86,47 @@ public static class BuildScript
         }
     }
 
+    // Сборка второй игры — «Кёнигсберг: Семь мостов». Тот же проект и тот
+    // же конвейер, но своя сцена, своё имя и свой пакет, чтобы обе игры
+    // ставились на телефон рядом.
+    public static void BuildKoenig()
+    {
+        try
+        {
+            PrepareKoenig();
+
+            string output = ResolveOutputPath("Koenigsberg");
+            string dir = Path.GetDirectoryName(output);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
+            BuildPlayerOptions options = new BuildPlayerOptions();
+            options.scenes = new string[] { KoenigScenePath };
+            options.locationPathName = output;
+            options.target = BuildTarget.Android;
+            options.targetGroup = BuildTargetGroup.Android;
+            options.options = BuildOptions.None;
+
+            Debug.Log("BuildScript: building Koenig APK to " + output);
+            UnityEditor.Build.Reporting.BuildReport report = BuildPipeline.BuildPlayer(options);
+            if (report == null) { Debug.LogError("BuildScript: no build report"); EditorApplication.Exit(1); return; }
+
+            UnityEditor.Build.Reporting.BuildSummary summary = report.summary;
+            if (summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+            {
+                Debug.LogError("BuildScript: build result = " + summary.result);
+                EditorApplication.Exit(1);
+                return;
+            }
+            Debug.Log("BuildScript: Koenig build succeeded, size = " + summary.totalSize + " bytes");
+            EditorApplication.Exit(0);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("BuildScript: exception " + e);
+            EditorApplication.Exit(1);
+        }
+    }
+
     // Настройка проекта без сборки — используется для проверки компиляции в CI.
     public static void PrepareOnly()
     {
@@ -105,6 +149,14 @@ public static class BuildScript
         ConfigurePlayerSettings();
         EnsureAlwaysIncludedShaders();
         CreateMainScene();
+    }
+
+    private static void PrepareKoenig()
+    {
+        EnsureUrpPipeline();
+        ConfigureKoenigPlayerSettings();
+        EnsureAlwaysIncludedShaders();
+        CreateKoenigScene();
     }
 
     // URP-ассеты тоже создаются кодом: в репозитории нет ни одного
@@ -246,6 +298,37 @@ public static class BuildScript
         QualitySettings.pixelLightCount = 4;
     }
 
+    // Настройки второй игры: своё имя и пакет (чтобы ставилась рядом с
+    // медведем) и ПОРТРЕТНАЯ ориентация — карта и интерфейс свёрстаны под
+    // вертикальный экран телефона.
+    private static void ConfigureKoenigPlayerSettings()
+    {
+        PlayerSettings.companyName = "Crucian";
+        PlayerSettings.productName = "Кёнигсберг: Семь мостов";
+        PlayerSettings.bundleVersion = "1.0";
+        PlayerSettings.colorSpace = ColorSpace.Linear;
+
+        PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "com.crucian.koenigsberg");
+        PlayerSettings.SetScriptingBackend(BuildTargetGroup.Android, ScriptingImplementation.IL2CPP);
+        PlayerSettings.SetManagedStrippingLevel(BuildTargetGroup.Android, ManagedStrippingLevel.Low);
+
+        PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+        PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel24;
+        // Интернет нужен, чтобы открывать AR-станцию в браузере; разрешение
+        // на геолокацию Unity добавит в манифест само, раз используется
+        // LocationService.
+        PlayerSettings.Android.forceInternetPermission = true;
+        PlayerSettings.Android.bundleVersionCode = 1;
+
+        PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+        PlayerSettings.allowedAutorotateToPortrait = true;
+        PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
+        PlayerSettings.allowedAutorotateToLandscapeLeft = false;
+        PlayerSettings.allowedAutorotateToLandscapeRight = false;
+
+        QualitySettings.pixelLightCount = 4;
+    }
+
     private static void EnsureAlwaysIncludedShaders()
     {
         UnityEngine.Object[] assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset");
@@ -314,7 +397,29 @@ public static class BuildScript
         Debug.Log("BuildScript: scene created at " + ScenePath);
     }
 
-    private static string ResolveOutputPath()
+    private static void CreateKoenigScene()
+    {
+        Directory.CreateDirectory(Path.Combine(Application.dataPath, "Scenes"));
+        AssetDatabase.Refresh();
+
+        Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        GameObject boot = new GameObject("KoenigBoot");
+        boot.AddComponent<Koenig.KoenigBoot>();
+
+        if (!EditorSceneManager.SaveScene(scene, KoenigScenePath))
+            throw new Exception("Failed to save scene at " + KoenigScenePath);
+
+        EditorBuildSettings.scenes = new EditorBuildSettingsScene[]
+        {
+            new EditorBuildSettingsScene(KoenigScenePath, true)
+        };
+        AssetDatabase.Refresh();
+        Debug.Log("BuildScript: Koenig scene created at " + KoenigScenePath);
+    }
+
+    private static string ResolveOutputPath() { return ResolveOutputPath("BearAdventure"); }
+
+    private static string ResolveOutputPath(string defaultName)
     {
         string custom = GetArg("-customBuildPath");
         string name = GetArg("-customBuildName");
@@ -325,12 +430,12 @@ public static class BuildScript
         if (!string.IsNullOrEmpty(custom))
         {
             if (custom.EndsWith(".apk")) return custom;
-            string file = string.IsNullOrEmpty(name) ? "BearAdventure" : name;
+            string file = string.IsNullOrEmpty(name) ? defaultName : name;
             if (!file.EndsWith(".apk")) file += ".apk";
             return Path.Combine(custom, file);
         }
 
-        return Path.Combine("build", "BearAdventure.apk");
+        return Path.Combine("build", defaultName + ".apk");
     }
 
     private static string GetArg(string key)
