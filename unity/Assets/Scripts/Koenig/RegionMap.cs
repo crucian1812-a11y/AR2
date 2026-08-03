@@ -200,6 +200,24 @@ namespace Koenig
             HeroScreen.Create(transform);
         }
 
+        // Запуск игрового уровня города. Прячем карту (канвас и опрос GPS) и
+        // отдаём экран уровню — его камера с высоким depth перекрывает хаб.
+        // По выходу возвращаемся и обновляемся: цифровой жетон мог смениться.
+        private void PlayCity(string cityId)
+        {
+            CloseOverlay();
+            Snd.Play("click");
+            _root.gameObject.SetActive(false);
+            enabled = false;
+            KoenigLevel.Create(transform, cityId, delegate
+            {
+                _root.gameObject.SetActive(true);
+                enabled = true;
+                Layout();
+                Refresh();
+            });
+        }
+
         // ---------- Модальные экраны ----------
 
         private void CloseOverlay()
@@ -235,10 +253,30 @@ namespace Koenig
             CloseOverlay();
             City c = KoenigContent.FindCity(cityId);
             List<Quest> qs = QuestLog.ForCity(cityId);
-            float hLog = 96f + qs.Count * 132f;
+            bool hasLevel = KoenigLevel.HasLevel(cityId);
+            float hLog = 96f + qs.Count * 132f + (hasLevel ? 64f : 0f);
             Vector2 ctr = Card(hLog, (c != null ? c.Name : "") + " · задания");
             float top = ctr.y + (hLog * 0.5f - 70f) * KS;
             float rowW = Screen.width * 0.88f;
+
+            // Кнопка «поиграть уровень» — цифровая половина квеста города.
+            if (hasLevel)
+            {
+                bool fused = DigitalProgress.IsFused(cityId);
+                bool digital = DigitalProgress.IsDone(cityId);
+                string label = "▶ Играть уровень" + (digital ? " (пройден)" : "");
+                string pid = cityId;
+                Keep(UiKit.MakeButton(_root, new Vector2(ctr.x, top),
+                    new Vector2(rowW, 50f * KS), label, Fs(17),
+                    delegate { PlayCity(pid); }));
+                Keep(UiKit.MakeText(_root, new Vector2(ctr.x, top - 32f * KS),
+                    Sz(420, 22), fused ? "🌉 Мост золотой: игра + реальность"
+                        : digital ? "🎮 Цифровой жетон есть — нужен настоящий, на месте"
+                        : "Собери цифровой жетон в игре", Fs(12),
+                    fused ? new Color(1f, 0.85f, 0.4f) : new Color(0.8f, 0.86f, 0.95f),
+                    TextAnchor.MiddleCenter));
+                top -= 64f * KS;
+            }
 
             for (int i = 0; i < qs.Count; i++)
             {

@@ -215,6 +215,8 @@ namespace UnityEngine
         public static void DestroyImmediate(Object o) { }
         public static void DontDestroyOnLoad(Object o) { }
         public static T Instantiate<T>(T o) where T : Object { return o; }
+        public static T FindObjectOfType<T>() where T : Object { return null; }
+        public static T[] FindObjectsOfType<T>() where T : Object { return null; }
         public static bool operator ==(Object a, Object b) { return false; }
         public static bool operator !=(Object a, Object b) { return false; }
         public static implicit operator bool(Object o) { return false; }
@@ -528,7 +530,7 @@ namespace UnityEngine
         public Color backgroundColor { get; set; }
         public bool allowHDR { get; set; }
         public int cullingMask { get; set; }
-        public int depth { get; set; }
+        public float depth { get; set; }
         public RenderTexture targetTexture { get; set; }
         public bool orthographic { get; set; }
         public Vector3 WorldToScreenPoint(Vector3 p) { return Vector3.zero; }
