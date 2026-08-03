@@ -74,6 +74,24 @@ public static class UiKit
         return t;
     }
 
+    // Все прямоугольники ставятся по ЦЕНТРУ (pivot 0.5). Поэтому выключенный
+    // влево текст, которому дали x левого края, уезжал за экран на полширины.
+    // Эти помощники берут x как КРАЙ и сами сдвигают центр — левый и правый
+    // столбцы строки больше не налезают друг на друга и не обрезаются.
+    public static Text MakeTextLeft(Transform parent, float leftX, float centerY, Vector2 size,
+        string content, int fontSize, Color color, TextAnchor anchor = TextAnchor.MiddleLeft)
+    {
+        return MakeText(parent, new Vector2(leftX + size.x * 0.5f, centerY), size, content,
+            fontSize, color, anchor);
+    }
+
+    public static Text MakeTextRight(Transform parent, float rightX, float centerY, Vector2 size,
+        string content, int fontSize, Color color, TextAnchor anchor = TextAnchor.MiddleRight)
+    {
+        return MakeText(parent, new Vector2(rightX - size.x * 0.5f, centerY), size, content,
+            fontSize, color, anchor);
+    }
+
     public static Image MakeImage(Transform parent, Vector2 pos, Vector2 size, Sprite sprite, Color color)
     {
         GameObject go = new GameObject("Image");

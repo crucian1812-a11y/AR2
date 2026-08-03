@@ -284,39 +284,44 @@ namespace Koenig
                 Poi poi = q.Poi;
                 float y = top - i * 128f * KS;
                 float cx = ctr.x;
-                float leftX = cx - rowW * 0.5f + 12f * KS;
+                // Внутренние края строки и две колонки: слева — название и
+                // задание, справа — награда и статус. Ширины подобраны так,
+                // чтобы колонки не налезали и не уезжали за экран.
+                float lx = cx - rowW * 0.5f + 14f * KS;
+                float rx = cx + rowW * 0.5f - 14f * KS;
+                float leftColW = rowW - 200f * KS;
+                float rightColW = 172f * KS;
 
                 Keep(UiKit.MakePanel(_root, new Vector2(cx, y), new Vector2(rowW, 118f * KS),
                     new Color(0.14f, 0.22f, 0.32f, 1f)));
-                Keep(UiKit.MakeText(_root, new Vector2(leftX, y + 40f * KS), Sz(300, 24),
-                    poi.Name, Fs(15), Color.white, TextAnchor.MiddleLeft));
-                Keep(UiKit.MakeText(_root, new Vector2(leftX, y + 6f * KS), new Vector2(rowW - 30f * KS, 44f * KS),
+                Keep(UiKit.MakeTextLeft(_root, lx, y + 40f * KS, new Vector2(leftColW, 24f * KS),
+                    poi.Name, Fs(15), Color.white));
+                Keep(UiKit.MakeTextLeft(_root, lx, y + 4f * KS, new Vector2(leftColW, 46f * KS),
                     poi.ChildTask, Fs(12), new Color(0.8f, 0.86f, 0.95f), TextAnchor.UpperLeft));
 
                 // Награда и хомлин — правый верхний угол строки.
                 string marks = ArtifactShort(poi.Gives);
                 if (q.HasHomlin) marks += " · хомлин";
-                Keep(UiKit.MakeText(_root, new Vector2(cx + rowW * 0.5f - 12f * KS, y + 40f * KS),
-                    Sz(180, 22), marks, Fs(11), new Color(1f, 0.82f, 0.45f), TextAnchor.MiddleRight));
+                Keep(UiKit.MakeTextRight(_root, rx, y + 40f * KS, new Vector2(rightColW, 22f * KS),
+                    marks, Fs(11), new Color(1f, 0.82f, 0.45f)));
 
                 // Нижний ряд: AR-кнопка слева, состояние/отметка справа.
                 if (q.HasAr)
                 {
                     string art = poi.ArTarget;
-                    Keep(UiKit.MakeButton(_root, new Vector2(leftX + 46f * KS, y - 34f * KS),
-                        Sz(92, 36), "AR", Fs(14), delegate { ArStation.Open(art); }));
+                    Keep(UiKit.MakeButton(_root, new Vector2(lx + 46f * KS, y - 34f * KS),
+                        Sz(88, 36), "AR", Fs(14), delegate { ArStation.Open(art); }));
                 }
                 if (q.State == QuestState.Done)
-                    Keep(UiKit.MakeText(_root, new Vector2(cx + rowW * 0.5f - 12f * KS, y - 34f * KS),
-                        Sz(180, 30), "✓ Пройдено", Fs(14), new Color(0.5f, 0.9f, 0.5f), TextAnchor.MiddleRight));
+                    Keep(UiKit.MakeTextRight(_root, rx, y - 34f * KS, new Vector2(rightColW, 30f * KS),
+                        "✓ Пройдено", Fs(13), new Color(0.5f, 0.9f, 0.5f)));
                 else if (q.State == QuestState.Locked)
-                    Keep(UiKit.MakeText(_root, new Vector2(cx + rowW * 0.5f - 12f * KS, y - 34f * KS),
-                        Sz(210, 30), "сначала прошлые города", Fs(11),
-                        new Color(0.7f, 0.72f, 0.78f), TextAnchor.MiddleRight));
+                    Keep(UiKit.MakeTextRight(_root, rx, y - 34f * KS, new Vector2(rightColW, 30f * KS),
+                        "сначала прошлые города", Fs(11), new Color(0.7f, 0.72f, 0.78f)));
                 else
                 {
                     string pid = poi.Id;
-                    Keep(UiKit.MakeButton(_root, new Vector2(cx + rowW * 0.5f - 88f * KS, y - 34f * KS),
+                    Keep(UiKit.MakeButton(_root, new Vector2(rx - 75f * KS, y - 34f * KS),
                         Sz(150, 38), "Отметить", Fs(14), delegate { CompletePoi(pid, cityId); }));
                 }
             }
@@ -437,8 +442,13 @@ namespace Koenig
             float by = H * 0.82f;
             _heroFrame.rectTransform.anchoredPosition = new Vector2(Screen.width * 0.2f, by);
             _heroAvatar.rectTransform.anchoredPosition = new Vector2(Screen.width * 0.2f, by);
-            _rankText.rectTransform.anchoredPosition = new Vector2(Screen.width * 0.37f, by + 16f * KS);
-            _rankSub.rectTransform.anchoredPosition = new Vector2(Screen.width * 0.37f, by - 6f * KS);
+            // Текст звания — левым краем справа от аватара (pivot по центру,
+            // потому сдвигаем на полширины), иначе налезал на портрет Кёни.
+            float rankLeft = Screen.width * 0.31f;
+            _rankText.rectTransform.anchoredPosition =
+                new Vector2(rankLeft + _rankText.rectTransform.sizeDelta.x * 0.5f, by + 16f * KS);
+            _rankSub.rectTransform.anchoredPosition =
+                new Vector2(rankLeft + _rankSub.rectTransform.sizeDelta.x * 0.5f, by - 6f * KS);
             _heroTap.image.rectTransform.anchoredPosition = new Vector2(cx, by);
 
             // Нижний ряд из трёх кнопок — по долям ширины, чтобы влезали.
