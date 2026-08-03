@@ -22,7 +22,8 @@ namespace Koenig
         }
 
         // Материал категории: базовый цвет + карта нормалей на шейдере Bear/Lit.
-        private static Material MatFor(string cat)
+        // Публичный — им же красим короб-основу дома и мостовую.
+        public static Material CatMaterial(string cat)
         {
             Material m;
             if (_mat.TryGetValue(cat, out m) && m != null) return m;
@@ -95,6 +96,65 @@ namespace Koenig
             return "plaster";
         }
 
+        // Загрузить и привести к нужной высоте (метры), поставив низом на
+        // pos.y. Родные размеры пака заранее неизвестны, а так модель всегда
+        // выходит нужного размера — дом домом, бочка бочкой.
+        public static GameObject LoadSized(Transform parent, string id, Vector3 pos,
+            float yaw, float targetHeight, bool collide = true)
+        {
+            GameObject go = Load(parent, id, pos, Quaternion.Euler(0f, yaw, 0f), 1f, collide);
+            if (go == null) return null;
+
+            Bounds b;
+            if (!CombinedBounds(go, out b)) return go;
+            float k = targetHeight / Mathf.Max(b.size.y, 0.0001f);
+            k = Mathf.Clamp(k, 0.01f, 200f);
+            go.transform.localScale = new Vector3(k, k, k);
+
+            // После масштабирования опускаем низ модели ровно на pos.y.
+            if (CombinedBounds(go, out b))
+            {
+                Vector3 lp = go.transform.localPosition;
+                go.transform.localPosition = new Vector3(lp.x, lp.y + (pos.y - b.min.y), lp.z);
+            }
+            return go;
+        }
+
+        // Как LoadSized, но приводим к нужной ШИРИНЕ следа (max по X/Z) —
+        // для крыш и мостовых, которые «плоские» и по высоте не мерятся.
+        public static GameObject LoadSizedWidth(Transform parent, string id, Vector3 pos,
+            float yaw, float targetWidth, bool collide = true)
+        {
+            GameObject go = Load(parent, id, pos, Quaternion.Euler(0f, yaw, 0f), 1f, collide);
+            if (go == null) return null;
+            Bounds b;
+            if (!CombinedBounds(go, out b)) return go;
+            float foot = Mathf.Max(b.size.x, b.size.z);
+            float k = targetWidth / Mathf.Max(foot, 0.0001f);
+            k = Mathf.Clamp(k, 0.01f, 200f);
+            go.transform.localScale = new Vector3(k, k, k);
+            if (CombinedBounds(go, out b))
+            {
+                Vector3 lp = go.transform.localPosition;
+                go.transform.localPosition = new Vector3(lp.x, lp.y + (pos.y - b.min.y), lp.z);
+            }
+            return go;
+        }
+
+        private static bool CombinedBounds(GameObject go, out Bounds b)
+        {
+            b = new Bounds(go.transform.position, Vector3.zero);
+            Renderer[] rs = go.GetComponentsInChildren<Renderer>();
+            bool has = false;
+            for (int i = 0; i < rs.Length; i++)
+            {
+                if (rs[i] == null) continue;
+                if (!has) { b = rs[i].bounds; has = true; }
+                else b.Encapsulate(rs[i].bounds);
+            }
+            return has;
+        }
+
         // Загрузить модель по id, покрасить подмеши, повесить коллайдер.
         public static GameObject Load(Transform parent, string id, Vector3 pos,
             Quaternion rot, float scale, bool collide = true)
@@ -120,7 +180,7 @@ namespace Koenig
                 {
                     string cat = src[s] != null ? CatFromName(src[s].name) : null;
                     if (cat == null) cat = idCat;
-                    outM[s] = MatFor(cat);
+                    outM[s] = CatMaterial(cat);
                 }
                 rs[i].sharedMaterials = outM;
                 rs[i].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;

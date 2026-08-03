@@ -49,19 +49,7 @@ namespace Koenig
         private void Setup()
         {
             Screen.sleepTimeout = SleepTimeout.NeverSleep;
-
-            // Свет для 3D: на экранах-меню его не было (там один UI).
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.5f, 0.55f, 0.62f);
-            RenderSettings.fog = false;
-            GameObject sunGo = new GameObject("Sun");
-            sunGo.transform.SetParent(transform, false);
-            sunGo.transform.localRotation = Quaternion.Euler(52f, 40f, 0f);
-            Light sun = sunGo.AddComponent<Light>();
-            sun.type = LightType.Directional;
-            sun.intensity = 1.15f;
-            sun.color = new Color(1f, 0.97f, 0.88f);
-            sun.shadows = LightShadows.Soft;
+            SetupSky();
 
             GameObject worldGo = new GameObject("World");
             worldGo.transform.SetParent(transform, false);
@@ -69,96 +57,162 @@ namespace Koenig
 
             BuildZelenogradsk();
 
-            _player = KoenigPlayer.Spawn(transform, new Vector3(0f, 1.5f, 9f), Guide.ModelId);
+            _player = KoenigPlayer.Spawn(transform, new Vector3(0f, 1.5f, 12f), Guide.ModelId);
+            if (_player.Cam != null)
+            {
+                _player.Cam.clearFlags = CameraClearFlags.Skybox;
+                PostFx fx = _player.Cam.gameObject.AddComponent<PostFx>();
+                fx.Configure(1.05f, 1.14f, new Color(1f, 0.99f, 0.96f), 0.42f);
+            }
 
             BuildHud();
             KoenigTouch.Create(_hud.transform);
+        }
+
+        // Небо, солнце с мягкими тенями, туман и заливающий свет — как в
+        // мирах игры про медведя, чтобы камень и черепица заиграли.
+        private void SetupSky()
+        {
+            Color top = new Color(0.30f, 0.55f, 0.85f);
+            Color horizon = new Color(0.76f, 0.86f, 0.94f);
+            Color ground = new Color(0.52f, 0.58f, 0.48f);
+            Shader sky = Shader.Find("Bear/Sky");
+            if (sky != null)
+            {
+                Material m = new Material(sky);
+                m.SetColor("_TopColor", top);
+                m.SetColor("_HorizonColor", horizon);
+                m.SetColor("_GroundColor", ground);
+                RenderSettings.skybox = m;
+            }
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = top * 0.5f;
+            RenderSettings.ambientEquatorColor = horizon * 0.5f;
+            RenderSettings.ambientGroundColor = ground * 0.4f;
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogColor = horizon;
+            RenderSettings.fogDensity = 0.006f;
+
+            GameObject sunGo = new GameObject("Sun");
+            sunGo.transform.SetParent(transform, false);
+            sunGo.transform.localRotation = Quaternion.Euler(48f, 35f, 0f);
+            Light sun = sunGo.AddComponent<Light>();
+            sun.type = LightType.Directional;
+            sun.intensity = 1.5f;
+            sun.color = new Color(1f, 0.96f, 0.86f);
+            sun.shadows = LightShadows.Soft;
+            sun.shadowStrength = 0.7f;
+        }
+
+        // Материал с плиткой текстуры (для короба-основы дома и мостовой).
+        private Material Tiled(string tex, float tile, Color fallback)
+        {
+            Material m = new Material(Gfx.Standard);
+            Texture2D t = Resources.Load<Texture2D>("Textures/koenig/" + tex);
+            if (t != null) { m.mainTexture = t; m.SetTextureScale("_MainTex", new Vector2(tile, tile)); }
+            else m.color = fallback;
+            m.SetFloat("_Glossiness", 0.05f);
+            m.SetFloat("_Metallic", 0f);
+            return m;
         }
 
         // ---------- Мир Зеленоградска ----------
 
         private void BuildZelenogradsk()
         {
-            // Песчаная набережная.
-            Material sand = Gfx.Mat(new Color(0.83f, 0.74f, 0.55f), 0.05f);
-            Gfx.Box(_world, new Vector3(0f, -0.5f, 0f), new Vector3(38f, 1f, 38f), sand, true);
+            // Трава под всем городом.
+            Material grass = Gfx.MatFull(new Color(0.42f, 0.6f, 0.32f), 0.03f, 0f, Color.black, 6f, 0.4f);
+            Gfx.Box(_world, new Vector3(0f, -0.5f, 0f), new Vector3(90f, 1f, 90f), grass, true);
 
-            // Балтика за дальним парапетом (только вид, туда не ходим).
-            Material sea = Gfx.Mat(new Color(0.18f, 0.42f, 0.62f), 0.6f, 0.1f);
-            Gfx.Box(_world, new Vector3(0f, -0.7f, 36f), new Vector3(90f, 0.7f, 42f), sea, false);
+            // Мощёная площадь в центре — настоящая каменная текстура.
+            Material cobble = Tiled("T_UnevenBrick_BaseColor", 6f, new Color(0.66f, 0.63f, 0.57f));
+            Gfx.Box(_world, new Vector3(0f, 0.02f, 0f), new Vector3(30f, 0.2f, 34f), cobble, true);
 
-            // Парапеты по краям — не дают убежать с набережной.
-            Material rail = Gfx.Mat(new Color(0.72f, 0.68f, 0.6f), 0.1f);
-            Gfx.Box(_world, new Vector3(0f, 0.6f, 18.6f), new Vector3(38f, 1.2f, 0.6f), rail, true);
-            Gfx.Box(_world, new Vector3(0f, 0.6f, -18.6f), new Vector3(38f, 1.2f, 0.6f), rail, true);
-            Gfx.Box(_world, new Vector3(18.6f, 0.6f, 0f), new Vector3(0.6f, 1.2f, 38f), rail, true);
-            Gfx.Box(_world, new Vector3(-18.6f, 0.6f, 0f), new Vector3(0.6f, 1.2f, 38f), rail, true);
+            // Балтийское море за северным парапетом.
+            Material sea = Gfx.Mat(new Color(0.18f, 0.44f, 0.62f), 0.7f, 0.1f);
+            Gfx.Box(_world, new Vector3(0f, -0.4f, 46f), new Vector3(150f, 0.6f, 40f), sea, false);
+            Material stone = Tiled("T_RockTrim_BaseColor", 8f, new Color(0.7f, 0.66f, 0.58f));
+            Gfx.Box(_world, new Vector3(0f, 0.6f, 24.5f), new Vector3(80f, 1.4f, 0.8f), stone, true);
+            // Остальные границы — стены, чтобы не убежать за город.
+            Gfx.Box(_world, new Vector3(0f, 2f, -31f), new Vector3(90f, 5f, 1f), stone, true);
+            Gfx.Box(_world, new Vector3(-31f, 2f, 0f), new Vector3(1f, 5f, 90f), stone, true);
+            Gfx.Box(_world, new Vector3(31f, 2f, 0f), new Vector3(1f, 5f, 90f), stone, true);
 
-            // Водонапорная башня (Мурариум) — узнаваемая доминанта города и
-            // место, где ждёт жетон.
-            Tower(new Vector3(10f, 0f, -11f));
+            // Два ряда домов по краям площади.
+            string[] walls = { "Wall_Plaster_Window_Wide_Round", "Wall_Plaster_Door_Round",
+                               "Wall_UnevenBrick_Window_Wide_Round", "Wall_Plaster_Window_Wide_Round" };
+            string[] roofs = { "Roof_RoundTiles_6x6", "Roof_RoundTiles_6x8", "Roof_RoundTiles_4x4" };
+            float[] xs = { -18f, -6f, 6f, 18f };
+            for (int i = 0; i < xs.Length; i++)
+            {
+                House(new Vector3(xs[i], 0.1f, -20f), 0f, walls[i % walls.Length],
+                      roofs[i % roofs.Length], i % 3 == 2);
+                House(new Vector3(xs[i], 0.1f, 20f), 180f, walls[(i + 1) % walls.Length],
+                      roofs[(i + 1) % roofs.Length], i % 3 == 1);
+            }
 
-            // Кошки Зеленоградска — бронзовые фигурки, как настоящие в городе.
-            Cat(new Vector3(-8f, 0f, -6f));
-            Cat(new Vector3(6f, 0f, 4f));
-            Cat(new Vector3(-4f, 0f, 8f));
-            Cat(new Vector3(12f, 0f, 6f));
+            // Доминанта — башня с настоящей черепичной крышей.
+            Tower(new Vector3(0f, 0.1f, -26f));
 
-            // Фонари набережной.
-            Lamp(new Vector3(-12f, 0f, 12f));
-            Lamp(new Vector3(12f, 0f, 12f));
-            Lamp(new Vector3(0f, 0f, -14f));
+            // Реквизит: телега, ящики, столбы, заборы, лоза.
+            KoenigProp.LoadSized(_world, "Prop_Wagon", new Vector3(-10f, 0.1f, 4f), 40f, 1.8f);
+            KoenigProp.LoadSized(_world, "Prop_Crate", new Vector3(9f, 0.1f, -2f), 20f, 1.1f);
+            KoenigProp.LoadSized(_world, "Prop_Crate", new Vector3(10.2f, 0.1f, -1.2f), 70f, 1.0f);
+            KoenigProp.LoadSized(_world, "Prop_Crate", new Vector3(9.7f, 1.1f, -1.7f), 10f, 0.9f);
+            KoenigProp.LoadSized(_world, "Prop_Support", new Vector3(-14f, 0.1f, 10f), 0f, 3.2f);
+            KoenigProp.LoadSized(_world, "Prop_Support", new Vector3(14f, 0.1f, 10f), 0f, 3.2f);
+            for (int i = 0; i < 6; i++)
+                KoenigProp.LoadSized(_world, "Prop_WoodenFence_Single",
+                    new Vector3(-16f + i * 2.2f, 0.1f, 13.5f), 90f, 1.2f);
+            KoenigProp.LoadSized(_world, "Prop_MetalFence_Simple", new Vector3(6f, 0.1f, 22f), 0f, 1.4f);
+            KoenigProp.LoadSized(_world, "Prop_Vine1", new Vector3(-6.1f, 0.1f, -17.4f), 0f, 3.6f);
 
-            // Рыбки — то, что собирает кот. Разбросаны по набережной.
+            // Тёплая подсветка на площади.
+            Gfx.Glow(_world, new Vector3(-8f, 3f, 0f), 3f, new Color(1f, 0.9f, 0.6f, 0.4f));
+            Gfx.Glow(_world, new Vector3(8f, 3f, 0f), 3f, new Color(1f, 0.9f, 0.6f, 0.4f));
+
+            // Рыбки — сборка.
             Vector3[] spots = {
-                new Vector3(-6f, 1f, 2f), new Vector3(4f, 1f, -3f),
-                new Vector3(-10f, 1f, -8f), new Vector3(8f, 1f, 10f),
-                new Vector3(0f, 1f, 6f), new Vector3(-2f, 1f, -12f),
+                new Vector3(-6f, 1f, 2f), new Vector3(6f, 1f, -3f), new Vector3(-11f, 1f, -8f),
+                new Vector3(11f, 1f, 8f), new Vector3(0f, 1f, 8f), new Vector3(-2f, 1f, -12f),
+                new Vector3(13f, 1f, -6f), new Vector3(-13f, 1f, 6f),
             };
             for (int i = 0; i < spots.Length; i++) _fish.Add(Fish(spots[i]));
             _total = _fish.Count;
 
-            // Жетон моста у башни — появится, когда собраны все рыбки.
-            _token = Token(new Vector3(10f, 1.1f, -8f));
+            _token = Token(new Vector3(0f, 1.4f, -22f));
             _token.gameObject.SetActive(false);
         }
 
-        private void Tower(Vector3 pos)
+        // Дом: короб-основа с текстурой + настоящий фасад с окном/дверью +
+        // настоящая черепичная крыша поверх короба + труба.
+        private void House(Vector3 basePos, float yaw, string wallId, string roofId, bool stone)
         {
-            Material brick = Gfx.Mat(new Color(0.66f, 0.34f, 0.26f), 0.08f);
-            Material band = Gfx.Mat(new Color(0.86f, 0.82f, 0.74f), 0.1f);
-            Gfx.Cyl(_world, pos + new Vector3(0f, 2.4f, 0f), new Vector3(2.6f, 2.4f, 2.6f), brick, true);
-            Gfx.Cyl(_world, pos + new Vector3(0f, 5.2f, 0f), new Vector3(2.2f, 0.4f, 2.2f), band, true);
-            Gfx.Cyl(_world, pos + new Vector3(0f, 7f, 0f), new Vector3(2.3f, 1.6f, 2.3f), brick, true);
-            Gfx.Cone(_world, pos + new Vector3(0f, 8.8f, 0f), 2.6f, 2.2f,
-                Gfx.Mat(new Color(0.3f, 0.35f, 0.42f), 0.2f));
-            // Часы-кружок на башне.
-            Gfx.Ball(_world, pos + new Vector3(0f, 6.9f, 2.3f), new Vector3(0.9f, 0.9f, 0.2f), band);
+            float w = 7.5f, d = 7.5f, h = Random.Range(4.5f, 6f);
+            Quaternion q = Quaternion.Euler(0f, yaw, 0f);
+            Vector3 fwd = q * Vector3.forward;
+
+            Material body = stone
+                ? Tiled("T_UnevenBrick_BaseColor", 2.2f, new Color(0.66f, 0.63f, 0.57f))
+                : Tiled("T_Plaster_BaseColor", 1.6f, new Color(0.88f, 0.83f, 0.7f));
+            Gfx.Box(_world, basePos + new Vector3(0f, h * 0.5f, 0f), new Vector3(w, h, d), body, true);
+
+            KoenigProp.LoadSized(_world, wallId, basePos + fwd * (d * 0.5f + 0.05f), yaw, h * 0.95f);
+            KoenigProp.LoadSizedWidth(_world, roofId, basePos + new Vector3(0f, h, 0f), yaw, w * 1.15f);
+            KoenigProp.LoadSized(_world, "Prop_Chimney",
+                basePos + new Vector3(w * 0.25f, h + 0.6f, -d * 0.2f), 0f, 1.6f);
         }
 
-        private void Cat(Vector3 pos)
+        private void Tower(Vector3 basePos)
         {
-            Material bronze = Gfx.MatFull(new Color(0.42f, 0.3f, 0.16f), 0.35f, 0.6f, Color.black, 0f, 0f);
-            Transform holder = new GameObject("Cat").transform;
-            holder.SetParent(_world, false);
-            holder.localPosition = pos;
-            holder.localRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
-            Gfx.Ball(holder, new Vector3(0f, 0.35f, 0f), new Vector3(0.5f, 0.45f, 0.7f), bronze);   // тело
-            Gfx.Ball(holder, new Vector3(0f, 0.72f, 0.28f), new Vector3(0.42f, 0.4f, 0.4f), bronze); // голова
-            Gfx.Ball(holder, new Vector3(-0.14f, 0.98f, 0.28f), new Vector3(0.14f, 0.2f, 0.08f), bronze); // ухо
-            Gfx.Ball(holder, new Vector3(0.14f, 0.98f, 0.28f), new Vector3(0.14f, 0.2f, 0.08f), bronze);  // ухо
-            GameObject tail = Gfx.Cyl(holder, new Vector3(0f, 0.5f, -0.42f),
-                new Vector3(0.1f, 0.28f, 0.1f), bronze, false);
-            tail.transform.localRotation = Quaternion.Euler(58f, 0f, 0f);
-        }
-
-        private void Lamp(Vector3 pos)
-        {
-            Material iron = Gfx.Mat(new Color(0.2f, 0.22f, 0.26f), 0.3f, 0.5f);
-            Gfx.Cyl(_world, pos + new Vector3(0f, 1.5f, 0f), new Vector3(0.16f, 1.5f, 0.16f), iron, false);
-            Gfx.Ball(_world, pos + new Vector3(0f, 3.1f, 0f), new Vector3(0.5f, 0.6f, 0.5f),
-                Gfx.MatFull(new Color(1f, 0.95f, 0.7f), 0.5f, 0f, new Color(1f, 0.9f, 0.55f), 0f, 0f));
-            Gfx.Glow(_world, pos + new Vector3(0f, 3.1f, 0f), 2.4f, new Color(1f, 0.9f, 0.6f, 0.5f));
+            Material stone = Tiled("T_RockTrim_BaseColor", 2f, new Color(0.7f, 0.66f, 0.58f));
+            float h = 12f;
+            Gfx.Box(_world, basePos + new Vector3(0f, h * 0.5f, 0f), new Vector3(4.4f, h, 4.4f), stone, true);
+            KoenigProp.LoadSizedWidth(_world, "Roof_Tower_RoundTiles",
+                basePos + new Vector3(0f, h, 0f), 0f, 5.6f);
+            Gfx.Ball(_world, basePos + new Vector3(0f, h - 2f, 2.25f), new Vector3(1.1f, 1.1f, 0.3f),
+                Gfx.MatFull(new Color(0.95f, 0.93f, 0.85f), 0.2f, 0f, Color.black, 0f, 0f));
         }
 
         private Transform Fish(Vector3 pos)
