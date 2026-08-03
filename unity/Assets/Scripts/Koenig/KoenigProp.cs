@@ -141,6 +141,37 @@ namespace Koenig
             return go;
         }
 
+        // Родная высота модели (при масштабе 1) — чтобы подобрать ЕДИНЫЙ
+        // масштаб для всего пака: тогда пропорции родные и вытянутые куски
+        // (столбы, заборы) не раздуваются, как при нормировке по высоте.
+        public static float NativeHeight(Transform parent, string id)
+        {
+            GameObject go = Load(parent, id, Vector3.zero, Quaternion.identity, 1f, false);
+            if (go == null) return 0f;
+            Bounds b;
+            float h = CombinedBounds(go, out b) ? b.size.y : 0f;
+            Object.Destroy(go);
+            return h;
+        }
+
+        // Загрузить с ЕДИНЫМ масштабом (родные пропорции), поставить низом на
+        // pos.y и вернуть мировой размер (для подгонки короба под крышу).
+        public static GameObject LoadScaled(Transform parent, string id, Vector3 pos,
+            float yaw, float scale, bool collide, out Vector3 worldSize)
+        {
+            worldSize = Vector3.zero;
+            GameObject go = Load(parent, id, pos, Quaternion.Euler(0f, yaw, 0f), scale, collide);
+            if (go == null) return null;
+            Bounds b;
+            if (CombinedBounds(go, out b))
+            {
+                worldSize = b.size;
+                Vector3 lp = go.transform.localPosition;
+                go.transform.localPosition = new Vector3(lp.x, lp.y + (pos.y - b.min.y), lp.z);
+            }
+            return go;
+        }
+
         private static bool CombinedBounds(GameObject go, out Bounds b)
         {
             b = new Bounds(go.transform.position, Vector3.zero);
