@@ -91,6 +91,17 @@ namespace Koenig
             return false;
         }
 
+        public static bool HasLandSeal(string landIndex)
+        {
+            EnsureLoaded();
+            Poi[] pts = KoenigContent.Points;
+            for (int i = 0; i < pts.Length; i++)
+                if (pts[i].Gives == Artifact.LandSeal &&
+                    pts[i].BridgeOrLand == landIndex && _done.Contains(pts[i].Id))
+                    return true;
+            return false;
+        }
+
         // ---------- Финал ----------
 
         // Головоломка открывается, когда собраны все семь жетонов мостов —
