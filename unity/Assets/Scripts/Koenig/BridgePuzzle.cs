@@ -13,6 +13,10 @@ namespace Koenig
     // с триумфом проходит все восемь.
     //
     // Вся математика — в BridgeGraph; здесь только показ и касания.
+    //
+    // ВАЖНО про размеры: игра портретная, масштаб берётся от ШИРИНЫ экрана
+    // (ks = Screen.width / 440), как на карте области. Раньше считалось от
+    // высоты, и на узком экране остров с востоком уезжали за правый край.
     public class BridgePuzzle : MonoBehaviour
     {
         private System.Action _onSolved;
@@ -39,15 +43,21 @@ namespace Koenig
         private int _lastW, _lastH;
         private bool _hinting;
 
-        // Экранные позиции земель относительно центра, в опорных единицах:
-        // остров в середине, север сверху, юг снизу, восток справа — как
-        // на настоящей карте Кёнигсберга.
+        // Масштаб от ширины: логическое поле 440 единиц (как в RegionMap).
+        private float KS { get { return Mathf.Max(Screen.width, 1) / 440f; } }
+        private int Fs(float logical) { return Mathf.Max(1, Mathf.RoundToInt(logical * KS)); }
+        private Vector2 Sz(float w, float h) { return new Vector2(w * KS, h * KS); }
+
+        // Экранные позиции земель относительно центра, в логических единицах
+        // (поле 440 в ширину): остров в середине, север сверху, юг снизу,
+        // восток справа — как на настоящей карте Кёнигсберга. Смещения по X
+        // держим в пределах ±150, чтобы влезть в узкий портретный экран.
         private static Vector2 NodeBase(int land)
         {
-            if (land == 0) return new Vector2(0f, 190f);    // Север
-            if (land == 2) return new Vector2(0f, -190f);   // Юг
-            if (land == 3) return new Vector2(300f, 0f);    // Восток
-            return new Vector2(-30f, 0f);                    // Остров (центр)
+            if (land == 0) return new Vector2(0f, 150f);    // Север
+            if (land == 2) return new Vector2(0f, -150f);   // Юг
+            if (land == 3) return new Vector2(150f, 0f);    // Восток
+            return new Vector2(-38f, 0f);                    // Остров (центр)
         }
 
         public static BridgePuzzle Create(Transform parent, System.Action onSolved)
@@ -68,15 +78,14 @@ namespace Koenig
             _canvas = UiKit.CreateCanvas("KoenigPuzzle", 40);
             _canvas.transform.SetParent(transform, false);
             Transform c = _canvas.transform;
-            float s = UiKit.Scale;
 
-            UiKit.MakePanel(c, Vector2.zero, new Vector2(4000f, 4000f),
+            UiKit.MakePanel(c, Vector2.zero, new Vector2(6000f, 6000f),
                 new Color(0.06f, 0.12f, 0.18f, 1f));
-            _title = UiKit.MakeText(c, Vector2.zero, new Vector2(760f * s, 44f * s),
-                "Семь мостов Кёнигсберга", Mathf.RoundToInt(30f * s),
+            _title = UiKit.MakeText(c, Vector2.zero, Sz(430, 40),
+                "Семь мостов Кёнигсберга", Fs(24),
                 new Color(1f, 0.86f, 0.42f), TextAnchor.MiddleCenter);
-            _status = UiKit.MakeText(c, Vector2.zero, new Vector2(820f * s, 96f * s), "",
-                Mathf.RoundToInt(19f * s), Color.white, TextAnchor.UpperCenter);
+            _status = UiKit.MakeText(c, Vector2.zero, Sz(420, 96), "",
+                Fs(15), Color.white, TextAnchor.UpperCenter);
 
             GameObject bh = new GameObject("Bridges");
             bh.transform.SetParent(c, false);
@@ -88,23 +97,23 @@ namespace Koenig
             _nodeBadge = new Text[KoenigContent.Lands.Length];
             for (int i = 0; i < _node.Length; i++)
             {
-                _node[i] = UiKit.MakeImage(c, Vector2.zero, new Vector2(64f * s, 64f * s),
+                _node[i] = UiKit.MakeImage(c, Vector2.zero, Sz(64, 64),
                     Gfx.CircleSprite(), new Color(0.5f, 0.62f, 0.42f));
-                _nodeLabel[i] = UiKit.MakeText(c, Vector2.zero, new Vector2(150f * s, 26f * s),
-                    KoenigContent.Lands[i].Name, Mathf.RoundToInt(17f * s),
+                _nodeLabel[i] = UiKit.MakeText(c, Vector2.zero, Sz(150, 24),
+                    KoenigContent.Lands[i].Name, Fs(14),
                     Color.white, TextAnchor.MiddleCenter);
-                _nodeBadge[i] = UiKit.MakeText(c, Vector2.zero, new Vector2(60f * s, 26f * s),
-                    "", Mathf.RoundToInt(18f * s), new Color(1f, 0.8f, 0.4f), TextAnchor.MiddleCenter);
+                _nodeBadge[i] = UiKit.MakeText(c, Vector2.zero, Sz(60, 24),
+                    "", Fs(15), new Color(1f, 0.8f, 0.4f), TextAnchor.MiddleCenter);
             }
 
-            _restartBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(190f * s, 48f * s),
-                "Сначала", Mathf.RoundToInt(19f * s), Restart);
-            _hintBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(190f * s, 48f * s),
-                "Подсказка", Mathf.RoundToInt(19f * s), OnHint);
-            _goldenBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(300f * s, 48f * s),
-                "Построить золотой мост", Mathf.RoundToInt(18f * s), OnBuildGolden);
-            _closeBtn = UiKit.MakeButton(c, Vector2.zero, new Vector2(150f * s, 44f * s),
-                "Закрыть", Mathf.RoundToInt(18f * s), Close);
+            _restartBtn = UiKit.MakeButton(c, Vector2.zero, Sz(150, 46),
+                "Сначала", Fs(15), Restart);
+            _hintBtn = UiKit.MakeButton(c, Vector2.zero, Sz(150, 46),
+                "Подсказка", Fs(15), OnHint);
+            _goldenBtn = UiKit.MakeButton(c, Vector2.zero, Sz(260, 46),
+                "Построить золотой мост", Fs(15), OnBuildGolden);
+            _closeBtn = UiKit.MakeButton(c, Vector2.zero, Sz(120, 42),
+                "Закрыть", Fs(15), Close);
 
             BuildBridgeButtons();
             Layout();
@@ -118,12 +127,11 @@ namespace Koenig
                 if (_bridgeBtn[i] != null) Object.Destroy(_bridgeBtn[i].gameObject);
             _bridgeBtn.Clear();
 
-            float s = UiKit.Scale;
             for (int e = 0; e < _g.Bridges.Count; e++)
             {
                 int edge = e;
                 Button b = UiKit.MakeButton(_bridgeHolder, Vector2.zero,
-                    new Vector2(10f * s, 26f * s), "", 1, delegate { OnBridgeTap(edge); });
+                    Sz(10, 24), "", 1, delegate { OnBridgeTap(edge); });
                 _bridgeBtn.Add(b);
             }
         }
@@ -149,21 +157,21 @@ namespace Koenig
         {
             _lastW = Screen.width;
             _lastH = Screen.height;
-            float s = UiKit.Scale;
             float cx = Screen.width * 0.5f;
-            float cy = Screen.height * 0.5f - 10f * s;
+            // Граф чуть выше центра — снизу оставляем полосу под кнопки.
+            float cy = Screen.height * 0.56f;
 
-            _title.rectTransform.anchoredPosition = new Vector2(cx, Screen.height - 40f * s);
-            _status.rectTransform.anchoredPosition = new Vector2(cx, Screen.height - 74f * s);
+            _title.rectTransform.anchoredPosition = new Vector2(cx, Screen.height - Fs(30));
+            _status.rectTransform.anchoredPosition = new Vector2(cx, Screen.height - Fs(60));
 
             Vector2[] pos = new Vector2[_node.Length];
             for (int i = 0; i < _node.Length; i++)
             {
                 Vector2 nb = NodeBase(i);
-                pos[i] = new Vector2(cx + nb.x * s, cy + nb.y * s);
+                pos[i] = new Vector2(cx + nb.x * KS, cy + nb.y * KS);
                 _node[i].rectTransform.anchoredPosition = pos[i];
-                _nodeLabel[i].rectTransform.anchoredPosition = pos[i] + new Vector2(0f, -46f * s);
-                _nodeBadge[i].rectTransform.anchoredPosition = pos[i] + new Vector2(0f, 44f * s);
+                _nodeLabel[i].rectTransform.anchoredPosition = pos[i] + new Vector2(0f, -Fs(44));
+                _nodeBadge[i].rectTransform.anchoredPosition = pos[i] + new Vector2(0f, Fs(42));
             }
 
             for (int e = 0; e < _bridgeBtn.Count; e++)
@@ -177,22 +185,26 @@ namespace Koenig
                 float nx = dx / len, ny = dy / len;
                 // Перпендикуляр — чтобы раздвинуть кратные мосты.
                 int total; int idx = PairOffset(e, out total);
-                float spread = (total > 1 ? (idx - (total - 1) * 0.5f) : 0f) * 34f * s;
+                float spread = (total > 1 ? (idx - (total - 1) * 0.5f) : 0f) * 30f * KS;
                 Vector2 shift = new Vector2(-ny, nx) * spread;
                 Vector2 mid = new Vector2((p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f) + shift;
 
                 RectTransform rt = _bridgeBtn[e].image.rectTransform;
                 rt.anchoredPosition = mid;
-                rt.sizeDelta = new Vector2(len, 26f * s);
+                rt.sizeDelta = new Vector2(len, 24f * KS);
                 rt.localEulerAngles = new Vector3(0f, 0f, Mathf.Atan2(dy, dx) * Mathf.Rad2Deg);
             }
 
-            float row = cy - 250f * s;
-            _restartBtn.image.rectTransform.anchoredPosition = new Vector2(cx - 150f * s, row);
-            _hintBtn.image.rectTransform.anchoredPosition = new Vector2(cx + 60f * s, row);
-            _goldenBtn.image.rectTransform.anchoredPosition = new Vector2(cx, row - 56f * s);
+            // Кнопки — фиксированной полосой у низа экрана, не привязаны к cy,
+            // чтобы не уезжать под нижнюю землю на коротких экранах.
+            _restartBtn.image.rectTransform.anchoredPosition =
+                new Vector2(Screen.width * 0.28f, Screen.height * 0.14f);
+            _hintBtn.image.rectTransform.anchoredPosition =
+                new Vector2(Screen.width * 0.72f, Screen.height * 0.14f);
+            _goldenBtn.image.rectTransform.anchoredPosition =
+                new Vector2(cx, Screen.height * 0.065f);
             _closeBtn.image.rectTransform.anchoredPosition =
-                new Vector2(Screen.width - 90f * s, Screen.height - 40f * s);
+                new Vector2(Screen.width - Fs(70), Screen.height - Fs(30));
         }
 
         private void Update()
@@ -311,8 +323,6 @@ namespace Koenig
 
         private void Refresh()
         {
-            float s = UiKit.Scale;
-
             for (int e = 0; e < _bridgeBtn.Count; e++)
             {
                 bool used = _used[e];
@@ -331,7 +341,7 @@ namespace Koenig
                 _node[i].color = here
                     ? new Color(1f, 0.85f, 0.4f)
                     : new Color(0.5f, 0.62f, 0.42f);
-                float size = (here ? 76f : 64f) * s;
+                float size = (here ? 76f : 64f) * KS;
                 _node[i].rectTransform.sizeDelta = new Vector2(size, size);
 
                 // На застревании показываем нечётные углы восклицанием,

@@ -4,25 +4,21 @@ using UnityEngine.UI;
 
 namespace Koenig
 {
-    // Главный экран игры-путешествия: карта Калининградской области с
-    // четырьмя городами, экран артефактов и объяснение правила. Города
-    // стоят по настоящим координатам (широта/долгота спроецированы на
-    // экран), поэтому Зеленоградск на северо-востоке, Балтийск на
-    // юго-западе — как в жизни.
+    // Главный экран игры-путешествия: карта Калининградской области,
+    // экран артефактов и объяснение правила. Города стоят по настоящим
+    // координатам (широта/долгота спроецированы на экран).
     //
-    // Хаб, к которому ребёнок возвращается: тапнул город → список его
-    // заданий; собрал все жетоны мостов → открывается финальная
-    // головоломка. Точку можно взять тремя путями: подойти по GPS (баннер
-    // «ты у точки — получить»), открыть AR-станцию и отсканировать метку,
-    // либо родитель отмечает вручную. Все три зовут один Journey.Complete.
+    // ВАЖНО про размеры: игра портретная, поэтому масштаб берётся от
+    // ШИРИНЫ экрана (ks = Screen.width / 440), а не от высоты, как в
+    // ландшафтной игре про медведя. Первая версия считала от высоты, и на
+    // узком экране телефона карточки шириной 700 единиц вылезали за край:
+    // текст обрезался слева, кнопки налезали. Всё логическое поле — 440
+    // единиц в ширину, ничего шире 430 не ставим.
     //
-    // Все элементы висят прямо на канвасе в экранных координатах, а
-    // модальные экраны (задания, сумка, правило) — временные наборы,
-    // которые создаются при открытии и уничтожаются при закрытии. Так
-    // надёжнее вложенных RectTransform.
+    // Точку можно взять тремя путями (GPS, скан AR-метки, ручная отметка
+    // родителем) — все зовут один Journey.Complete.
     public class RegionMap : MonoBehaviour
     {
-        private Canvas _canvas;
         private Transform _root;
 
         private Text _title, _progress;
@@ -36,13 +32,23 @@ namespace Koenig
         private readonly List<GameObject> _overlay = new List<GameObject>();
         private int _lastW, _lastH;
 
-        // GPS: статус и баннер «ты рядом с точкой — получить артефакт».
         private Text _gpsText;
         private Image _nearPanel;
         private Text _nearText;
         private Button _nearBtn;
         private Poi _nearPoi;
         private float _poll;
+
+        // Живой герой на хабе: Кёня крутится в рамке, рядом — звание.
+        private HeroView _heroView;
+        private Image _heroFrame;
+        private RawImage _heroAvatar;
+        private Button _heroTap;
+        private Text _rankText, _rankSub;
+
+        // Масштаб от ширины: логическое поле 440 единиц.
+        private float KS { get { return Mathf.Max(Screen.width, 1) / 440f; } }
+        private int Fs(float logical) { return Mathf.Max(1, Mathf.RoundToInt(logical * KS)); }
 
         public static RegionMap Create(Transform parent)
         {
@@ -56,39 +62,34 @@ namespace Koenig
 
         private void Build()
         {
-            _canvas = UiKit.CreateCanvas("KoenigMap", 32);
-            _canvas.transform.SetParent(transform, false);
-            _root = _canvas.transform;
-            float s = UiKit.Scale;
+            Canvas canvas = UiKit.CreateCanvas("KoenigMap", 32);
+            canvas.transform.SetParent(transform, false);
+            _root = canvas.transform;
 
-            UiKit.MakePanel(_root, Vector2.zero, new Vector2(4000f, 4000f),
+            UiKit.MakePanel(_root, Vector2.zero, new Vector2(6000f, 6000f),
                 new Color(0.16f, 0.34f, 0.5f, 1f));
 
-            _title = UiKit.MakeText(_root, Vector2.zero, new Vector2(760f * s, 42f * s),
-                "Калининградская область", Mathf.RoundToInt(28f * s),
-                new Color(1f, 0.88f, 0.5f), TextAnchor.MiddleCenter);
-            _progress = UiKit.MakeText(_root, Vector2.zero, new Vector2(760f * s, 28f * s),
-                "", Mathf.RoundToInt(17f * s), Color.white, TextAnchor.MiddleCenter);
+            _title = UiKit.MakeText(_root, Vector2.zero, Sz(430, 40),
+                "Калининградская область", Fs(24), new Color(1f, 0.88f, 0.5f), TextAnchor.MiddleCenter);
+            _progress = UiKit.MakeText(_root, Vector2.zero, Sz(430, 26), "", Fs(14),
+                Color.white, TextAnchor.MiddleCenter);
 
-            _artBtn = UiKit.MakeButton(_root, Vector2.zero, new Vector2(180f * s, 44f * s),
-                "Сумка", Mathf.RoundToInt(18f * s), OpenArtifacts);
-            _ruleBtn = UiKit.MakeButton(_root, Vector2.zero, new Vector2(180f * s, 44f * s),
-                "Правило", Mathf.RoundToInt(18f * s), OpenRule);
-            _finaleBtn = UiKit.MakeButton(_root, Vector2.zero, new Vector2(240f * s, 46f * s),
-                "Финал: мосты", Mathf.RoundToInt(18f * s), OpenFinale);
+            _artBtn = UiKit.MakeButton(_root, Vector2.zero, Sz(128, 46), "Сумка", Fs(15), OpenArtifacts);
+            _ruleBtn = UiKit.MakeButton(_root, Vector2.zero, Sz(128, 46), "Правило", Fs(15), OpenRule);
+            _finaleBtn = UiKit.MakeButton(_root, Vector2.zero, Sz(128, 46), "Финал", Fs(15), OpenFinale);
 
             BuildCities();
+            BuildHeroBanner();
 
-            _gpsText = UiKit.MakeText(_root, Vector2.zero, new Vector2(760f * s, 24f * s),
-                "", Mathf.RoundToInt(14f * s), new Color(0.75f, 0.85f, 0.95f), TextAnchor.MiddleCenter);
+            _gpsText = UiKit.MakeText(_root, Vector2.zero, Sz(430, 24), "", Fs(13),
+                new Color(0.75f, 0.85f, 0.95f), TextAnchor.MiddleCenter);
 
-            // Баннер близости — держим готовым, показываем при подходе.
-            _nearPanel = UiKit.MakePanel(_root, Vector2.zero, new Vector2(720f * s, 64f * s),
-                new Color(0.12f, 0.4f, 0.24f, 0.96f));
-            _nearText = UiKit.MakeText(_root, Vector2.zero, new Vector2(470f * s, 56f * s),
-                "", Mathf.RoundToInt(16f * s), Color.white, TextAnchor.MiddleLeft);
-            _nearBtn = UiKit.MakeButton(_root, Vector2.zero, new Vector2(190f * s, 48f * s),
-                "Получить артефакт", Mathf.RoundToInt(16f * s), ClaimNear);
+            _nearPanel = UiKit.MakePanel(_root, Vector2.zero, Sz(420, 84),
+                new Color(0.12f, 0.4f, 0.24f, 0.97f));
+            _nearText = UiKit.MakeText(_root, Vector2.zero, Sz(400, 40), "", Fs(15),
+                Color.white, TextAnchor.MiddleCenter);
+            _nearBtn = UiKit.MakeButton(_root, Vector2.zero, Sz(220, 40), "Получить артефакт",
+                Fs(15), ClaimNear);
             ShowNear(false);
 
             LocationGate.Ensure(transform);
@@ -96,6 +97,8 @@ namespace Koenig
             Layout();
             Refresh();
         }
+
+        private Vector2 Sz(float w, float h) { return new Vector2(w * KS, h * KS); }
 
         private void ShowNear(bool v)
         {
@@ -135,10 +138,12 @@ namespace Koenig
         {
             double lonMin, lonMax, latMin, latMax;
             MapBounds(out lonMin, out lonMax, out latMin, out latMax);
+            // Поле карты с полями по краям, чтобы подписи городов не
+            // упирались в границы экрана.
             float w = Screen.width * 0.62f;
-            float h = Screen.height * 0.46f;
-            float left = Screen.width * 0.5f - w * 0.5f;
-            float bottom = Screen.height * 0.5f - h * 0.4f;
+            float h = Screen.height * 0.4f;
+            float left = Screen.width * 0.19f;
+            float bottom = Screen.height * 0.31f;
             double fx = (lonMax > lonMin) ? (c.Lon - lonMin) / (lonMax - lonMin) : 0.5;
             double fy = (latMax > latMin) ? (c.Lat - latMin) / (latMax - latMin) : 0.5;
             return new Vector2(left + (float)fx * w, bottom + (float)fy * h);
@@ -155,20 +160,44 @@ namespace Koenig
             _tap = new Button[cs.Length];
             _nodeLabel = new Text[cs.Length];
             _nodeBadge = new Text[cs.Length];
-            float s = UiKit.Scale;
             for (int i = 0; i < cs.Length; i++)
             {
                 int idx = i;
-                _node[i] = UiKit.MakeImage(_root, Vector2.zero, new Vector2(54f * s, 54f * s),
-                    Gfx.CircleSprite(), Color.white);
-                _tap[i] = UiKit.MakeButton(_root, Vector2.zero, new Vector2(58f * s, 58f * s),
-                    "", 1, delegate { OpenCity(KoenigContent.Cities[idx].Id); });
+                _node[i] = UiKit.MakeImage(_root, Vector2.zero, Sz(46, 46), Gfx.CircleSprite(), Color.white);
+                _tap[i] = UiKit.MakeButton(_root, Vector2.zero, Sz(56, 56), "", 1,
+                    delegate { OpenCity(KoenigContent.Cities[idx].Id); });
                 _tap[i].image.color = new Color(1f, 1f, 1f, 0f);
-                _nodeLabel[i] = UiKit.MakeText(_root, Vector2.zero, new Vector2(170f * s, 26f * s),
-                    cs[i].Name, Mathf.RoundToInt(17f * s), Color.white, TextAnchor.MiddleCenter);
-                _nodeBadge[i] = UiKit.MakeText(_root, Vector2.zero, new Vector2(120f * s, 24f * s),
-                    "", Mathf.RoundToInt(15f * s), new Color(1f, 0.85f, 0.4f), TextAnchor.MiddleCenter);
+                _nodeLabel[i] = UiKit.MakeText(_root, Vector2.zero, Sz(132, 24), cs[i].Name, Fs(14),
+                    Color.white, TextAnchor.MiddleCenter);
+                _nodeBadge[i] = UiKit.MakeText(_root, Vector2.zero, Sz(110, 22), "", Fs(13),
+                    new Color(1f, 0.85f, 0.4f), TextAnchor.MiddleCenter);
             }
+        }
+
+        // Баннер героя: живая модель проводника + звание. Именно этого не
+        // хватало, чтобы игра читалась как RPG, — самого героя на экране.
+        private void BuildHeroBanner()
+        {
+            _heroFrame = UiKit.MakePanel(_root, Vector2.zero, Sz(82, 100),
+                new Color(0.08f, 0.16f, 0.26f, 1f));
+            _heroView = HeroView.Create(transform, Guide.ModelId, 176, 220, 2, 30f);
+            _heroAvatar = UiKit.MakeRaw(_root, Vector2.zero, Sz(74, 92), _heroView.Texture);
+
+            _rankText = UiKit.MakeText(_root, Vector2.zero, Sz(232, 28), "", Fs(17),
+                new Color(1f, 0.85f, 0.45f), TextAnchor.MiddleLeft);
+            _rankSub = UiKit.MakeText(_root, Vector2.zero, Sz(240, 40), "", Fs(12),
+                new Color(0.8f, 0.86f, 0.95f), TextAnchor.UpperLeft);
+
+            // Прозрачная кнопка на весь баннер — тап открывает экран героя.
+            _heroTap = UiKit.MakeButton(_root, Vector2.zero, Sz(422, 100), "", 1, OpenHero);
+            _heroTap.image.color = new Color(1f, 1f, 1f, 0f);
+        }
+
+        private void OpenHero()
+        {
+            CloseOverlay();
+            Snd.Play("click");
+            HeroScreen.Create(transform);
         }
 
         // ---------- Модальные экраны ----------
@@ -182,25 +211,22 @@ namespace Koenig
 
         private void Keep(Object o)
         {
-            // UiKit возвращает компонент; храним его GameObject для удаления.
             Component c = o as Component;
             if (c != null) _overlay.Add(c.gameObject);
         }
 
-        // Затемнение + карточка. Возвращает центр экрана для контента.
-        private Vector2 Card(float w, float h, string title)
+        // Затемнение + карточка во всю ширину. Возвращает центр экрана.
+        private Vector2 Card(float hLogical, string title)
         {
-            float s = UiKit.Scale;
             float cx = Screen.width * 0.5f, cy = Screen.height * 0.5f;
-            Keep(UiKit.MakePanel(_root, new Vector2(cx, cy), new Vector2(4000f, 4000f),
-                new Color(0f, 0f, 0f, 0.55f)));
-            Keep(UiKit.MakePanel(_root, new Vector2(cx, cy), new Vector2(w * s, h * s),
+            Keep(UiKit.MakePanel(_root, new Vector2(cx, cy), new Vector2(6000f, 6000f),
+                new Color(0f, 0f, 0f, 0.6f)));
+            Keep(UiKit.MakePanel(_root, new Vector2(cx, cy), new Vector2(Screen.width * 0.94f, hLogical * KS),
                 new Color(0.1f, 0.16f, 0.24f, 0.99f)));
-            Keep(UiKit.MakeText(_root, new Vector2(cx, cy + (h * 0.5f - 30f) * s),
-                new Vector2((w - 60f) * s, 40f * s), title, Mathf.RoundToInt(24f * s),
-                new Color(1f, 0.88f, 0.5f), TextAnchor.MiddleCenter));
-            Keep(UiKit.MakeButton(_root, new Vector2(cx, cy - (h * 0.5f - 32f) * s),
-                new Vector2(200f * s, 44f * s), "Назад", Mathf.RoundToInt(18f * s), CloseOverlay));
+            Keep(UiKit.MakeText(_root, new Vector2(cx, cy + (hLogical * 0.5f - 26f) * KS),
+                Sz(400, 36), title, Fs(21), new Color(1f, 0.88f, 0.5f), TextAnchor.MiddleCenter));
+            Keep(UiKit.MakeButton(_root, new Vector2(cx, cy - (hLogical * 0.5f - 30f) * KS),
+                Sz(180, 44), "Назад", Fs(17), CloseOverlay));
             return new Vector2(cx, cy);
         }
 
@@ -208,57 +234,52 @@ namespace Koenig
         {
             CloseOverlay();
             City c = KoenigContent.FindCity(cityId);
-            Vector2 ctr = Card(700f, 640f, (c != null ? c.Name : "") + " · задания");
-            float s = UiKit.Scale;
             List<Quest> qs = QuestLog.ForCity(cityId);
-            float top = ctr.y + 230f * s;
+            float hLog = 96f + qs.Count * 132f;
+            Vector2 ctr = Card(hLog, (c != null ? c.Name : "") + " · задания");
+            float top = ctr.y + (hLog * 0.5f - 70f) * KS;
+            float rowW = Screen.width * 0.88f;
+
             for (int i = 0; i < qs.Count; i++)
             {
                 Quest q = qs[i];
                 Poi poi = q.Poi;
-                float y = top - i * 120f * s;
+                float y = top - i * 128f * KS;
                 float cx = ctr.x;
-                Keep(UiKit.MakePanel(_root, new Vector2(cx, y), new Vector2(624f * s, 106f * s),
-                    new Color(0.14f, 0.22f, 0.32f, 1f)));
-                Keep(UiKit.MakeText(_root, new Vector2(cx - 148f * s, y + 32f * s),
-                    new Vector2(320f * s, 26f * s), poi.Name, Mathf.RoundToInt(17f * s),
-                    Color.white, TextAnchor.MiddleLeft));
-                Keep(UiKit.MakeText(_root, new Vector2(cx - 148f * s, y - 6f * s),
-                    new Vector2(330f * s, 46f * s), poi.ChildTask, Mathf.RoundToInt(14f * s),
-                    new Color(0.8f, 0.86f, 0.95f), TextAnchor.UpperLeft));
+                float leftX = cx - rowW * 0.5f + 12f * KS;
 
+                Keep(UiKit.MakePanel(_root, new Vector2(cx, y), new Vector2(rowW, 118f * KS),
+                    new Color(0.14f, 0.22f, 0.32f, 1f)));
+                Keep(UiKit.MakeText(_root, new Vector2(leftX, y + 40f * KS), Sz(300, 24),
+                    poi.Name, Fs(15), Color.white, TextAnchor.MiddleLeft));
+                Keep(UiKit.MakeText(_root, new Vector2(leftX, y + 6f * KS), new Vector2(rowW - 30f * KS, 44f * KS),
+                    poi.ChildTask, Fs(12), new Color(0.8f, 0.86f, 0.95f), TextAnchor.UpperLeft));
+
+                // Награда и хомлин — правый верхний угол строки.
                 string marks = ArtifactShort(poi.Gives);
                 if (q.HasHomlin) marks += " · хомлин";
-                Keep(UiKit.MakeText(_root, new Vector2(cx + 150f * s, y + 34f * s),
-                    new Vector2(160f * s, 24f * s), marks, Mathf.RoundToInt(12f * s),
-                    new Color(1f, 0.82f, 0.45f), TextAnchor.MiddleRight));
+                Keep(UiKit.MakeText(_root, new Vector2(cx + rowW * 0.5f - 12f * KS, y + 40f * KS),
+                    Sz(180, 22), marks, Fs(11), new Color(1f, 0.82f, 0.45f), TextAnchor.MiddleRight));
 
-                // AR-станция: навести камеру на печатную метку у места.
+                // Нижний ряд: AR-кнопка слева, состояние/отметка справа.
                 if (q.HasAr)
                 {
                     string art = poi.ArTarget;
-                    Keep(UiKit.MakeButton(_root, new Vector2(cx + 92f * s, y - 24f * s),
-                        new Vector2(104f * s, 38f * s), "AR",
-                        Mathf.RoundToInt(14f * s), delegate { ArStation.Open(art); }));
+                    Keep(UiKit.MakeButton(_root, new Vector2(leftX + 46f * KS, y - 34f * KS),
+                        Sz(92, 36), "AR", Fs(14), delegate { ArStation.Open(art); }));
                 }
-
                 if (q.State == QuestState.Done)
-                    Keep(UiKit.MakeText(_root, new Vector2(cx + 150f * s, y - 22f * s),
-                        new Vector2(160f * s, 30f * s), "✓ Пройдено", Mathf.RoundToInt(15f * s),
-                        new Color(0.5f, 0.9f, 0.5f), TextAnchor.MiddleRight));
+                    Keep(UiKit.MakeText(_root, new Vector2(cx + rowW * 0.5f - 12f * KS, y - 34f * KS),
+                        Sz(180, 30), "✓ Пройдено", Fs(14), new Color(0.5f, 0.9f, 0.5f), TextAnchor.MiddleRight));
                 else if (q.State == QuestState.Locked)
-                    // Город ещё впереди по пути — отметить его точки нельзя,
-                    // иначе порядок путешествия обходится.
-                    Keep(UiKit.MakeText(_root, new Vector2(cx + 150f * s, y - 22f * s),
-                        new Vector2(180f * s, 30f * s), "сначала прошлые города",
-                        Mathf.RoundToInt(12f * s), new Color(0.7f, 0.72f, 0.78f),
-                        TextAnchor.MiddleRight));
+                    Keep(UiKit.MakeText(_root, new Vector2(cx + rowW * 0.5f - 12f * KS, y - 34f * KS),
+                        Sz(210, 30), "сначала прошлые города", Fs(11),
+                        new Color(0.7f, 0.72f, 0.78f), TextAnchor.MiddleRight));
                 else
                 {
                     string pid = poi.Id;
-                    Keep(UiKit.MakeButton(_root, new Vector2(cx + 218f * s, y - 24f * s),
-                        new Vector2(150f * s, 40f * s), "Отметить",
-                        Mathf.RoundToInt(14f * s), delegate { CompletePoi(pid, cityId); }));
+                    Keep(UiKit.MakeButton(_root, new Vector2(cx + rowW * 0.5f - 88f * KS, y - 34f * KS),
+                        Sz(150, 38), "Отметить", Fs(14), delegate { CompletePoi(pid, cityId); }));
                 }
             }
         }
@@ -268,91 +289,82 @@ namespace Koenig
             Journey.Complete(poiId);
             Snd.Play("coin");
             Refresh();
-            OpenCity(cityId);   // пересобрать список с новым состоянием
+            OpenCity(cityId);
         }
 
         private void OpenArtifacts()
         {
             CloseOverlay();
-            Vector2 ctr = Card(700f, 680f, "Сумка Кёни");
-            float s = UiKit.Scale;
-            float top = ctr.y + 210f * s;
+            Vector2 ctr = Card(560f, "Сумка Кёни");
+            float top = ctr.y + 200f * KS;
 
-            Keep(UiKit.MakeText(_root, new Vector2(ctr.x, top), new Vector2(600f * s, 26f * s),
-                "Печати земель — " + Journey.Count(Artifact.LandSeal) + " из 4",
-                Mathf.RoundToInt(17f * s), Color.white, TextAnchor.MiddleCenter));
+            Keep(UiKit.MakeText(_root, new Vector2(ctr.x, top), Sz(420, 24),
+                "Печати земель — " + Journey.Count(Artifact.LandSeal) + " из 4", Fs(15),
+                Color.white, TextAnchor.MiddleCenter));
             for (int i = 0; i < KoenigContent.Lands.Length; i++)
-                Chip(new Vector2(ctr.x + (i - 1.5f) * 150f * s, top - 44f * s),
+                Chip(new Vector2(ctr.x + (i - 1.5f) * 102f * KS, top - 42f * KS),
                     KoenigContent.Lands[i].Name, new Color(0.55f, 0.7f, 0.45f),
                     Journey.HasLandSeal(i.ToString()));
 
-            Keep(UiKit.MakeText(_root, new Vector2(ctr.x, top - 96f * s), new Vector2(600f * s, 26f * s),
-                "Жетоны мостов — " + Journey.Count(Artifact.BridgeToken) + " из 7",
-                Mathf.RoundToInt(17f * s), Color.white, TextAnchor.MiddleCenter));
+            Keep(UiKit.MakeText(_root, new Vector2(ctr.x, top - 92f * KS), Sz(420, 24),
+                "Жетоны мостов — " + Journey.Count(Artifact.BridgeToken) + " из 7", Fs(15),
+                Color.white, TextAnchor.MiddleCenter));
             BridgeGraph g = KoenigContent.BuildGraph();
             for (int i = 0; i < g.Bridges.Count; i++)
-                Chip(new Vector2(ctr.x + ((i % 4) - 1.5f) * 150f * s,
-                        top - 140f * s - (i / 4) * 54f * s),
+                Chip(new Vector2(ctr.x + ((i % 4) - 1.5f) * 102f * KS, top - 132f * KS - (i / 4) * 50f * KS),
                     g.Bridges[i].Name, new Color(0.85f, 0.62f, 0.3f),
                     Journey.HasBridgeToken(g.Bridges[i].Id));
 
-            Chip(new Vector2(ctr.x - 130f * s, top - 312f * s),
-                "Ключ Эйлера", new Color(0.5f, 0.75f, 0.95f), Journey.Count(Artifact.EulerKey) > 0);
-            Chip(new Vector2(ctr.x + 130f * s, top - 312f * s),
-                "Золотой мост", new Color(0.9f, 0.78f, 0.3f), Journey.PuzzleSolved);
+            Chip(new Vector2(ctr.x - 96f * KS, top - 296f * KS), "Ключ Эйлера",
+                new Color(0.5f, 0.75f, 0.95f), Journey.Count(Artifact.EulerKey) > 0);
+            Chip(new Vector2(ctr.x + 96f * KS, top - 296f * KS), "Золотой мост",
+                new Color(0.9f, 0.78f, 0.3f), Journey.PuzzleSolved);
 
-            Keep(UiKit.MakeText(_root, new Vector2(ctr.x, top - 372f * s), new Vector2(620f * s, 40f * s),
+            Keep(UiKit.MakeText(_root, new Vector2(ctr.x, top - 348f * KS), Sz(420, 44),
                 Journey.PuzzleUnlocked ? "Все жетоны собраны — финал открыт!"
-                    : "Собери все семь жетонов мостов, чтобы открыть финал.",
-                Mathf.RoundToInt(16f * s),
+                    : "Собери все семь жетонов мостов, чтобы открыть финал.", Fs(14),
                 Journey.PuzzleUnlocked ? new Color(0.6f, 0.95f, 0.6f) : new Color(0.8f, 0.85f, 0.95f),
                 TextAnchor.MiddleCenter));
         }
 
         private void Chip(Vector2 pos, string label, Color color, bool filled)
         {
-            float s = UiKit.Scale;
             Color c = filled ? color : new Color(color.r * 0.3f, color.g * 0.3f, color.b * 0.3f, 0.6f);
-            Keep(UiKit.MakePanel(_root, pos, new Vector2(132f * s, 40f * s), c));
-            Keep(UiKit.MakeText(_root, pos, new Vector2(128f * s, 36f * s),
-                (filled ? "✓ " : "") + label, Mathf.RoundToInt(13f * s),
+            Keep(UiKit.MakePanel(_root, pos, Sz(96, 38), c));
+            Keep(UiKit.MakeText(_root, pos, Sz(92, 34), (filled ? "✓ " : "") + label, Fs(11),
                 filled ? Color.white : new Color(0.7f, 0.72f, 0.76f), TextAnchor.MiddleCenter));
         }
 
         private void OpenRule()
         {
             CloseOverlay();
-            Vector2 ctr = Card(700f, 640f, "Правило семи мостов");
-            float s = UiKit.Scale;
+            Vector2 ctr = Card(560f, "Правило семи мостов");
 
-            Keep(UiKit.MakeText(_root, new Vector2(ctr.x, ctr.y + 150f * s),
-                new Vector2(600f * s, 170f * s), KoenigContent.EulerRuleForKids,
-                Mathf.RoundToInt(16f * s), Color.white, TextAnchor.UpperCenter));
+            Keep(UiKit.MakeText(_root, new Vector2(ctr.x, ctr.y + 150f * KS), Sz(410, 180),
+                KoenigContent.EulerRuleForKids, Fs(15), Color.white, TextAnchor.UpperCenter));
 
             BridgeGraph g = KoenigContent.BuildGraph();
             Vector2[] slot = {
-                new Vector2(ctr.x - 90f * s, ctr.y - 20f * s),
-                new Vector2(ctr.x + 90f * s, ctr.y - 20f * s),
-                new Vector2(ctr.x - 90f * s, ctr.y - 150f * s),
-                new Vector2(ctr.x + 90f * s, ctr.y - 150f * s),
+                new Vector2(ctr.x - 84f * KS, ctr.y - 30f * KS),
+                new Vector2(ctr.x + 84f * KS, ctr.y - 30f * KS),
+                new Vector2(ctr.x - 84f * KS, ctr.y - 150f * KS),
+                new Vector2(ctr.x + 84f * KS, ctr.y - 150f * KS),
             };
             for (int i = 0; i < g.Lands.Length; i++)
             {
                 int d = g.Degree(i);
                 bool odd = (d & 1) == 1;
-                Keep(UiKit.MakeImage(_root, slot[i], new Vector2(56f * s, 56f * s), Gfx.CircleSprite(),
+                Keep(UiKit.MakeImage(_root, slot[i], Sz(52, 52), Gfx.CircleSprite(),
                     odd ? new Color(0.9f, 0.45f, 0.4f) : new Color(0.5f, 0.7f, 0.45f)));
-                Keep(UiKit.MakeText(_root, slot[i], new Vector2(56f * s, 56f * s),
-                    d.ToString(), Mathf.RoundToInt(20f * s), Color.white, TextAnchor.MiddleCenter));
-                Keep(UiKit.MakeText(_root, slot[i] + new Vector2(0f, -38f * s),
-                    new Vector2(150f * s, 22f * s), g.Lands[i] + (odd ? " · нечёт" : " · чёт"),
-                    Mathf.RoundToInt(13f * s),
-                    odd ? new Color(1f, 0.7f, 0.6f) : new Color(0.7f, 0.9f, 0.7f),
-                    TextAnchor.MiddleCenter));
+                Keep(UiKit.MakeText(_root, slot[i], Sz(52, 52), d.ToString(), Fs(19),
+                    Color.white, TextAnchor.MiddleCenter));
+                Keep(UiKit.MakeText(_root, slot[i] + new Vector2(0f, -36f * KS), Sz(150, 22),
+                    g.Lands[i] + (odd ? " · нечёт" : " · чёт"), Fs(12),
+                    odd ? new Color(1f, 0.7f, 0.6f) : new Color(0.7f, 0.9f, 0.7f), TextAnchor.MiddleCenter));
             }
-            Keep(UiKit.MakeText(_root, new Vector2(ctr.x, ctr.y - 220f * s), new Vector2(620f * s, 30f * s),
-                "Четыре нечётных угла — на два больше, чем можно.",
-                Mathf.RoundToInt(15f * s), new Color(1f, 0.8f, 0.6f), TextAnchor.MiddleCenter));
+            Keep(UiKit.MakeText(_root, new Vector2(ctr.x, ctr.y - 210f * KS), Sz(420, 30),
+                "Четыре нечётных угла — на два больше, чем можно.", Fs(13),
+                new Color(1f, 0.8f, 0.6f), TextAnchor.MiddleCenter));
         }
 
         private static string ArtifactShort(Artifact a)
@@ -377,19 +389,29 @@ namespace Koenig
         {
             _lastW = Screen.width;
             _lastH = Screen.height;
-            float s = UiKit.Scale;
             float cx = Screen.width * 0.5f;
+            float H = Screen.height;
 
-            _title.rectTransform.anchoredPosition = new Vector2(cx, Screen.height - 40f * s);
-            _progress.rectTransform.anchoredPosition = new Vector2(cx, Screen.height - 72f * s);
-            _artBtn.image.rectTransform.anchoredPosition = new Vector2(cx - 220f * s, 46f * s);
-            _ruleBtn.image.rectTransform.anchoredPosition = new Vector2(cx, 46f * s);
-            _finaleBtn.image.rectTransform.anchoredPosition = new Vector2(cx + 230f * s, 46f * s);
+            _title.rectTransform.anchoredPosition = new Vector2(cx, H - 34f * KS);
+            _progress.rectTransform.anchoredPosition = new Vector2(cx, H - 62f * KS);
 
-            _gpsText.rectTransform.anchoredPosition = new Vector2(cx, 108f * s);
-            _nearPanel.rectTransform.anchoredPosition = new Vector2(cx, 150f * s);
-            _nearText.rectTransform.anchoredPosition = new Vector2(cx - 120f * s, 150f * s);
-            _nearBtn.image.rectTransform.anchoredPosition = new Vector2(cx + 250f * s, 150f * s);
+            // Баннер героя — полосой под заголовком, над картой городов.
+            float by = H * 0.82f;
+            _heroFrame.rectTransform.anchoredPosition = new Vector2(Screen.width * 0.2f, by);
+            _heroAvatar.rectTransform.anchoredPosition = new Vector2(Screen.width * 0.2f, by);
+            _rankText.rectTransform.anchoredPosition = new Vector2(Screen.width * 0.37f, by + 16f * KS);
+            _rankSub.rectTransform.anchoredPosition = new Vector2(Screen.width * 0.37f, by - 6f * KS);
+            _heroTap.image.rectTransform.anchoredPosition = new Vector2(cx, by);
+
+            // Нижний ряд из трёх кнопок — по долям ширины, чтобы влезали.
+            _artBtn.image.rectTransform.anchoredPosition = new Vector2(Screen.width * 0.2f, 40f * KS);
+            _ruleBtn.image.rectTransform.anchoredPosition = new Vector2(Screen.width * 0.5f, 40f * KS);
+            _finaleBtn.image.rectTransform.anchoredPosition = new Vector2(Screen.width * 0.8f, 40f * KS);
+
+            _gpsText.rectTransform.anchoredPosition = new Vector2(cx, 92f * KS);
+            _nearPanel.rectTransform.anchoredPosition = new Vector2(cx, 146f * KS);
+            _nearText.rectTransform.anchoredPosition = new Vector2(cx, 162f * KS);
+            _nearBtn.image.rectTransform.anchoredPosition = new Vector2(cx, 132f * KS);
 
             City[] cs = KoenigContent.Cities;
             for (int i = 0; i < cs.Length; i++)
@@ -397,8 +419,8 @@ namespace Koenig
                 Vector2 p = CityScreen(cs[i]);
                 _node[i].rectTransform.anchoredPosition = p;
                 _tap[i].image.rectTransform.anchoredPosition = p;
-                _nodeLabel[i].rectTransform.anchoredPosition = p + new Vector2(0f, -42f * s);
-                _nodeBadge[i].rectTransform.anchoredPosition = p + new Vector2(0f, 40f * s);
+                _nodeLabel[i].rectTransform.anchoredPosition = p + new Vector2(0f, -36f * KS);
+                _nodeBadge[i].rectTransform.anchoredPosition = p + new Vector2(0f, 34f * KS);
             }
 
             string[] order = KoenigContent.JourneyOrder;
@@ -410,7 +432,7 @@ namespace Koenig
                 float len = Mathf.Sqrt(dx * dx + dy * dy);
                 RectTransform rt = _pathSeg[i].rectTransform;
                 rt.anchoredPosition = new Vector2((p0.x + p1.x) * 0.5f, (p0.y + p1.y) * 0.5f);
-                rt.sizeDelta = new Vector2(len, 6f * s);
+                rt.sizeDelta = new Vector2(len, 5f * KS);
                 rt.localEulerAngles = new Vector3(0f, 0f, Mathf.Atan2(dy, dx) * Mathf.Rad2Deg);
             }
         }
@@ -419,12 +441,10 @@ namespace Koenig
         {
             if (Screen.width != _lastW || Screen.height != _lastH)
             {
-                CloseOverlay();  // модалка пересоберётся при следующем открытии
+                CloseOverlay();
                 Layout();
             }
 
-            // GPS опрашиваем раз в секунду: чаще незачем, а строку статуса
-            // и баннер лишний раз не дёргаем.
             _poll += Time.unscaledDeltaTime;
             if (_poll >= 1f) { _poll = 0f; PollLocation(); }
         }
@@ -439,8 +459,7 @@ namespace Koenig
             if (gate.Nearest(out poi, out meters) && gate.WithinRadius(poi, meters))
             {
                 _nearPoi = poi;
-                _nearText.text = "📍 Ты у точки «" + poi.Name + "» (" +
-                                 Mathf.RoundToInt(meters) + " м)";
+                _nearText.text = "📍 Ты у точки «" + poi.Name + "» (" + Mathf.RoundToInt(meters) + " м)";
                 ShowNear(true);
             }
             else
@@ -448,14 +467,24 @@ namespace Koenig
                 _nearPoi = null;
                 ShowNear(false);
                 if (gate.HasFix && poi != null)
-                    _gpsText.text = "Ближайшая точка: «" + poi.Name + "» — " +
-                                    Mathf.RoundToInt(meters) + " м";
+                    _gpsText.text = "Ближайшая точка: «" + poi.Name + "» — " + FormatDist(meters);
             }
+        }
+
+        // Расстояние по-человечески: метры вблизи, километры вдали. Раньше
+        // показывало «1083005 м» — на экране это нечитаемо.
+        private static string FormatDist(float meters)
+        {
+            if (meters < 950f) return Mathf.RoundToInt(meters) + " м";
+            return (meters / 1000f).ToString("0.#") + " км";
         }
 
         private void Refresh()
         {
             _progress.text = "Пройдено точек: " + Journey.DonePoints + " из " + Journey.TotalPoints;
+
+            _rankText.text = HeroRank.Title;
+            _rankSub.text = "Уровень " + HeroRank.Level + " · нажми ›";
 
             string cur = Journey.CurrentCity();
             int curStep = KoenigContent.CityStep(cur);
