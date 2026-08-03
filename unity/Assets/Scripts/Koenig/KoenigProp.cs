@@ -41,6 +41,7 @@ namespace Koenig
                 case "woodtrim": bc = "T_WoodTrim_BaseColor"; nm = "T_WoodTrim_Normal"; break;
                 case "metal": flat = new Color(0.24f, 0.26f, 0.30f); break;
                 case "vine": flat = new Color(0.30f, 0.5f, 0.24f); break;
+                case "glass": flat = new Color(0.18f, 0.26f, 0.34f); break;
             }
 
             m = new Material(Gfx.Standard);
@@ -65,6 +66,7 @@ namespace Koenig
         {
             if (string.IsNullOrEmpty(raw)) return null;
             string s = raw.ToLowerInvariant();
+            if (s.Contains("glass")) return "glass";
             if (s.Contains("plaster")) return "plaster";
             if (s.Contains("wood")) return "woodtrim";
             if (s.Contains("unevenbrick") || s.Contains("uneven")) return "unevenbrick";
