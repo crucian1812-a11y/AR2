@@ -597,6 +597,7 @@ namespace UnityEngine
         public static bool isMobilePlatform { get { return false; } }
         public static bool isEditor { get { return false; } }
         public static void Quit() { }
+        public static void OpenURL(string url) { }
     }
 
     public enum RuntimePlatform { WindowsEditor, WindowsPlayer, LinuxEditor, LinuxPlayer, OSXEditor, OSXPlayer, Android, IPhonePlayer }
@@ -627,6 +628,28 @@ namespace UnityEngine
         public static Touch GetTouch(int i) { return new Touch(); }
         public static bool touchSupported { get { return false; } }
         public static bool multiTouchEnabled { get; set; }
+        public static LocationService location { get { return new LocationService(); } }
+    }
+
+    public enum LocationServiceStatus { Stopped, Initializing, Running, Failed }
+
+    public struct LocationInfo
+    {
+        public float latitude { get { return 0f; } }
+        public float longitude { get { return 0f; } }
+        public float altitude { get { return 0f; } }
+        public float horizontalAccuracy { get { return 0f; } }
+        public double timestamp { get { return 0; } }
+    }
+
+    public class LocationService
+    {
+        public bool isEnabledByUser { get { return false; } }
+        public LocationServiceStatus status { get { return LocationServiceStatus.Stopped; } }
+        public LocationInfo lastData { get { return new LocationInfo(); } }
+        public void Start() { }
+        public void Start(float desiredAccuracyInMeters, float updateDistanceInMeters) { }
+        public void Stop() { }
     }
 
     public struct Touch
@@ -1195,5 +1218,17 @@ namespace UnityEngine
     namespace Rendering
     {
         public enum GraphicsDeviceType { OpenGLES2 = 8, OpenGLES3 = 11, Vulkan = 21 }
+    }
+}
+
+namespace UnityEngine.Android
+{
+    public static class Permission
+    {
+        public const string FineLocation = "android.permission.ACCESS_FINE_LOCATION";
+        public const string CoarseLocation = "android.permission.ACCESS_COARSE_LOCATION";
+        public const string Camera = "android.permission.CAMERA";
+        public static bool HasUserAuthorizedPermission(string permission) { return false; }
+        public static void RequestUserPermission(string permission) { }
     }
 }

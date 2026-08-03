@@ -12,9 +12,9 @@ namespace Koenig
     //
     // Хаб, к которому ребёнок возвращается: тапнул город → список его
     // заданий; собрал все жетоны мостов → открывается финальная
-    // головоломка. Отметку «пройдено» пока ставит родитель кнопкой —
-    // GPS и скан метки подключатся следующим шагом и позовут тот же
-    // Journey.Complete.
+    // головоломка. Точку можно взять тремя путями: подойти по GPS (баннер
+    // «ты у точки — получить»), открыть AR-станцию и отсканировать метку,
+    // либо родитель отмечает вручную. Все три зовут один Journey.Complete.
     //
     // Все элементы висят прямо на канвасе в экранных координатах, а
     // модальные экраны (задания, сумка, правило) — временные наборы,
@@ -35,6 +35,14 @@ namespace Koenig
 
         private readonly List<GameObject> _overlay = new List<GameObject>();
         private int _lastW, _lastH;
+
+        // GPS: статус и баннер «ты рядом с точкой — получить артефакт».
+        private Text _gpsText;
+        private Image _nearPanel;
+        private Text _nearText;
+        private Button _nearBtn;
+        private Poi _nearPoi;
+        private float _poll;
 
         public static RegionMap Create(Transform parent)
         {
@@ -70,7 +78,40 @@ namespace Koenig
                 "Финал: мосты", Mathf.RoundToInt(18f * s), OpenFinale);
 
             BuildCities();
+
+            _gpsText = UiKit.MakeText(_root, Vector2.zero, new Vector2(760f * s, 24f * s),
+                "", Mathf.RoundToInt(14f * s), new Color(0.75f, 0.85f, 0.95f), TextAnchor.MiddleCenter);
+
+            // Баннер близости — держим готовым, показываем при подходе.
+            _nearPanel = UiKit.MakePanel(_root, Vector2.zero, new Vector2(720f * s, 64f * s),
+                new Color(0.12f, 0.4f, 0.24f, 0.96f));
+            _nearText = UiKit.MakeText(_root, Vector2.zero, new Vector2(470f * s, 56f * s),
+                "", Mathf.RoundToInt(16f * s), Color.white, TextAnchor.MiddleLeft);
+            _nearBtn = UiKit.MakeButton(_root, Vector2.zero, new Vector2(190f * s, 48f * s),
+                "Получить артефакт", Mathf.RoundToInt(16f * s), ClaimNear);
+            ShowNear(false);
+
+            LocationGate.Ensure(transform);
+
             Layout();
+            Refresh();
+        }
+
+        private void ShowNear(bool v)
+        {
+            if (_nearPanel != null) _nearPanel.gameObject.SetActive(v);
+            if (_nearText != null) _nearText.gameObject.SetActive(v);
+            if (_nearBtn != null) _nearBtn.image.gameObject.SetActive(v);
+        }
+
+        private void ClaimNear()
+        {
+            if (_nearPoi == null) return;
+            Journey.Complete(_nearPoi.Id);
+            Snd.Play("coin");
+            _nearPoi = null;
+            ShowNear(false);
+            CloseOverlay();
             Refresh();
         }
 
@@ -187,11 +228,19 @@ namespace Koenig
                     new Color(0.8f, 0.86f, 0.95f), TextAnchor.UpperLeft));
 
                 string marks = ArtifactShort(poi.Gives);
-                if (q.HasAr) marks += " · AR";
                 if (q.HasHomlin) marks += " · хомлин";
-                Keep(UiKit.MakeText(_root, new Vector2(cx + 150f * s, y + 32f * s),
+                Keep(UiKit.MakeText(_root, new Vector2(cx + 150f * s, y + 34f * s),
                     new Vector2(160f * s, 24f * s), marks, Mathf.RoundToInt(12f * s),
                     new Color(1f, 0.82f, 0.45f), TextAnchor.MiddleRight));
+
+                // AR-станция: навести камеру на печатную метку у места.
+                if (q.HasAr)
+                {
+                    string art = poi.ArTarget;
+                    Keep(UiKit.MakeButton(_root, new Vector2(cx + 92f * s, y - 24f * s),
+                        new Vector2(104f * s, 38f * s), "AR",
+                        Mathf.RoundToInt(14f * s), delegate { ArStation.Open(art); }));
+                }
 
                 if (q.State == QuestState.Done)
                     Keep(UiKit.MakeText(_root, new Vector2(cx + 150f * s, y - 22f * s),
@@ -207,8 +256,8 @@ namespace Koenig
                 else
                 {
                     string pid = poi.Id;
-                    Keep(UiKit.MakeButton(_root, new Vector2(cx + 150f * s, y - 24f * s),
-                        new Vector2(210f * s, 40f * s), "Отметить пройдено",
+                    Keep(UiKit.MakeButton(_root, new Vector2(cx + 218f * s, y - 24f * s),
+                        new Vector2(150f * s, 40f * s), "Отметить",
                         Mathf.RoundToInt(14f * s), delegate { CompletePoi(pid, cityId); }));
                 }
             }
@@ -337,6 +386,11 @@ namespace Koenig
             _ruleBtn.image.rectTransform.anchoredPosition = new Vector2(cx, 46f * s);
             _finaleBtn.image.rectTransform.anchoredPosition = new Vector2(cx + 230f * s, 46f * s);
 
+            _gpsText.rectTransform.anchoredPosition = new Vector2(cx, 108f * s);
+            _nearPanel.rectTransform.anchoredPosition = new Vector2(cx, 150f * s);
+            _nearText.rectTransform.anchoredPosition = new Vector2(cx - 120f * s, 150f * s);
+            _nearBtn.image.rectTransform.anchoredPosition = new Vector2(cx + 250f * s, 150f * s);
+
             City[] cs = KoenigContent.Cities;
             for (int i = 0; i < cs.Length; i++)
             {
@@ -367,6 +421,35 @@ namespace Koenig
             {
                 CloseOverlay();  // модалка пересоберётся при следующем открытии
                 Layout();
+            }
+
+            // GPS опрашиваем раз в секунду: чаще незачем, а строку статуса
+            // и баннер лишний раз не дёргаем.
+            _poll += Time.unscaledDeltaTime;
+            if (_poll >= 1f) { _poll = 0f; PollLocation(); }
+        }
+
+        private void PollLocation()
+        {
+            LocationGate gate = LocationGate.I;
+            if (gate == null) return;
+            _gpsText.text = gate.Status;
+
+            Poi poi; float meters;
+            if (gate.Nearest(out poi, out meters) && gate.WithinRadius(poi, meters))
+            {
+                _nearPoi = poi;
+                _nearText.text = "📍 Ты у точки «" + poi.Name + "» (" +
+                                 Mathf.RoundToInt(meters) + " м)";
+                ShowNear(true);
+            }
+            else
+            {
+                _nearPoi = null;
+                ShowNear(false);
+                if (gate.HasFix && poi != null)
+                    _gpsText.text = "Ближайшая точка: «" + poi.Name + "» — " +
+                                    Mathf.RoundToInt(meters) + " м";
             }
         }
 
