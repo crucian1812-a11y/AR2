@@ -7,25 +7,31 @@ namespace Koenig
     // Отделено от механик специально — это «сценарий», который правится
     // без оглядки на код.
     //
+    // Порядок пути: Зеленоградск (начало) → Светлогорск → Балтийск →
+    // Калининград (финал). В первых трёх городах ребёнок собирает жетоны
+    // мостов, печати земель и Ключ Эйлера; в Калининграде, где Эйлер
+    // задачу и решил, собирается карта и проходится головоломка. Золотой
+    // мост не выдаётся точкой — его СТРОЯТ в финале, это сама развязка.
+    //
     // ЧЕСТНО ПРО КООРДИНАТЫ: широты/долготы ниже — ориентировочные, для
     // радиуса геозоны их достаточно, но перед поездкой их НУЖНО сверить с
-    // картой. Особенно это касается бронзовых хомлинов: они небольшие,
-    // стоят у конкретных зданий, и их точное место надо проверять на
-    // месте. Поле Verified=false помечает всё, что требует сверки.
+    // картой. Особенно места бронзовых хомлинов — они маленькие, стоят у
+    // конкретных зданий. Поле Verified=false помечает всё, что требует
+    // сверки на местности.
 
     public enum Artifact
     {
         LandSeal,     // печать земли (их 4)
         BridgeToken,  // жетон моста (их 7)
         EulerKey,     // ключ Эйлера — правило чёт/нечет
-        GoldenBridge  // золотой мост — достроить и победить
+        GoldenBridge  // золотой мост — строится в финале
     }
 
     public class Land
     {
         public int Index;
-        public string Name;      // как в игре
-        public string Modern;    // что там сегодня
+        public string Name;
+        public string Modern;
         public Land(int i, string name, string modern) { Index = i; Name = name; Modern = modern; }
     }
 
@@ -33,7 +39,7 @@ namespace Koenig
     {
         public string Id;
         public string Name;
-        public string Old;       // прусское имя — для духа места
+        public string Old;
         public double Lat, Lon;
         public City(string id, string name, string old, double lat, double lon)
         { Id = id; Name = name; Old = old; Lat = lat; Lon = lon; }
@@ -47,13 +53,13 @@ namespace Koenig
         public string CityId;
         public string Name;
         public double Lat, Lon;
-        public float RadiusM;        // радиус геозоны в метрах
-        public string ArTarget;      // id метки для AR-станции, "" — без AR
+        public float RadiusM;
+        public string ArTarget;      // id метки AR-станции, "" — без AR
         public Artifact Gives;
-        public string BridgeOrLand;  // id моста/земли, если точка их выдаёт
-        public string HomlinNote;    // реальный хомлин рядом, "" — нет
-        public string ChildTask;     // что делает ребёнок в реальности
-        public bool Verified;        // координаты сверены с картой?
+        public string BridgeOrLand;  // id моста или индекс земли, если точка их выдаёт
+        public string HomlinNote;
+        public string ChildTask;
+        public bool Verified;
 
         public Poi(string id, string cityId, string name, double lat, double lon,
                    float radius, string arTarget, Artifact gives, string bol,
@@ -77,8 +83,6 @@ namespace Koenig
         };
 
         // ---------- Мосты (граф задачи) ----------
-        // Уцелел только Медовый. Кратные мосты (Север↔Остров и Юг↔Остров
-        // по два) — не ошибка: именно из-за них у острова пять мостов.
         public static BridgeGraph BuildGraph()
         {
             string[] names = new string[Lands.Length];
@@ -94,45 +98,37 @@ namespace Koenig
             return g;
         }
 
-        // ---------- Города ----------
+        // ---------- Города (в порядке пути) ----------
         public static readonly City[] Cities =
         {
-            new City("klgd", "Калининград", "Кёнигсберг", 54.7104, 20.4522),
             new City("zeln", "Зеленоградск", "Кранц",      54.9600, 20.4750),
             new City("svtl", "Светлогорск",  "Раушен",     54.9430, 20.1550),
             new City("bltk", "Балтийск",     "Пиллау",     54.6510, 19.9130),
+            new City("klgd", "Калининград",  "Кёнигсберг", 54.7104, 20.4522),
         };
 
-        // ---------- Точки на местности ----------
-        // Калининград — сердце головоломки: здесь собирается карта и
-        // решается задача. Остальные три города дают недостающие части.
+        // Порядок городов в путешествии; последний — финал.
+        public static readonly string[] JourneyOrder = { "zeln", "svtl", "bltk", "klgd" };
+        public const string FinaleCity = "klgd";
+
+        public static int CityStep(string cityId)
+        {
+            for (int i = 0; i < JourneyOrder.Length; i++)
+                if (JourneyOrder[i] == cityId) return i;
+            return JourneyOrder.Length;
+        }
+
+        public static City FindCity(string id)
+        {
+            for (int i = 0; i < Cities.Length; i++)
+                if (Cities[i].Id == id) return Cities[i];
+            return null;
+        }
+
+        // ---------- Точки на местности (в порядке пути) ----------
         public static readonly Poi[] Points =
         {
-            // --- Калининград ---
-            new Poi("kant_island", "klgd", "Остров Канта · Кафедральный собор",
-                54.7065, 20.5118, 60f, "sobor",
-                Artifact.LandSeal, "1",
-                "Бронзовый хомлин рядом — проверь у входа на остров.",
-                "Найди могилу Канта у стены собора и сосчитай колонны портала.", false),
-
-            new Poi("honey_bridge", "klgd", "Медовый мост",
-                54.7060, 20.5135, 40f, "medovy_ar",
-                Artifact.BridgeToken, "medovy",
-                "Бронзовый хомлин на перилах Медового моста — сфотографируй.",
-                "Пройди Медовый мост — единственный из семи, что уцелел. Загадай, что мостов было семь.", false),
-
-            new Poi("fish_village", "klgd", "Рыбная деревня",
-                54.7052, 20.5145, 70f, "",
-                Artifact.BridgeToken, "lavochny",
-                "", "Поднимись на смотровую башню «Маяк» и найди реку Преголю — по ней стояли мосты.", false),
-
-            new Poi("amber_museum", "klgd", "Музей янтаря · башня Дона",
-                54.7215, 20.5115, 60f, "",
-                Artifact.BridgeToken, "kuznechny",
-                "Бронзовый хомлин Дед Карл — у Музея янтаря, самый первый из семьи.",
-                "Найди у башни Дона первого хомлина и поздоровайся с ним.", false),
-
-            // --- Зеленоградск ---
+            // --- Зеленоградск (начало) ---
             new Poi("murarium", "zeln", "Водонапорная башня · Мурариум",
                 54.9585, 20.4770, 50f, "tower_zeln",
                 Artifact.BridgeToken, "zelyony",
@@ -143,7 +139,7 @@ namespace Koenig
                 Artifact.LandSeal, "3",
                 "", "Найди на променаде столько живых котов, сколько мостов у Востока (три).", false),
 
-            // --- Светлогорск ---
+            // --- Светлогорск (середина) ---
             new Poi("svtl_tower", "svtl", "Водонапорная башня Светлогорска",
                 54.9410, 20.1560, 50f, "tower_shukhov",
                 Artifact.BridgeToken, "vysoky",
@@ -152,9 +148,9 @@ namespace Koenig
             new Poi("sundial", "svtl", "Солнечные часы на променаде",
                 54.9385, 20.1600, 40f, "sundial_ar",
                 Artifact.EulerKey, "",
-                "", "Встань на солнечных часах и по тени определи час — так Эйлер считал чётность.", false),
+                "", "Встань на солнечных часах: по тени определи час — так учатся считать чётность.", false),
 
-            // --- Балтийск ---
+            // --- Балтийск (середина) ---
             new Poi("baltiysk_light", "bltk", "Маяк Балтийска",
                 54.6430, 19.8890, 60f, "lighthouse_ar",
                 Artifact.BridgeToken, "derevyany",
@@ -162,8 +158,32 @@ namespace Koenig
 
             new Poi("pillau_fort", "bltk", "Цитадель Пиллау",
                 54.6380, 19.8930, 80f, "",
-                Artifact.GoldenBridge, "",
-                "", "В пятиугольной крепости найди пятый бастион — и получи Золотой мост для финала.", false),
+                Artifact.BridgeToken, "potrohovy",
+                "", "В пятиугольной крепости найди пятый бастион.", false),
+
+            // --- Калининград (финал) ---
+            new Poi("kant_island", "klgd", "Остров Канта · Кафедральный собор",
+                54.7065, 20.5118, 60f, "sobor",
+                Artifact.LandSeal, "1",
+                "Бронзовый хомлин рядом — проверь у входа на остров.",
+                "Найди могилу Канта у стены собора и сосчитай колонны портала.", false),
+
+            new Poi("honey_bridge", "klgd", "Медовый мост",
+                54.7060, 20.5135, 40f, "medovy_ar",
+                Artifact.BridgeToken, "medovy",
+                "Бронзовый хомлин на перилах Медового моста — сфотографируй.",
+                "Пройди Медовый мост — единственный из семи, что уцелел.", false),
+
+            new Poi("fish_village", "klgd", "Рыбная деревня",
+                54.7052, 20.5145, 70f, "",
+                Artifact.BridgeToken, "lavochny",
+                "", "Поднимись на башню «Маяк» и найди реку Преголю — по ней стояли мосты.", false),
+
+            new Poi("amber_museum", "klgd", "Музей янтаря · башня Дона",
+                54.7215, 20.5115, 60f, "",
+                Artifact.BridgeToken, "kuznechny",
+                "Бронзовый хомлин Дед Карл — у Музея янтаря, самый первый из семьи.",
+                "Найди у башни Дона первого хомлина и поздоровайся с ним.", false),
         };
 
         // Итоговая карточка правила — то, что ребёнок должен понять.
@@ -173,5 +193,14 @@ namespace Koenig
             "нечётных углов может быть не больше двух. В Кёнигсберге их четыре — " +
             "поэтому обойти все семь мостов по разу нельзя. Но если достроить " +
             "один мост, нечётных станет два — и тогда можно!";
+
+        // Все жетоны мостов, которые нужно собрать, чтобы открыть финал.
+        public static List<string> AllBridgeTokens()
+        {
+            List<string> ids = new List<string>();
+            for (int i = 0; i < Points.Length; i++)
+                if (Points[i].Gives == Artifact.BridgeToken) ids.Add(Points[i].BridgeOrLand);
+            return ids;
+        }
     }
 }
