@@ -52,7 +52,47 @@ namespace Koenig
         private float _animT;
         private byte _anim;
 
+        // ---------- Жизнь ----------
+        // До этого шага проиграть было нельзя вовсе: единственной бедой
+        // было падение ниже -20, и оно возвращало героя без потерь.
+        //
+        // Штраф за смерть держим символическим намеренно. Семилетнему
+        // ребёнку важно, чтобы поражение было заметным, но не обидным:
+        // герой встаёт у входа с полным здоровьем, а враги на поляне НЕ
+        // воскресают — пройденное остаётся пройденным.
+        public const int MaxHp = 40;
+
+        private int _hp = MaxHp;
+        private float _invuln;      // короткая неуязвимость после удара
+        private float _atkAnim;     // сколько ещё не перебивать клип удара
+
+        public int Hp { get { return _hp; } }
+        public float HpFraction { get { return Mathf.Clamp01((float)_hp / MaxHp); } }
+        public bool Alive { get { return _hp > 0; } }
+
+        // Кому сообщать, что здоровье изменилось — HUD рисует полоску.
+        public System.Action OnHealthChanged;
+
+        // Автоподход к цели. Combat кладёт сюда мировое направление, и оно
+        // работает ТОЛЬКО пока джойстик не трогают: палец ребёнка всегда
+        // главнее автопилота.
+        public Vector3 AutoMove;
+
+        private float _shake;
+
         public Camera Cam { get { return _cam; } }
+
+        // Куда смотрит герой — по этому направлению Combat отбирает конус.
+        public Vector3 Facing
+        {
+            get { return _visual != null ? _visual.forward : Vector3.forward; }
+        }
+
+        // Короткая тряска камеры: попадание по боссу без неё не читается.
+        public void Shake(float amount)
+        {
+            _shake = Mathf.Max(_shake, amount);
+        }
 
         // Куда смотрит площадка. Нужен прицеливанию: экранный тап надо
         // разворачивать в те же оси, в которых ходит герой.
@@ -135,14 +175,99 @@ namespace Koenig
         private void Update()
         {
             float dt = Time.deltaTime;
+            if (_invuln > 0f) _invuln -= dt;
+            if (_atkAnim > 0f) _atkAnim -= dt;
             Move(dt);
             PlaceCamera(Mathf.Min(CamFollow * dt, 1f));
             Animate(dt);
             if (transform.position.y < -20f) Respawn();
         }
 
+        // ---------- Урон и смерть ----------
+
+        public void TakeDamage(int amount)
+        {
+            if (_hp <= 0 || _invuln > 0f) return;
+
+            _hp -= Mathf.Max(1, amount);
+            // Полсекунды неуязвимости: иначе пачка из четырёх грибов
+            // снимает всё здоровье за один общий замах, и понять, что
+            // произошло, невозможно.
+            _invuln = 0.5f;
+            Snd.Play("hurt", 0.8f);
+            if (_model != null)
+            {
+                _model.Restart(_model.Pick("HitRecieve", "Jump"), 1.2f);
+                _atkAnim = 0.3f;
+            }
+            if (OnHealthChanged != null) OnHealthChanged();
+
+            if (_hp <= 0) Die();
+        }
+
+        public void Heal(int amount)
+        {
+            if (_hp <= 0) return;
+            _hp = Mathf.Min(MaxHp, _hp + Mathf.Max(1, amount));
+            if (OnHealthChanged != null) OnHealthChanged();
+        }
+
+        private void Die()
+        {
+            _hp = 0;
+            if (_model != null)
+            {
+                _model.Restart(_model.Pick("Death", "HitRecieve"), 1f);
+                _atkAnim = 1.2f;
+            }
+            Snd.Play("hurt", 1f, 0.7f);
+            if (OnHealthChanged != null) OnHealthChanged();
+            Invoke("Revive", 1.6f);
+        }
+
+        private void Revive()
+        {
+            _hp = MaxHp;
+            _invuln = 1.5f;
+            _atkAnim = 0f;
+            Respawn();
+            if (OnHealthChanged != null) OnHealthChanged();
+        }
+
+        // Замах: проигрывает клип и не даёт ходьбе перебить его. Сам урон
+        // считает Combat — герой только машет.
+        public void PlayAttack()
+        {
+            if (_model == null) return;
+            _model.Restart(_model.Pick("Bite_InPlace", "Attack", "Jump"), 1.4f);
+            _atkAnim = 0.35f;
+        }
+
+        // Развернуть героя к цели перед ударом — бить в спину странно.
+        public void FaceTowards(Vector3 worldPoint)
+        {
+            Vector3 d = worldPoint - transform.position;
+            d.y = 0f;
+            if (d.sqrMagnitude < 0.01f) return;
+            _visual.localRotation = Quaternion.Euler(0f,
+                Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, 0f);
+        }
+
         private void Move(float dt)
         {
+            // Мёртвый не ходит, но продолжает падать — иначе он повиснет
+            // в воздухе на те полторы секунды, что лежит.
+            if (_hp <= 0)
+            {
+                _velocity.x = 0f;
+                _velocity.z = 0f;
+                if (!_cc.isGrounded) _velocity.y -= Gravity * dt;
+                else if (_velocity.y < 0f) _velocity.y = -2f;
+                _cc.Move(_velocity * dt);
+                _anim = 0;
+                return;
+            }
+
             Vector2 mv = Ctrl.Move;
             if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) mv.y += 1f;
             if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow)) mv.y -= 1f;
@@ -155,6 +280,9 @@ namespace Koenig
             // герой ни бежал. Раньше при развороте камеры одно и то же
             // положение пальца означало разные стороны света.
             Vector3 dir = GroundRotation * new Vector3(mv.x, 0f, mv.y);
+            // Джойстик не тронут — ведёт автоподход к назначенной цели.
+            if (mv.magnitude < 0.05f && AutoMove.sqrMagnitude > 0.01f)
+                dir = AutoMove.normalized;
             if (dir.magnitude > 1f) dir = dir.normalized;
 
             float k = Mathf.Min(Accel * dt, 1f);
@@ -193,11 +321,24 @@ namespace Koenig
         {
             if (_camRig == null) return;
             _focus = Vector3.Lerp(_focus, transform.position, k);
-            _camRig.position = _focus + GroundRotation * new Vector3(0f, CamHeight, -CamBack);
+            Vector3 pos = _focus + GroundRotation * new Vector3(0f, CamHeight, -CamBack);
+
+            if (_shake > 0.001f)
+            {
+                _shake = Mathf.Max(0f, _shake - Time.deltaTime * 1.6f);
+                float a = _shake * 0.5f;
+                pos += new Vector3(Random.Range(-a, a), Random.Range(-a, a), 0f);
+            }
+            _camRig.position = pos;
         }
 
         private void Animate(float dt)
         {
+            // Пока играет удар или получение урона, ходьба его не перебивает:
+            // Play() меняет клип, как только имя другое, и без этой паузы
+            // замах гас через кадр.
+            if (_atkAnim > 0f) { _animT += dt; return; }
+
             if (_model != null)
             {
                 if (_anim == 1)

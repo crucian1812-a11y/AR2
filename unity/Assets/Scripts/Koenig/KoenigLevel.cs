@@ -28,6 +28,12 @@ namespace Koenig
         private Canvas _hud;
         private Text _count, _hint;
 
+        private Combat _combat;
+        private Enemy _boss;
+        private bool _bossDown;
+        private Image _hpFill;
+        private Text _hpText;
+
         public static bool HasLevel(string cityId) { return cityId == "zeln"; }
 
         public static KoenigLevel Create(Transform parent, string cityId, System.Action onExit)
@@ -64,8 +70,13 @@ namespace Koenig
                 fx.Configure(1.05f, 1.15f, new Color(1f, 0.99f, 0.96f), 0.4f);
             }
 
+            _combat = Combat.Create(transform, _player, _player.Cam);
+            SpawnPacks();
+
             BuildHud();
             KoenigTouch.Create(_hud.transform);
+
+            _player.OnHealthChanged = RefreshHealth;
         }
 
         private void SetupSky()
@@ -186,6 +197,54 @@ namespace Koenig
             _token.gameObject.SetActive(false);
         }
 
+        // Население улицы: шесть пачек по четыре гриба вдоль дороги и
+        // Дюнный великан у башни. Застройку не трогаем — пачки ставятся в
+        // промежутки между рыбками, чтобы за наградой приходилось идти
+        // сквозь бой, а не мимо него.
+        //
+        // Гриб держит 12 урона (два-три удара по 3–6), бьёт на 3 и медленный:
+        // от пачки можно уйти, а стоять в ней нельзя.
+        private void SpawnPacks()
+        {
+            // Мостовая — короб высотой 0.2 с центром на 0.02, значит её
+            // верх на 0.12. У врага нет гравитации, он едет на уровне своей
+            // линии патрулирования: поставишь на ноль — утонет по щиколотку.
+            const float y = 0.12f;
+            Vector3[] packs = {
+                new Vector3(-6f, y, -24f), new Vector3(7f, y, -12f),
+                new Vector3(-7f, y, -2f),  new Vector3(8f, y, 12f),
+                new Vector3(-8f, y, 22f),  new Vector3(4f, y, 30f),
+            };
+
+            int id = 1;
+            for (int p = 0; p < packs.Length; p++)
+            {
+                for (int k = 0; k < 4; k++)
+                {
+                    // Разброс по кругу — пачка стоит кучкой, а не в линию.
+                    float ang = (k / 4f) * Mathf.PI * 2f + p;
+                    Vector3 off = new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * 1.8f;
+                    Vector3 a = packs[p] + off;
+                    Vector3 b = a + new Vector3(Mathf.Sin(ang) * 2.5f, 0f, Mathf.Cos(ang) * 2.5f);
+
+                    Enemy e = Enemy.Spawn(_world, a, b, "mushroom", 1.5f, id++);
+                    e.Hp = 12;
+                    e.Damage = 3;
+                    e.AttackCooldown = 1.5f;
+                    _combat.Add(e);
+                }
+            }
+
+            // Дюнный великан: 40 жизни — примерно десять попаданий, минута
+            // боя с отходами. Бьёт больно и редко, чтобы успевать убегать.
+            _boss = Enemy.SpawnBoss(_world, new Vector3(0f, y, 34f), new Vector3(-5f, y, 36f),
+                "yeti", 1.6f, 900, 40, 1.8f);
+            _boss.Damage = 7;
+            _boss.AttackCooldown = 2f;
+            _boss.AttackRange = 1.8f;
+            _combat.Add(_boss);
+        }
+
         private void Tower(Vector3 basePos)
         {
             Material stone = Tiled("T_RockTrim_BaseColor", 2.4f, new Color(0.7f, 0.66f, 0.58f));
@@ -247,15 +306,48 @@ namespace Koenig
                 "← Карта", Mathf.RoundToInt(16f * s), Exit);
 
             _hint = UiKit.MakeText(c, new Vector2(W * 0.5f, H - 72f * s), new Vector2(640f * s, 40f * s),
-                "Собери рыбок для Кёни, потом забери жетон у башни", Mathf.RoundToInt(15f * s),
-                new Color(0.85f, 0.9f, 0.98f), TextAnchor.MiddleCenter);
+                "Собирай рыбок и отбивайся от грибов. У башни ждёт великан.",
+                Mathf.RoundToInt(15f * s), new Color(0.85f, 0.9f, 0.98f), TextAnchor.MiddleCenter);
+
+            // Полоска жизни — слева вверху, под подсказкой. Внизу её ставить
+            // нельзя: там джойстик, и палец накрывал бы ровно то, за чем
+            // надо следить. Рисуем две панели, живая поверх тёмной.
+            float barW = 300f * s, barH = 22f * s;
+            Vector2 barPos = new Vector2(24f * s + barW * 0.5f, H - 116f * s);
+            UiKit.MakePanel(c, barPos, new Vector2(barW, barH),
+                new Color(0.1f, 0.06f, 0.08f, 0.8f));
+            _hpFill = UiKit.MakePanel(c, barPos, new Vector2(barW, barH),
+                new Color(0.85f, 0.25f, 0.3f, 0.95f));
+            _hpText = UiKit.MakeText(c, barPos, new Vector2(barW, barH), "",
+                Mathf.RoundToInt(13f * s), Color.white, TextAnchor.MiddleCenter);
 
             RefreshHud();
+            RefreshHealth();
         }
 
         private void RefreshHud()
         {
             _count.text = "Рыбки: " + _collected + " / " + _total;
+        }
+
+        // Полоска ужимается влево: сдвигаем и ширину, и центр, иначе она
+        // худеет с обеих сторон и выглядит как ползунок, а не как жизнь.
+        private void RefreshHealth()
+        {
+            if (_hpFill == null || _player == null) return;
+            float s = UiKit.Scale;
+            float full = 300f * s;
+            float k = _player.HpFraction;
+            float w = Mathf.Max(1f, full * k);
+
+            RectTransform rt = _hpFill.rectTransform;
+            rt.sizeDelta = new Vector2(w, 22f * s);
+            rt.anchoredPosition = new Vector2(24f * s + w * 0.5f, Screen.height - 116f * s);
+
+            _hpFill.color = k > 0.5f ? new Color(0.85f, 0.25f, 0.3f, 0.95f)
+                : k > 0.25f ? new Color(0.95f, 0.6f, 0.2f, 0.95f)
+                : new Color(1f, 0.35f, 0.35f, 0.95f);
+            _hpText.text = _player.Hp + " / " + KoenigPlayer.MaxHp;
         }
 
         private void Win()
@@ -295,6 +387,15 @@ namespace Koenig
             if (_player == null) return;
             Vector3 pp = _player.transform.position;
 
+            // Великан отбит — Enemy сам себя уничтожает после клипа смерти,
+            // поэтому ловим и Dying, и уже исчезнувшую ссылку.
+            if (!_bossDown && (_boss == null || _boss.Dying))
+            {
+                _bossDown = true;
+                Snd.Play("victory", 0.8f);
+                TryReadyToken();
+            }
+
             for (int i = 0; i < _fish.Count; i++)
             {
                 Transform f = _fish[i];
@@ -310,7 +411,7 @@ namespace Koenig
                     Snd.Play("coin", 0.9f);
                     ParticleFx.Burst(_world, f.position, 12, new Color(1f, 0.9f, 0.5f), 3.5f);
                     RefreshHud();
-                    if (_collected >= _total) ReadyToken();
+                    TryReadyToken();
                 }
             }
 
@@ -322,12 +423,28 @@ namespace Koenig
             }
         }
 
-        private void ReadyToken()
+        // Жетон отдаётся за оба дела сразу: рыбки собраны И великан отбит.
+        // Раньше хватало рыбок, и бой можно было обойти по краю улицы —
+        // тогда он был бы украшением, а не игрой.
+        private void TryReadyToken()
         {
             if (_tokenReady) return;
+
+            if (_collected < _total)
+            {
+                if (_bossDown) _hint.text = "Великан отбит! Осталось собрать рыбок: " +
+                    (_total - _collected);
+                return;
+            }
+            if (!_bossDown)
+            {
+                _hint.text = "Все рыбки собраны! Теперь великан у башни.";
+                return;
+            }
+
             _tokenReady = true;
             _token.gameObject.SetActive(true);
-            _hint.text = "Все рыбки собраны! Иди к башне за жетоном моста.";
+            _hint.text = "Путь свободен — забери жетон моста у башни.";
             Snd.Play("coin", 1f, 1.4f);
         }
 

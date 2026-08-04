@@ -22,6 +22,23 @@ public class Enemy : MonoBehaviour
     // показавшись из-за неё.
     public bool Blocked;
 
+    // ---------- Свой удар ----------
+    // В игре про медведя урон снимало касание, и считал его сам игрок
+    // (BearPlayer.EnemyInteractions): враг просто ехал вперёд телом. Для
+    // RPG нужен обратный ход — враг останавливается на дистанции оружия и
+    // бьёт по кулдауну, стоя на месте.
+    //
+    // Damage = 0 означает «не бьёт сам», и это значение по умолчанию:
+    // медвежьи миры продолжают работать ровно как раньше.
+    public int Damage;
+    public float AttackCooldown = 1.4f;
+    public float AttackRange = 1.2f;
+
+    // Кому уходит удар. Врагу знать про героя незачем — как и с целью.
+    public static System.Action<Enemy, int> DealDamage;
+
+    private float _atkCd;
+
     private Transform _visual;
     private Vector3 _target;
     private Vector3 _netPos;
@@ -225,6 +242,8 @@ public class Enemy : MonoBehaviour
                 _model.Play(_model.Pick("Run", "Walk", "Flying", "Idle"), sees ? 1.5f : 1f, true);
         }
 
+        if (_atkCd > 0f) _atkCd -= dt;
+
         Vector3 goal;
         float speed = Speed;
         if (_chasing)
@@ -234,6 +253,26 @@ public class Enemy : MonoBehaviour
             // иметь возможность уйти. Без потолка боссы разгонялись до
             // 8.2 и просто загоняли медведя в угол.
             speed = Mathf.Min(Speed * 1.7f, 6.0f);
+
+            // Дошёл на дистанцию удара — встаёт и бьёт. Если не встать, враг
+            // будет толкать героя телом и вечно «догонять» вплотную.
+            if (Damage > 0)
+            {
+                Vector3 gap = chase - pos;
+                gap.y = 0f;
+                if (gap.magnitude <= AttackRange + Radius)
+                {
+                    goal = pos;
+                    if (_atkCd <= 0f)
+                    {
+                        _atkCd = AttackCooldown;
+                        if (_model != null)
+                            _model.Restart(_model.Pick("Bite_InPlace", "Attack", "Jump"), 1.2f);
+                        Snd.Play("swing", 0.5f);
+                        if (DealDamage != null) DealDamage(this, Damage);
+                    }
+                }
+            }
         }
         else if (March)
         {
@@ -246,8 +285,11 @@ public class Enemy : MonoBehaviour
             goal = _target;
         }
 
-        Vector3 to = goal - pos;
         if (!Blocked) transform.localPosition = Vector3.MoveTowards(pos, goal, speed * dt);
+
+        // Смотреть надо на цель, а не на точку, куда идём: встав бить, враг
+        // никуда не идёт, и по goal он остался бы стоять к герою боком.
+        Vector3 to = (_chasing ? chase : goal) - pos;
         if (new Vector2(to.x, to.z).magnitude > 0.01f)
             _visual.localRotation = Quaternion.Euler(0f, Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg, 0f);
     }
@@ -421,10 +463,14 @@ public class Enemy : MonoBehaviour
     }
 
     // Попадание по боссу. Возвращает true, если он погиб.
-    public bool TakeHit()
+    // Медведь бьёт «на единицу» — у него урона как числа нет вовсе.
+    public bool TakeHit() { return TakeDamage(1); }
+
+    // Попадание с уроном. Возвращает true, если враг погиб.
+    public bool TakeDamage(int amount)
     {
         if (Dying) return true;
-        Hp--;
+        Hp -= Mathf.Max(1, amount);
         if (Hp > 0)
         {
             Snd.Play("bosshit", 0.9f);

@@ -113,6 +113,8 @@ public static class Heroes
         if (kind == "bigdragon") return "Dragon_Evolved";
         if (kind == "alpaking") return "Alpaking_Evolved";
         if (kind == "armabee") return "Armabee_Evolved";
+        // Дюнный великан Кранца — первый босс игры про Кёнигсберг.
+        if (kind == "yeti") return "Yeti";
         return "Mushroom";
     }
 
@@ -140,6 +142,7 @@ public static class Heroes
         if (kind == "bigdragon") return 3.2f;
         if (kind == "alpaking") return 2.6f;
         if (kind == "armabee") return 2.2f;
+        if (kind == "yeti") return 2.4f;
         return 1.35f;
     }
 

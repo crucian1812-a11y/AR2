@@ -9,21 +9,29 @@ namespace Koenig
     // постройка блоков, которой в этой игре нет.
     //
     // Кнопки прыжка больше нет — в изометрической RPG прыгать некуда.
-    // Правая половина намеренно оставлена пустой: там будет кнопка удара,
-    // и туда же приходят тапы по целям (см. Targeting). Джойстик по-
-    // прежнему ловит только левую половину, поэтому за палец они не
-    // спорят.
+    // На её месте кнопка удара: держишь — герой бьёт по ближайшему врагу
+    // в конусе перед собой, и этого хватает, чтобы пройти уровень, ни разу
+    // не тапнув по цели. Остальные тапы правой половины уходят в
+    // прицеливание (Targeting), круг кнопки оно пропускает.
+    //
+    // Джойстик по-прежнему ловит только левую половину, поэтому за палец
+    // они не спорят.
     public class KoenigTouch : MonoBehaviour
     {
         private float _s = 1f;
-        private RectTransform _ring, _knob;
+        private RectTransform _ring, _knob, _atk;
+        private Text _atkLabel;
 
-        private int _joyFinger = -1;
+        private int _joyFinger = -1, _atkFinger = -1;
+
+        // Держат ли кнопку удара прямо сейчас. Читает Combat.
+        public static bool AttackHeld;
         private Vector2 _joyOrigin, _knobOffset;
         private bool _touchDevice;
 
         private const float JoyRadius = 110f;
         private const float KnobRadius = 46f;
+        private const float AtkRadius = 82f;
 
         public static KoenigTouch Create(Transform canvas)
         {
@@ -44,6 +52,11 @@ namespace Koenig
             _knob = UiKit.MakeImage(canvas, Vector2.zero, Vector2.one * (KnobRadius * 2f * _s),
                 Gfx.CircleSprite(), new Color(1f, 1f, 1f, 0.34f)).rectTransform;
 
+            _atk = UiKit.MakeImage(canvas, Vector2.zero, Vector2.one * (AtkRadius * 2f * _s),
+                Gfx.CircleSprite(), new Color(0.95f, 0.6f, 0.35f, 0.30f)).rectTransform;
+            _atkLabel = UiKit.MakeText(canvas, Vector2.zero, new Vector2(180f * _s, 40f * _s),
+                "Удар", Mathf.RoundToInt(20f * _s), new Color(1f, 1f, 1f, 0.9f), TextAnchor.MiddleCenter);
+
             if (!_touchDevice) SetVisible(false);
             Layout();
         }
@@ -52,15 +65,31 @@ namespace Koenig
         {
             _ring.gameObject.SetActive(v);
             _knob.gameObject.SetActive(v);
+            _atk.gameObject.SetActive(v);
+            _atkLabel.gameObject.SetActive(v);
         }
 
         private Vector2 JoyHome { get { return new Vector2(190f * _s, 190f * _s); } }
         private Vector2 JoyCenter { get { return _joyFinger >= 0 ? _joyOrigin : JoyHome; } }
+        private Vector2 AtkCenter { get { return new Vector2(Screen.width - 150f * _s, 165f * _s); } }
 
         private void Layout()
         {
             _ring.anchoredPosition = JoyCenter;
             _knob.anchoredPosition = JoyCenter + _knobOffset;
+            _atk.anchoredPosition = AtkCenter;
+            _atkLabel.rectTransform.anchoredPosition = AtkCenter;
+
+            // Прицеливание обязано пропускать круг кнопки, иначе каждый
+            // удар заодно сбрасывал бы цель тапом мимо врага.
+            Targeting.ButtonCenter = AtkCenter;
+            Targeting.ButtonRadius = AtkRadius * _s;
+        }
+
+        private void OnDestroy()
+        {
+            AttackHeld = false;
+            Targeting.ButtonRadius = 0f;
         }
 
         private void Update()
@@ -80,7 +109,12 @@ namespace Koenig
 
                 if (t.phase == TouchPhase.Began)
                 {
-                    if (p.x < Screen.width * 0.5f && _joyFinger < 0)
+                    if (Vector2.Distance(p, AtkCenter) < AtkRadius * _s && _atkFinger < 0)
+                    {
+                        _atkFinger = t.fingerId;
+                        AttackHeld = true;
+                    }
+                    else if (p.x < Screen.width * 0.5f && _joyFinger < 0)
                     {
                         _joyFinger = t.fingerId;
                         float m = JoyRadius * _s;
@@ -102,6 +136,11 @@ namespace Koenig
                         _knobOffset = Vector2.zero;
                         Ctrl.Move = Vector2.zero;
                     }
+                    else if (t.fingerId == _atkFinger)
+                    {
+                        _atkFinger = -1;
+                        AttackHeld = false;
+                    }
                 }
             }
 
@@ -110,6 +149,8 @@ namespace Koenig
                 _knobOffset = Vector2.zero;
                 Ctrl.Move = Vector2.zero;
             }
+            // Палец мог уйти с экрана мимо фазы Ended (например, при звонке).
+            if (_atkFinger < 0) AttackHeld = false;
         }
 
         private void UpdateJoystick(Vector2 screenPos)
