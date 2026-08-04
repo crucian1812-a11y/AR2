@@ -216,8 +216,12 @@ namespace Koenig
             {
                 string wId = v[i % v.Length];
                 string eId = v[(i + 2) % v.Length];
-                float wh = wId.Contains("Tall") ? 12f : 9.5f;
-                float eh = eId.Contains("Tall") ? 12f : 9.5f;
+                // Было 9.5 и 12 — при кадре в 13 метров один такой дом
+                // занимал его целиком, и улицы не было видно вовсе.
+                // Семь метров это двухэтажный фахверк с кровлей: на экране
+                // треть кадра, мимо него видно, что происходит дальше.
+                float wh = wId.Contains("Tall") ? 8f : 7f;
+                float eh = eId.Contains("Tall") ? 8f : 7f;
                 KoenigProp.LoadSized(_world, wId, new Vector3(-20f, 0.1f, zs[i]), 90f, wh);
                 KoenigProp.LoadSized(_world, eId, new Vector3(20f, 0.1f, zs[i]), 270f, eh);
             }
