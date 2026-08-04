@@ -92,7 +92,12 @@ namespace Koenig
         {
             Color top = new Color(0.28f, 0.54f, 0.86f);
             Color horizon = new Color(0.78f, 0.87f, 0.95f);
-            Color ground = new Color(0.5f, 0.56f, 0.44f);
+            // Ground-цвет неба был оливковым — и именно он давал тот хаки
+            // фон. Камера смотрит вниз под 50°, значит верхний край кадра
+            // на 27° НИЖЕ горизонта: голубой верх неба не попадает в кадр
+            // ни одним пикселем, видно только нижнюю полусферу. Красим её
+            // в бледную морскую дымку, чтобы любой просвет читался далью.
+            Color ground = new Color(0.74f, 0.83f, 0.88f);
             Shader sky = Shader.Find("Bear/Sky");
             if (sky != null)
             {
@@ -103,17 +108,27 @@ namespace Koenig
                 RenderSettings.skybox = m;
             }
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = top * 0.55f;
-            RenderSettings.ambientEquatorColor = horizon * 0.55f;
-            RenderSettings.ambientGroundColor = ground * 0.4f;
+            // Подсвет был тёмным, и теневая сторона штукатурки проваливалась
+            // в синеву. У балтийского полудня тень светлая.
+            RenderSettings.ambientSkyColor = top * 0.80f;
+            RenderSettings.ambientEquatorColor = horizon * 0.90f;
+            RenderSettings.ambientGroundColor = ground * 0.55f;
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogColor = horizon;
-            RenderSettings.fogDensity = 0.004f;
+            // На 30 м (дальний край кадра) прежние 0.004 давали пропускание
+            // 98.6% — воздушной перспективы не было вовсе. При 0.012 дальний
+            // конец улицы уходит в дымку, а край земли перестаёт быть виден.
+            RenderSettings.fogDensity = 0.012f;
 
             GameObject sunGo = new GameObject("Sun");
             sunGo.transform.SetParent(transform, false);
-            sunGo.transform.localRotation = Quaternion.Euler(46f, 32f, 0f);
+            // Солнце светило из-за спины камеры: всё освещалось в лоб,
+            // теней поперёк кадра не было, объёма не было. Разворачиваем
+            // вбок — дом 9.5 м кладёт тень длиной 12 м через всю мостовую,
+            // один ряд фасадов горит, другой уходит в тень. Это самая
+            // заметная перемена во всём освещении.
+            sunGo.transform.localRotation = Quaternion.Euler(38f, -50f, 0f);
             Light sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
             sun.intensity = 1.55f;
@@ -122,13 +137,40 @@ namespace Koenig
             sun.shadowStrength = 0.7f;
         }
 
-        private Material Tiled(string tex, float tile, Color fallback)
+        // Тайлинг задаётся ВЕКТОРОМ, а не числом, и вот почему.
+        //
+        // У куба Unity каждая грань размечена от 0 до 1, поэтому реальный
+        // размер камня равен размеру грани, делённому на тайл, ПО КАЖДОЙ
+        // ОСИ ОТДЕЛЬНО. Мостовая 26 × 84 при тайле 12 давала камень
+        // 2.17 × 7.00 метра — растянутый втрое, он и читался бурой грязью.
+        // Парапет 130 × 1.6 при том же числе давал 10.8 × 0.13 — растяжку
+        // в восемьдесят раз.
+        //
+        // Здесь тайл считается из размеров самой грани, поэтому камень
+        // выходит квадратным на любом коробе.
+        private Material Tiled(string tex, Vector2 metersPerFace, Color fallback,
+                               float stoneSize = 2f)
         {
+            Vector2 tile = new Vector2(
+                Mathf.Max(1f, metersPerFace.x / stoneSize),
+                Mathf.Max(1f, metersPerFace.y / stoneSize));
+
             Material m = new Material(Gfx.Standard);
-            Texture2D t = Resources.Load<Texture2D>("Textures/koenig/" + tex);
-            if (t != null) { m.mainTexture = t; m.SetTextureScale("_MainTex", new Vector2(tile, tile)); }
+            Texture2D t = Resources.Load<Texture2D>("Textures/koenig/" + tex + "_BaseColor");
+            if (t != null) { m.mainTexture = t; m.SetTextureScale("_MainTex", tile); }
             else m.color = fallback;
-            m.SetFloat("_Glossiness", 0.05f);
+
+            // Карта нормалей у земли не применялась вовсе — при том, что
+            // файлы лежат рядом и у домов работают. Отсюда и разница:
+            // у фасадов рельеф был, у мостовой нет.
+            Texture2D n = Resources.Load<Texture2D>("Textures/koenig/" + tex + "_Normal");
+            if (n != null)
+            {
+                m.SetTexture("_BumpMap", n);
+                m.SetFloat("_NormalScale", 1f);
+                m.SetTextureScale("_BumpMap", tile);
+            }
+            m.SetFloat("_Glossiness", 0.10f);
             m.SetFloat("_Metallic", 0f);
             return m;
         }
@@ -137,18 +179,26 @@ namespace Koenig
 
         private void BuildTown()
         {
-            // Трава.
-            Material grass = Gfx.MatFull(new Color(0.42f, 0.6f, 0.32f), 0.03f, 0f, Color.black, 12f, 0.4f);
+            // Трава была ПЛОСКИМ ЦВЕТОМ — при том, что в Textures/world
+            // лежат Grass003 и Grass006 с картами нормалей и шероховатости,
+            // импортируемые с Repeat и анизотропией 12. Берём трипланарный
+            // Bear/Terrain: ему UV коробки не нужны вовсе, поэтому вся
+            // история с тайлингом его не касается, а по склону он сам
+            // разводит траву и песок — это и даст переход к пляжу.
+            Material grass = Gfx.TerrainMat(
+                "Grass003_1K-PNG_Color", "Grass003_1K-PNG_NormalGL",
+                "aerial_beach_01_diff_1k", "aerial_beach_01_nor_gl_1k",
+                0.35f, 0.30f);
             Gfx.Box(_world, new Vector3(0f, -0.5f, 0f), new Vector3(150f, 1f, 150f), grass, true);
 
             // Мощёная улица по центру (север-юг), настоящая каменная текстура.
-            Material cobble = Tiled("T_UnevenBrick_BaseColor", 12f, new Color(0.66f, 0.63f, 0.57f));
+            Material cobble = Tiled("T_UnevenBrick", new Vector2(26f, 84f), new Color(0.66f, 0.63f, 0.57f), 1.6f);
             Gfx.Box(_world, new Vector3(0f, 0.02f, 2f), new Vector3(26f, 0.2f, 84f), cobble, true);
 
             // Балтийское море на севере за парапетом.
             Material sea = Gfx.Mat(new Color(0.18f, 0.44f, 0.62f), 0.7f, 0.1f);
             Gfx.Box(_world, new Vector3(0f, -0.4f, 76f), new Vector3(220f, 0.6f, 50f), sea, false);
-            Material stone = Tiled("T_RockTrim_BaseColor", 12f, new Color(0.7f, 0.66f, 0.58f));
+            Material stone = Tiled("T_RockTrim", new Vector2(130f, 1.6f), new Color(0.7f, 0.66f, 0.58f));
             Gfx.Box(_world, new Vector3(0f, 0.7f, 46.5f), new Vector3(130f, 1.6f, 0.9f), stone, true);
             Gfx.Box(_world, new Vector3(0f, 3f, -48f), new Vector3(150f, 7f, 1f), stone, true);
             Gfx.Box(_world, new Vector3(-50f, 3f, 0f), new Vector3(1f, 7f, 150f), stone, true);
@@ -264,7 +314,7 @@ namespace Koenig
 
         private void Tower(Vector3 basePos)
         {
-            Material stone = Tiled("T_RockTrim_BaseColor", 2.4f, new Color(0.7f, 0.66f, 0.58f));
+            Material stone = Tiled("T_RockTrim", new Vector2(5.5f, 16f), new Color(0.7f, 0.66f, 0.58f));
             float h = 16f;
             Gfx.Box(_world, basePos + new Vector3(0f, h * 0.5f, 0f), new Vector3(5.5f, h, 5.5f), stone, true);
             Vector3 rs;

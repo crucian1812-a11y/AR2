@@ -534,6 +534,7 @@ namespace UnityEngine
         public float depth { get; set; }
         public RenderTexture targetTexture { get; set; }
         public bool orthographic { get; set; }
+        public float orthographicSize { get; set; }
         public Vector3 WorldToScreenPoint(Vector3 p) { return Vector3.zero; }
         public Vector3 ScreenToWorldPoint(Vector3 p) { return Vector3.zero; }
     }
