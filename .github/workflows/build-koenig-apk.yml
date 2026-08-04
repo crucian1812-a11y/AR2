@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - claude/koenigsberg-bridges-travel
+      # Ветка переделки игровой части в RPG: изометрия, бой, лут.
+      # Без неё сборка не запускалась ни разу — workflow_dispatch тут не
+      # помощник, он требует файл workflow в ветке по умолчанию, а на main
+      # лежит исходный AR-проект без unity/ и без .github/.
+      - claude/app-rpg-redesign-critic-h6pmid
     paths:
       - "unity/**"
       - ".github/workflows/build-koenig-apk.yml"
