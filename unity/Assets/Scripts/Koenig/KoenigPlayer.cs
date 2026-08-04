@@ -4,34 +4,62 @@ namespace Koenig
 {
     // Управляемый герой игрового уровня. Ребёнок играет за самого Кёню —
     // город кошек Зеленоградск как раз про это, а модель проводника у нас
-    // уже есть со всеми клипами. Управление простое: джойстик слева,
-    // прыжок справа (см. TouchControls), на десктопе — WASD/пробел.
+    // уже есть со всеми клипами.
     //
-    // Одиночный и самодостаточный: ни сети, ни врагов, ни блоков — в
-    // отличие от BearPlayer. Гравитация и прыжок считаются вручную поверх
-    // CharacterController, камера едет следом.
+    // Камера изометрическая, как в RPG: висит высоко, смотрит вниз под
+    // постоянным углом и НИКОГДА не поворачивается — только едет за героем.
+    // Раньше она сидела за плечом на высоте 3.4 м и доворачивалась по
+    // направлению бега, а джойстик считался от её текущего угла; камера,
+    // движение и управление были связаны в один узел, и в бою это узел
+    // мешал бы: цель, по которой тапнул ребёнок, уезжала бы из-под пальца
+    // вместе с разворотом камеры.
+    //
+    // Теперь угол площадки задан одной константой CamYaw, и от неё же
+    // считается джойстик — разойтись они не могут по устройству.
+    //
+    // Прыжка нет: в изометрической RPG прыгать некуда, а кнопка справа
+    // нужна под удар. Гравитация осталась — она держит героя на земле и на
+    // ступенях.
     public class KoenigPlayer : MonoBehaviour
     {
         private const float Speed = 5.5f;
         private const float Accel = 12f;
-        private const float JumpVelocity = 8.5f;
         private const float Gravity = 20f;
+
+        // Разворот площадки на экране. Ноль — мировая ось Z смотрит вверх
+        // экрана. Улица Зеленоградска идёт вдоль Z и построена коридором,
+        // поэтому здесь ноль: камера смотрит вдоль улицы, и та занимает
+        // кадр целиком. Для зон, которые будут строиться под изометрию с
+        // нуля, сюда ставится 45 — тогда у домов видно два угла, а не
+        // плоский фасад. Менять надо ТОЛЬКО здесь: и камера, и джойстик
+        // читают эту же константу.
+        private const float CamYaw = 0f;
+        private const float CamPitch = 50f;
+        private const float CamHeight = 14f;
+        private const float CamBack = 11.6f;
+        private const float CamFollow = 6f;
 
         private CharacterController _cc;
         private Transform _visual;
         private CharacterModel _model;
 
-        private Transform _camYaw;
+        private Transform _camRig;
         private Camera _cam;
+        private Vector3 _focus;
 
         private Vector3 _velocity;
         private Vector3 _spawn;
-        private float _coyote;
         private float _animT;
         private byte _anim;
-        private float _camYawAngle;
 
         public Camera Cam { get { return _cam; } }
+
+        // Куда смотрит площадка. Нужен прицеливанию: экранный тап надо
+        // разворачивать в те же оси, в которых ходит герой.
+        public static Quaternion GroundRotation
+        {
+            get { return Quaternion.Euler(0f, CamYaw, 0f); }
+        }
 
         public static KoenigPlayer Spawn(Transform parent, Vector3 pos, string modelId)
         {
@@ -53,6 +81,7 @@ namespace Koenig
 
             transform.position = pos;
             _spawn = pos;
+            _focus = pos;
 
             GameObject vis = new GameObject("Visual");
             vis.transform.SetParent(transform, false);
@@ -62,31 +91,43 @@ namespace Koenig
             if (_model != null) _model.Play(_model.Pick("Idle", "Walk"), 1f, true);
 
             BuildCamera();
+            PlaceCamera(1f);
         }
 
         private void BuildCamera()
         {
-            GameObject yaw = new GameObject("CamYaw");
-            yaw.transform.SetParent(null, false);
-            _camYaw = yaw.transform;
-
+            // Камера — самостоятельный объект в корне сцены, а не потомок
+            // поворотного узла: поворачивать её больше нечему.
             GameObject camGo = new GameObject("KoenigLevelCamera");
             camGo.tag = "MainCamera";
-            camGo.transform.SetParent(_camYaw, false);
-            camGo.transform.localPosition = new Vector3(0f, 3.4f, -6.2f);
-            camGo.transform.localRotation = Quaternion.Euler(20f, 0f, 0f);
+            camGo.transform.SetParent(null, false);
+            camGo.transform.localRotation = Quaternion.Euler(CamPitch, CamYaw, 0f);
+            _camRig = camGo.transform;
+
             _cam = camGo.AddComponent<Camera>();
             _cam.clearFlags = CameraClearFlags.SolidColor;
             _cam.backgroundColor = new Color(0.55f, 0.78f, 0.95f);
-            _cam.fieldOfView = 58f;
+            // Узкий угол — подпись изометрии: перспектива почти не
+            // расходится, дальний дом такого же размера, как ближний.
+            _cam.fieldOfView = 45f;
             _cam.nearClipPlane = 0.1f;
-            _cam.farClipPlane = 300f;
+            // Камера смотрит вниз под 50°, поэтому земля уходит за верхний
+            // край кадра метрах в тридцати впереди — держать 300 незачем.
+            // Берём 90 с запасом: столько хватает высоким предметам, что
+            // торчат над этой границей, и на глаз ничто не выскакивает из
+            // ниоткуда.
+            //
+            // Плата за изометрию, о которой надо знать: камера висит на 14 м
+            // над героем и смотрит ВНИЗ, значит всё выше её самой в кадр не
+            // попадает вовсе. Башня Мурариума в этом уровне 16-метровая —
+            // её верхушку теперь не видно, видно основание. Это не баг
+            // дальней плоскости, это угол; чинится не числом здесь, а тем,
+            // что ориентиры строятся под изометрию (шаг 5 плана).
+            _cam.farClipPlane = 90f;
             // Выше depth камеры-хаба: уровень целиком перекрывает экран
             // карты, пока играем. Канвас карты при этом прячется отдельно.
             _cam.depth = 10f;
 
-            // Звук в игре про мосты нигде не слушался — на уровне даём
-            // слушатель, чтобы прыжки и монетки было слышно.
             if (Object.FindObjectOfType<AudioListener>() == null)
                 camGo.AddComponent<AudioListener>();
         }
@@ -95,7 +136,7 @@ namespace Koenig
         {
             float dt = Time.deltaTime;
             Move(dt);
-            FollowCamera(dt);
+            PlaceCamera(Mathf.Min(CamFollow * dt, 1f));
             Animate(dt);
             if (transform.position.y < -20f) Respawn();
         }
@@ -109,35 +150,26 @@ namespace Koenig
             if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) mv.x += 1f;
             if (mv.magnitude > 1f) mv = mv.normalized;
 
-            // Движение относительно камеры: «вперёд» на джойстике — от игрока
-            // вглубь экрана, куда бы камера ни смотрела.
-            Quaternion camRot = Quaternion.Euler(0f, _camYawAngle, 0f);
-            Vector3 dir = camRot * new Vector3(mv.x, 0f, mv.y);
+            // Джойстик считается от неподвижного угла площадки, а не от
+            // камеры: «вверх» на джойстике — всегда вверх экрана, куда бы
+            // герой ни бежал. Раньше при развороте камеры одно и то же
+            // положение пальца означало разные стороны света.
+            Vector3 dir = GroundRotation * new Vector3(mv.x, 0f, mv.y);
             if (dir.magnitude > 1f) dir = dir.normalized;
 
             float k = Mathf.Min(Accel * dt, 1f);
             _velocity.x = Mathf.Lerp(_velocity.x, dir.x * Speed, k);
             _velocity.z = Mathf.Lerp(_velocity.z, dir.z * Speed, k);
 
-            bool jump = Ctrl.ConsumeJump() || Input.GetKeyDown(KeyCode.Space);
             bool grounded = _cc.isGrounded;
             if (grounded)
             {
-                _coyote = 0.12f;
                 if (_velocity.y < 0f) _velocity.y = -2f;
             }
             else
             {
-                _coyote -= dt;
                 _velocity.y -= Gravity * dt;
                 if (_velocity.y < -40f) _velocity.y = -40f;
-            }
-
-            if (jump && (grounded || _coyote > 0f))
-            {
-                _coyote = 0f;
-                _velocity.y = JumpVelocity;
-                Snd.Play("jump", 0.8f);
             }
 
             _cc.Move(_velocity * dt);
@@ -152,34 +184,23 @@ namespace Koenig
             }
 
             float flat = new Vector2(_velocity.x, _velocity.z).magnitude;
-            if (!grounded) _anim = 2;
-            else if (flat > 0.8f) _anim = 1;
-            else _anim = 0;
+            _anim = flat > 0.8f ? (byte)1 : (byte)0;
         }
 
-        private void FollowCamera(float dt)
+        // Камера едет за героем и только за ним: разворот задан один раз
+        // при постройке и больше не трогается.
+        private void PlaceCamera(float k)
         {
-            if (_camYaw == null) return;
-            // Камера мягко догоняет героя и разворачивается по направлению
-            // движения — отдельный джойстик поворота ребёнку не нужен.
-            _camYaw.position = Vector3.Lerp(_camYaw.position,
-                transform.position + new Vector3(0f, 0.6f, 0f), Mathf.Min(8f * dt, 1f));
-
-            float flat = new Vector2(_velocity.x, _velocity.z).magnitude;
-            if (flat > 1.2f)
-            {
-                float target = Mathf.Atan2(_velocity.x, _velocity.z) * Mathf.Rad2Deg;
-                _camYawAngle = Mathf.LerpAngle(_camYawAngle, target, Mathf.Min(2.2f * dt, 1f));
-            }
-            _camYaw.localRotation = Quaternion.Euler(0f, _camYawAngle, 0f);
+            if (_camRig == null) return;
+            _focus = Vector3.Lerp(_focus, transform.position, k);
+            _camRig.position = _focus + GroundRotation * new Vector3(0f, CamHeight, -CamBack);
         }
 
         private void Animate(float dt)
         {
             if (_model != null)
             {
-                if (_anim == 2) _model.Play("Jump", 1f, false);
-                else if (_anim == 1)
+                if (_anim == 1)
                 {
                     float v = new Vector2(_velocity.x, _velocity.z).magnitude;
                     _model.Play("Walk", Mathf.Clamp(v / 3f, 0.9f, 2f), true);
@@ -195,12 +216,14 @@ namespace Koenig
             transform.position = _spawn;
             _cc.enabled = true;
             _velocity = Vector3.zero;
+            _focus = _spawn;
+            PlaceCamera(1f);
             Snd.Play("land", 0.6f);
         }
 
         private void OnDestroy()
         {
-            if (_camYaw != null) Object.Destroy(_camYaw.gameObject);
+            if (_camRig != null) Object.Destroy(_camRig.gameObject);
         }
     }
 }

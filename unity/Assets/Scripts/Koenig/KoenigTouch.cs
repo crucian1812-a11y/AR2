@@ -4,23 +4,26 @@ using UnityEngine.UI;
 namespace Koenig
 {
     // Простое сенсорное управление для игрового уровня: плавающий джойстик
-    // в левой половине и одна кнопка прыжка справа — ровно то, что нужно
-    // семилетке. Пишет в общий Ctrl, откуда читает KoenigPlayer. Не берём
-    // TouchControls медведя целиком: там ещё удар и постройка блоков,
-    // которых в этой игре нет.
+    // в левой половине экрана. Пишет в общий Ctrl, откуда читает
+    // KoenigPlayer. Не берём TouchControls медведя целиком: там ещё
+    // постройка блоков, которой в этой игре нет.
+    //
+    // Кнопки прыжка больше нет — в изометрической RPG прыгать некуда.
+    // Правая половина намеренно оставлена пустой: там будет кнопка удара,
+    // и туда же приходят тапы по целям (см. Targeting). Джойстик по-
+    // прежнему ловит только левую половину, поэтому за палец они не
+    // спорят.
     public class KoenigTouch : MonoBehaviour
     {
         private float _s = 1f;
-        private RectTransform _ring, _knob, _jump;
-        private Text _jumpLabel;
+        private RectTransform _ring, _knob;
 
-        private int _joyFinger = -1, _jumpFinger = -1;
+        private int _joyFinger = -1;
         private Vector2 _joyOrigin, _knobOffset;
         private bool _touchDevice;
 
         private const float JoyRadius = 110f;
         private const float KnobRadius = 46f;
-        private const float JumpRadius = 82f;
 
         public static KoenigTouch Create(Transform canvas)
         {
@@ -40,10 +43,6 @@ namespace Koenig
                 Gfx.RingSprite(), new Color(1f, 1f, 1f, 0.22f)).rectTransform;
             _knob = UiKit.MakeImage(canvas, Vector2.zero, Vector2.one * (KnobRadius * 2f * _s),
                 Gfx.CircleSprite(), new Color(1f, 1f, 1f, 0.34f)).rectTransform;
-            _jump = UiKit.MakeImage(canvas, Vector2.zero, Vector2.one * (JumpRadius * 2f * _s),
-                Gfx.CircleSprite(), new Color(0.4f, 0.9f, 0.55f, 0.28f)).rectTransform;
-            _jumpLabel = UiKit.MakeText(canvas, Vector2.zero, new Vector2(180f * _s, 40f * _s),
-                "Прыжок", Mathf.RoundToInt(20f * _s), new Color(1f, 1f, 1f, 0.9f), TextAnchor.MiddleCenter);
 
             if (!_touchDevice) SetVisible(false);
             Layout();
@@ -53,20 +52,15 @@ namespace Koenig
         {
             _ring.gameObject.SetActive(v);
             _knob.gameObject.SetActive(v);
-            _jump.gameObject.SetActive(v);
-            _jumpLabel.gameObject.SetActive(v);
         }
 
         private Vector2 JoyHome { get { return new Vector2(190f * _s, 190f * _s); } }
         private Vector2 JoyCenter { get { return _joyFinger >= 0 ? _joyOrigin : JoyHome; } }
-        private Vector2 JumpCenter { get { return new Vector2(Screen.width - 150f * _s, 165f * _s); } }
 
         private void Layout()
         {
             _ring.anchoredPosition = JoyCenter;
             _knob.anchoredPosition = JoyCenter + _knobOffset;
-            _jump.anchoredPosition = JumpCenter;
-            _jumpLabel.rectTransform.anchoredPosition = JumpCenter;
         }
 
         private void Update()
@@ -86,12 +80,7 @@ namespace Koenig
 
                 if (t.phase == TouchPhase.Began)
                 {
-                    if (Vector2.Distance(p, JumpCenter) < JumpRadius * _s && _jumpFinger < 0)
-                    {
-                        _jumpFinger = t.fingerId;
-                        Ctrl.QueueJump();
-                    }
-                    else if (p.x < Screen.width * 0.5f && _joyFinger < 0)
+                    if (p.x < Screen.width * 0.5f && _joyFinger < 0)
                     {
                         _joyFinger = t.fingerId;
                         float m = JoyRadius * _s;
@@ -113,7 +102,6 @@ namespace Koenig
                         _knobOffset = Vector2.zero;
                         Ctrl.Move = Vector2.zero;
                     }
-                    else if (t.fingerId == _jumpFinger) _jumpFinger = -1;
                 }
             }
 
