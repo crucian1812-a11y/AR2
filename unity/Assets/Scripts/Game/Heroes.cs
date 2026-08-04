@@ -115,6 +115,12 @@ public static class Heroes
         if (kind == "armabee") return "Armabee_Evolved";
         // Дюнный великан Кранца — первый босс игры про Кёнигсберг.
         if (kind == "yeti") return "Yeti";
+        // Средневековые воины из пака KayKit (CC0). Гриб был заглушкой
+        // из игры про медведя; в RPG про Кёнигсберг противник — человек.
+        if (kind == "swordsman") return "Barbarian";
+        if (kind == "raider") return "Rogue";
+        if (kind == "archer") return "Ranger";
+        if (kind == "knight") return "Knight";
         return "Mushroom";
     }
 
@@ -143,6 +149,12 @@ public static class Heroes
         if (kind == "alpaking") return 2.6f;
         if (kind == "armabee") return 2.2f;
         if (kind == "yeti") return 2.4f;
+        // Воины KayKit ниже героя-рыцаря намеренно: орда должна читаться
+        // ордой, а не строем равных. Рыцарь 1.85, они 1.55–1.65.
+        if (kind == "swordsman") return 1.65f;
+        if (kind == "raider") return 1.55f;
+        if (kind == "archer") return 1.6f;
+        if (kind == "knight") return 1.85f;
         return 1.35f;
     }
 

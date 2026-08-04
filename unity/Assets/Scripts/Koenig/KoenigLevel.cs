@@ -65,7 +65,9 @@ namespace Koenig
 
             BuildTown();
 
-            _player = KoenigPlayer.Spawn(transform, new Vector3(0f, 1.5f, -34f), Guide.ModelId);
+            // Играем за рыцаря, а не за кота: Кёня остаётся проводником на карте,
+            // но в RPG нужен воин. Модель KayKit (CC0) со всеми клипами.
+            _player = KoenigPlayer.Spawn(transform, new Vector3(0f, 1.5f, -34f), "Knight");
             if (_player.Cam != null)
             {
                 _player.Cam.clearFlags = CameraClearFlags.Skybox;
@@ -261,8 +263,9 @@ namespace Koenig
         // промежутки между рыбками, чтобы за наградой приходилось идти
         // сквозь бой, а не мимо него.
         //
-        // Гриб держит 12 урона (два-три удара по 3–6), бьёт на 3 и медленный:
-        // от пачки можно уйти, а стоять в ней нельзя.
+        // Воин держит 12 урона (два-три удара по 3–6), бьёт на 3 и медленный:
+        // от пачки можно уйти, а стоять в ней нельзя. Виды чередуются,
+        // чтобы пачка читалась отрядом, а не клонами.
         private void SpawnPacks()
         {
             // Мостовая — короб высотой 0.2 с центром на 0.02, значит её
@@ -286,7 +289,9 @@ namespace Koenig
                     Vector3 a = packs[p] + off;
                     Vector3 b = a + new Vector3(Mathf.Sin(ang) * 2.5f, 0f, Mathf.Cos(ang) * 2.5f);
 
-                    Enemy e = Enemy.Spawn(_world, a, b, "mushroom", 1.5f, id++);
+                    string kind = (p + k) % 3 == 0 ? "swordsman"
+                                : (p + k) % 3 == 1 ? "raider" : "archer";
+                    Enemy e = Enemy.Spawn(_world, a, b, kind, 1.5f, id++);
                     e.Hp = 12;
                     e.Damage = 3;
                     e.AttackCooldown = 1.5f;
@@ -373,7 +378,7 @@ namespace Koenig
                 "← Карта", Mathf.RoundToInt(16f * s), Exit);
 
             _hint = UiKit.MakeText(c, new Vector2(W * 0.5f, H - 72f * s), new Vector2(640f * s, 40f * s),
-                "Собирай рыбок и отбивайся от грибов. У башни ждёт великан.",
+                "Собирай рыбок и отбивайся от воинов. У башни ждёт великан.",
                 Mathf.RoundToInt(15f * s), new Color(0.85f, 0.9f, 0.98f), TextAnchor.MiddleCenter);
 
             // Полоска жизни — слева вверху, под подсказкой. Внизу её ставить
