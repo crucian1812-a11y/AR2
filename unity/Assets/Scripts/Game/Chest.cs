@@ -10,7 +10,9 @@ public class Chest : MonoBehaviour
 {
     public int Id;
     public int Coins = 5;
-    public int ResKind = Res.Wood;
+    // Материал — просто номер вида. Расшифровывает его тот, кто выдаёт
+    // награду (у медведя — Res), сундуку знать эту таблицу незачем.
+    public int ResKind;
     public int ResAmount = 3;
 
     private Transform _lid;

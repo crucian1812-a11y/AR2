@@ -15,8 +15,13 @@ namespace Koenig
     // текст обрезался слева, кнопки налезали. Всё логическое поле — 440
     // единиц в ширину, ничего шире 430 не ставим.
     //
-    // Точку можно взять тремя путями (GPS, скан AR-метки, ручная отметка
-    // родителем) — все зовут один Journey.Complete.
+    // Взять точку можно двумя путями, и оба зовут один Journey.Complete:
+    // панель «ты у точки», которую зажигает GPS, и ручная отметка — но она
+    // спрятана за родительским кодом (ParentGate), иначе всю игру проходят
+    // из дома одним пальцем.
+    //
+    // Третий путь, скан AR-метки, в комментарии значился, но его нет:
+    // ArStation ничего не отмечает. Пока это так, метка — украшение.
     public class RegionMap : MonoBehaviour
     {
         private Transform _root;
@@ -38,6 +43,16 @@ namespace Koenig
         private Button _nearBtn;
         private Poi _nearPoi;
         private float _poll;
+
+        // Родительский обход: пять быстрых нажатий по заголовку карточки
+        // города открывают панель с кодом. Счётчик и введённые цифры живут
+        // здесь, потому что панель перерисовывается на каждую цифру.
+        private int _titleTaps;
+        private float _titleTapAt;
+        private string _pinEntry = "";
+        private string _pinFirst = "";
+        private string _pinMsg = "";
+        private string _pinCity = "";
 
         // Живой герой на хабе: Кёня крутится в рамке, рядом — звание.
         private HeroView _heroView;
@@ -318,15 +333,170 @@ namespace Koenig
                 else if (q.State == QuestState.Locked)
                     Keep(UiKit.MakeTextRight(_root, rx, y - 34f * KS, new Vector2(rightColW, 30f * KS),
                         "сначала прошлые города", Fs(11), new Color(0.7f, 0.72f, 0.78f)));
-                else
+                else if (ParentGate.Unlocked)
                 {
+                    // Обход открыт взрослым — показываем кнопку. Она гаснет
+                    // сама вместе с открытием, через пять минут.
                     string pid = poi.Id;
                     Keep(UiKit.MakeButton(_root, new Vector2(rx - 75f * KS, y - 34f * KS),
                         Sz(150, 38), "Отметить", Fs(14), delegate { CompletePoi(pid, cityId); }));
                 }
+                else
+                    Keep(UiKit.MakeTextRight(_root, rx, y - 34f * KS, new Vector2(rightColW, 30f * KS),
+                        "📍 отмечается на месте", Fs(11), new Color(0.72f, 0.78f, 0.86f)));
             }
+
+            // Невидимая область поверх заголовка карточки — вход в панель
+            // взрослого. Заголовок рисует Card(), и по той же формуле мы
+            // кладём кнопку ровно на него. Своей картинки у неё нет:
+            // ребёнок не должен видеть, что здесь что-то есть.
+            string cid = cityId;
+            Button secret = UiKit.MakeButton(_root, new Vector2(ctr.x, ctr.y + (hLog * 0.5f - 26f) * KS),
+                Sz(300, 40), "", 1, delegate { TapTitle(cid); });
+            secret.image.color = new Color(1f, 1f, 1f, 0f);
+            Keep(secret);
+
+            if (ParentGate.Unlocked)
+                Keep(UiKit.MakeText(_root, new Vector2(ctr.x, ctr.y - (hLog * 0.5f - 62f) * KS),
+                    Sz(420, 22), "Взрослый режим · " + ParentGate.MinutesLeft + " мин", Fs(11),
+                    new Color(1f, 0.78f, 0.45f), TextAnchor.MiddleCenter));
         }
 
+        // Пять нажатий подряд, не медленнее секунды между ними. Случайно
+        // столько не наберёшь, а взрослый, который знает, попадает с первого
+        // раза. Настоящая защита дальше — код.
+        private void TapTitle(string cityId)
+        {
+            float now = Time.unscaledTime;
+            if (now - _titleTapAt > 1f) _titleTaps = 0;
+            _titleTapAt = now;
+            _titleTaps++;
+            if (_titleTaps < 5) return;
+
+            _titleTaps = 0;
+            _pinEntry = "";
+            _pinFirst = "";
+            _pinMsg = "";
+            _pinCity = cityId;
+            OpenParentPad();
+        }
+
+        // ---------- Панель взрослого ----------
+
+        private void OpenParentPad()
+        {
+            CloseOverlay();
+            Vector2 ctr = Card(470f, "Взрослым");
+            float top = ctr.y + 160f * KS;
+
+            if (ParentGate.Unlocked)
+            {
+                Keep(UiKit.MakeText(_root, new Vector2(ctr.x, top), Sz(400, 80),
+                    "Обход открыт ещё " + ParentGate.MinutesLeft + " мин.\n" +
+                    "Кнопки «Отметить» видны в списке заданий.", Fs(14),
+                    new Color(0.85f, 0.92f, 1f), TextAnchor.UpperCenter));
+                Keep(UiKit.MakeButton(_root, new Vector2(ctr.x, top - 120f * KS),
+                    Sz(240, 48), "Запереть сейчас", Fs(15), delegate
+                    {
+                        ParentGate.Lock();
+                        OpenCity(_pinCity);
+                    }));
+                return;
+            }
+
+            bool setup = !ParentGate.HasPin;
+            string prompt = setup
+                ? (_pinFirst.Length == PinLen ? "Повторите код" : "Придумайте код из 4 цифр")
+                : "Код взрослого";
+
+            Keep(UiKit.MakeText(_root, new Vector2(ctr.x, top), Sz(400, 46),
+                prompt, Fs(16), Color.white, TextAnchor.UpperCenter));
+            Keep(UiKit.MakeText(_root, new Vector2(ctr.x, top - 34f * KS), Sz(400, 40),
+                setup ? "Он понадобится, чтобы отметить точку, не стоя на ней."
+                      : "Отметить точку из дома может только взрослый.",
+                Fs(11), new Color(0.72f, 0.8f, 0.9f), TextAnchor.UpperCenter));
+
+            // Точки-заполнители: видно, сколько цифр уже набрано.
+            string dots = "";
+            for (int i = 0; i < PinLen; i++) dots += (i < _pinEntry.Length ? "●" : "·") + "  ";
+            Keep(UiKit.MakeText(_root, new Vector2(ctr.x, top - 82f * KS), Sz(400, 40),
+                dots, Fs(26), new Color(1f, 0.88f, 0.5f), TextAnchor.MiddleCenter));
+
+            if (_pinMsg.Length > 0)
+                Keep(UiKit.MakeText(_root, new Vector2(ctr.x, top - 118f * KS), Sz(400, 24),
+                    _pinMsg, Fs(12), new Color(1f, 0.6f, 0.5f), TextAnchor.MiddleCenter));
+
+            // Клавиатура 3×4: 1–9, стереть, 0, отмена.
+            float padTop = top - 152f * KS;
+            for (int i = 0; i < 9; i++)
+            {
+                int digit = i + 1;
+                Keep(UiKit.MakeButton(_root,
+                    new Vector2(ctr.x + ((i % 3) - 1) * 104f * KS, padTop - (i / 3) * 58f * KS),
+                    Sz(92, 50), digit.ToString(), Fs(20), delegate { PinDigit(digit); }));
+            }
+            Keep(UiKit.MakeButton(_root, new Vector2(ctr.x - 104f * KS, padTop - 174f * KS),
+                Sz(92, 50), "←", Fs(20), PinErase));
+            Keep(UiKit.MakeButton(_root, new Vector2(ctr.x, padTop - 174f * KS),
+                Sz(92, 50), "0", Fs(20), delegate { PinDigit(0); }));
+            Keep(UiKit.MakeButton(_root, new Vector2(ctr.x + 104f * KS, padTop - 174f * KS),
+                Sz(92, 50), "✕", Fs(18), delegate { OpenCity(_pinCity); }));
+        }
+
+        private const int PinLen = ParentGate.PinLength;
+
+        private void PinDigit(int d)
+        {
+            if (_pinEntry.Length >= PinLen) return;
+            _pinMsg = "";
+            _pinEntry += d.ToString();
+            if (_pinEntry.Length < PinLen) { OpenParentPad(); return; }
+
+            if (!ParentGate.HasPin)
+            {
+                if (_pinFirst.Length < PinLen)
+                {
+                    // Первый ввод — запомнили и просим повторить.
+                    _pinFirst = _pinEntry;
+                    _pinEntry = "";
+                }
+                else if (_pinFirst == _pinEntry)
+                {
+                    ParentGate.SetPin(_pinEntry);
+                    OpenCity(_pinCity);
+                    return;
+                }
+                else
+                {
+                    _pinFirst = "";
+                    _pinEntry = "";
+                    _pinMsg = "Коды не совпали — начните заново";
+                }
+            }
+            else if (ParentGate.TryUnlock(_pinEntry))
+            {
+                Snd.Play("quest");
+                OpenCity(_pinCity);
+                return;
+            }
+            else
+            {
+                _pinEntry = "";
+                _pinMsg = "Неверный код";
+            }
+            OpenParentPad();
+        }
+
+        private void PinErase()
+        {
+            if (_pinEntry.Length > 0) _pinEntry = _pinEntry.Substring(0, _pinEntry.Length - 1);
+            _pinMsg = "";
+            OpenParentPad();
+        }
+
+        // Отметка без GPS. Единственный вход сюда — список заданий при
+        // открытом родительском обходе; сам по себе метод ничего не
+        // проверяет, и добавлять к нему второй вызов нельзя.
         private void CompletePoi(string poiId, string cityId)
         {
             Journey.Complete(poiId);

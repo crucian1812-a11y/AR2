@@ -189,6 +189,7 @@ namespace UnityEngine
         public static float time { get { return 0f; } }
         public static float deltaTime { get { return 0f; } }
         public static float unscaledDeltaTime { get { return 0f; } }
+        public static float unscaledTime { get { return 0f; } }
         public static float fixedDeltaTime { get { return 0f; } }
         public static float timeScale { get { return 0f; } set { } }
         public static int frameCount { get { return 0; } }

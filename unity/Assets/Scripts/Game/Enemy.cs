@@ -264,17 +264,42 @@ public class Enemy : MonoBehaviour
     // досягаемости удара.
     private const float Leash = 1.5f;
 
-    // Куда бежать за медведем. false — некого догонять, идём по маршруту.
+    // Кого догонять. У медведя цель выдаёт GameRoot, у героя Кёнигсберга
+    // будет своя — врагу знать про обоих незачем. Пусто и без GameRoot
+    // означает «целей нет», и враг просто ходит по маршруту: так же он
+    // ведёт себя сейчас в сцене без хозяина игры.
+    public static System.Func<Vector3, Transform> TargetProvider;
+
+    // Тряска камеры при попадании. Тот же приём: медведь трясёт свою,
+    // Кёнигсберг — свою.
+    public static System.Action<float> ShakeCamera;
+
+    private static void Shake(float amount)
+    {
+        if (ShakeCamera != null) { ShakeCamera(amount); return; }
+        BearPlayer local = GameRoot.LocalBear;
+        if (local != null) local.Shake(amount);
+    }
+
+    // Куда бежать за целью. false — некого догонять, идём по маршруту.
     private bool FindChaseTarget(Vector3 localPos, out Vector3 goal)
     {
         goal = localPos;
-        BearPlayer p = GameRoot.NearestPlayer(transform.parent != null
-            ? transform.parent.TransformPoint(localPos) : localPos);
-        if (p == null) return false;
+        Vector3 worldPos = transform.parent != null
+            ? transform.parent.TransformPoint(localPos) : localPos;
+
+        Transform target;
+        if (TargetProvider != null) target = TargetProvider(worldPos);
+        else
+        {
+            BearPlayer p = GameRoot.NearestPlayer(worldPos);
+            target = p != null ? p.transform : null;
+        }
+        if (target == null) return false;
 
         Vector3 theirs = transform.parent != null
-            ? transform.parent.InverseTransformPoint(p.transform.position)
-            : p.transform.position;
+            ? transform.parent.InverseTransformPoint(target.position)
+            : target.position;
 
         Vector3 flat = theirs - localPos;
         flat.y = 0f;
@@ -403,8 +428,7 @@ public class Enemy : MonoBehaviour
         if (Hp > 0)
         {
             Snd.Play("bosshit", 0.9f);
-            BearPlayer local = GameRoot.LocalBear;
-            if (local != null) local.Shake(0.28f);
+            Shake(0.28f);
             if (_model != null) _model.Restart("HitRecieve", 1.3f);
             ParticleFx.Burst(transform.parent, transform.position + new Vector3(0f, 1.2f, 0f),
                 10, new Color(1f, 0.6f, 0.4f), 4f);
@@ -441,8 +465,7 @@ public class Enemy : MonoBehaviour
             Gfx.Glow(transform, new Vector3(0f, 0.8f, 0f), 4.5f,
                 new Color(0.9f, 1f, 0.7f, 0.5f));
             Snd.Play("bosshit", 1f);
-            BearPlayer near = GameRoot.LocalBear;
-            if (near != null) near.Shake(0.35f);
+            Shake(0.35f);
             return;
         }
 

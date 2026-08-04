@@ -14,15 +14,23 @@ public class Coin : MonoBehaviour
     private float _fx;
     private bool _requested;
 
+    // Вид награды медведь узнаёт по диапазону номера — так устроено
+    // сохранение и сеть. Игре, у которой ни того, ни другого нет, номер
+    // ничего не говорит, поэтому вид можно назвать прямо (перегрузка ниже).
     public static Coin Spawn(Transform parent, Vector3 pos, int id)
+    {
+        return Spawn(parent, pos, id, NetManager.IsStarId(id), NetManager.IsHeartId(id));
+    }
+
+    public static Coin Spawn(Transform parent, Vector3 pos, int id, bool isStar, bool isHeart)
     {
         GameObject go = new GameObject("Coin_" + id);
         go.transform.SetParent(parent, false);
         go.transform.localPosition = pos;
         Coin c = go.AddComponent<Coin>();
         c.Id = id;
-        c.IsStar = NetManager.IsStarId(id);
-        c.IsHeart = NetManager.IsHeartId(id);
+        c.IsStar = isStar;
+        c.IsHeart = isHeart;
         if (c.IsHeart) c.BuildHeart();
         else if (c.IsStar) c.BuildStar();
         else c.BuildVisual();
