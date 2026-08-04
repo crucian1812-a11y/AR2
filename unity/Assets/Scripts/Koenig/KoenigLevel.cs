@@ -32,7 +32,10 @@ namespace Koenig
         private Enemy _boss;
         private bool _bossDown;
         private Image _hpFill;
-        private Text _hpText;
+        private Text _hpText, _amberText;
+        private InventoryUI _bagUi;
+        private WorldTags _tags;
+        private readonly List<Chest> _chests = new List<Chest>();
 
         public static bool HasLevel(string cityId) { return cityId == "zeln"; }
 
@@ -70,13 +73,19 @@ namespace Koenig
                 fx.Configure(1.05f, 1.15f, new Color(1f, 0.99f, 0.96f), 0.4f);
             }
 
-            _combat = Combat.Create(transform, _player, _player.Cam);
+            _combat = Combat.Create(transform, _player, _player.Cam, _world);
             SpawnPacks();
+            SpawnChests();
 
             BuildHud();
             KoenigTouch.Create(_hud.transform);
+            _tags = WorldTags.Create(_hud.transform, _player.Cam);
+
+            _bagUi = InventoryUI.Create(_hud.transform);
+            _bagUi.OnClosed = CloseBag;
 
             _player.OnHealthChanged = RefreshHealth;
+            Inventory.Changed += RefreshAmber;
         }
 
         private void SetupSky()
@@ -245,6 +254,14 @@ namespace Koenig
             _combat.Add(_boss);
         }
 
+        // Два сундука в стороне от дороги: за ними надо свернуть, и это
+        // единственная причина уйти с прямой линии между рыбками.
+        private void SpawnChests()
+        {
+            _chests.Add(Chest.Create(_world, new Vector3(-11f, 0.12f, 6f), 25f, 501, 0, 0, 0));
+            _chests.Add(Chest.Create(_world, new Vector3(11f, 0.12f, 26f), -40f, 502, 0, 0, 0));
+        }
+
         private void Tower(Vector3 basePos)
         {
             Material stone = Tiled("T_RockTrim_BaseColor", 2.4f, new Color(0.7f, 0.66f, 0.58f));
@@ -321,13 +338,46 @@ namespace Koenig
             _hpText = UiKit.MakeText(c, barPos, new Vector2(barW, barH), "",
                 Mathf.RoundToInt(13f * s), Color.white, TextAnchor.MiddleCenter);
 
+            _amberText = UiKit.MakeTextRight(c, W - 24f * s, H - 70f * s,
+                new Vector2(220f * s, 26f * s), "", Mathf.RoundToInt(15f * s),
+                new Color(1f, 0.78f, 0.35f));
+
+            UiKit.MakeButton(c, new Vector2(W - 96f * s, H - 112f * s),
+                new Vector2(140f * s, 40f * s), "Сумка", Mathf.RoundToInt(15f * s), OpenBag);
+
             RefreshHud();
             RefreshHealth();
+            RefreshAmber();
         }
 
         private void RefreshHud()
         {
             _count.text = "Рыбки: " + _collected + " / " + _total;
+        }
+
+        private void RefreshAmber()
+        {
+            if (_amberText != null) _amberText.text = "Янтарь: " + Inventory.Amber;
+        }
+
+        // Пока сумка открыта, мир стоит: бой выключен, управление спрятано.
+        // Иначе ребёнок разбирает добычу, а его в это время едят.
+        private void OpenBag()
+        {
+            if (_bagUi == null || _bagUi.IsOpen) return;
+            Snd.Play("click");
+            if (_combat != null) _combat.enabled = false;
+            if (_player != null) _player.enabled = false;
+            if (_tags != null) _tags.Muted = true;
+            _bagUi.Open();
+        }
+
+        private void CloseBag()
+        {
+            if (_combat != null) _combat.enabled = true;
+            if (_player != null) _player.enabled = true;
+            if (_tags != null) _tags.Muted = false;
+            RefreshHealth();
         }
 
         // Полоска ужимается влево: сдвигаем и ширину, и центр, иначе она
@@ -347,7 +397,7 @@ namespace Koenig
             _hpFill.color = k > 0.5f ? new Color(0.85f, 0.25f, 0.3f, 0.95f)
                 : k > 0.25f ? new Color(0.95f, 0.6f, 0.2f, 0.95f)
                 : new Color(1f, 0.35f, 0.35f, 0.95f);
-            _hpText.text = _player.Hp + " / " + KoenigPlayer.MaxHp;
+            _hpText.text = _player.Hp + " / " + _player.MaxHp;
         }
 
         private void Win()
@@ -415,11 +465,50 @@ namespace Koenig
                 }
             }
 
+            PickUpDrops(pp);
+
+            for (int i = 0; i < _chests.Count; i++)
+            {
+                Chest ch = _chests[i];
+                if (ch == null || !ch.TryOpen(pp)) continue;
+                Inventory.AddAmber(Random.Range(8, 16));
+                // В сундуке всегда что-то есть — иначе свернуть за ним
+                // второй раз никто не станет. Щедрая находка вместо ролла
+                // «а вдруг ничего».
+                Item loot = LootTable.FromEnemy(2, Inventory.MagicFind + 1f);
+                if (loot == null) loot = LootTable.FromEnemy(2, 3f);
+                if (loot != null)
+                    Drop.Create(_world, _world.InverseTransformPoint(
+                        ch.transform.position + new Vector3(0f, 0.2f, 1.2f)), loot);
+            }
+
             if (_tokenReady && !_won && _token != null)
             {
                 _token.Rotate(0f, 50f * dt, 0f);
                 Vector3 to = _token.position - pp;
                 if (new Vector2(to.x, to.z).magnitude < 2f && Mathf.Abs(to.y) < 3f) Win();
+            }
+        }
+
+        // Подбор шагом по вещи, как монетки. Сумка полная — вещь остаётся
+        // лежать: выбрасывать что-то за ребёнка мы не имеем права.
+        private void PickUpDrops(Vector3 pp)
+        {
+            for (int i = Drop.All.Count - 1; i >= 0; i--)
+            {
+                Drop d = Drop.All[i];
+                if (d == null) continue;
+                Vector3 to = d.transform.position - pp;
+                if (new Vector2(to.x, to.z).magnitude > 1.5f || Mathf.Abs(to.y) > 2.5f) continue;
+
+                if (Inventory.Full)
+                {
+                    _hint.text = "Сумка полна — загляни в неё и что-нибудь выбрось.";
+                    continue;
+                }
+                Inventory.Add(d.Item);
+                Snd.Play(d.Item.Rarity >= Rarity.Rare ? "crystal" : "coin", 0.8f);
+                Object.Destroy(d.gameObject);
             }
         }
 
@@ -446,6 +535,11 @@ namespace Koenig
             _token.gameObject.SetActive(true);
             _hint.text = "Путь свободен — забери жетон моста у башни.";
             Snd.Play("coin", 1f, 1.4f);
+        }
+
+        private void OnDestroy()
+        {
+            Inventory.Changed -= RefreshAmber;
         }
 
         private void Exit()

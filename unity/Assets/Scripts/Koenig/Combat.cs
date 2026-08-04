@@ -28,8 +28,14 @@ namespace Koenig
         public float ConeDegrees = 120f;
         public float CritChance = 0.1f;
 
+        // Базовые числа героя без вещей. Надетое считается от них.
+        private const float BaseCooldown = 0.55f;
+        private const float BaseCrit = 0.1f;
+
         private KoenigPlayer _player;
         private Camera _cam;
+        private Transform _dropRoot;
+        private int _level = 1;
 
         private readonly List<Enemy> _enemies = new List<Enemy>();
         private Enemy _target;
@@ -39,15 +45,30 @@ namespace Koenig
 
         public int AliveCount { get { return _enemies.Count; } }
 
-        public static Combat Create(Transform parent, KoenigPlayer player, Camera cam)
+        public static Combat Create(Transform parent, KoenigPlayer player, Camera cam,
+            Transform dropRoot)
         {
             GameObject go = new GameObject("Combat");
             go.transform.SetParent(parent, false);
             Combat c = go.AddComponent<Combat>();
             c._player = player;
             c._cam = cam;
+            c._dropRoot = dropRoot;
             c.Hook();
+            c.ApplyGear();
             return c;
+        }
+
+        // Пересчёт от надетого. Подписан на сумку, поэтому «надел меч —
+        // урон вырос» происходит само, без единого вызова из интерфейса.
+        public void ApplyGear()
+        {
+            Inventory.WeaponDamage(out DamageMin, out DamageMax);
+            Cooldown = BaseCooldown / (1f + Inventory.Bonus(Affix.AttackSpeed) * 0.01f);
+            CritChance = BaseCrit + Inventory.Bonus(Affix.Crit) * 0.01f;
+            if (_player != null)
+                _player.ApplyGear(Inventory.ExtraHealth,
+                    1f + Inventory.Bonus(Affix.MoveSpeed) * 0.01f);
         }
 
         // Враг ничего не знает ни про героя, ни про камеру — обе связи
@@ -67,6 +88,7 @@ namespace Koenig
             {
                 if (_player != null) _player.TakeDamage(amount);
             };
+            Inventory.Changed += ApplyGear;
         }
 
         private void OnDestroy()
@@ -76,6 +98,7 @@ namespace Koenig
             Enemy.TargetProvider = null;
             Enemy.ShakeCamera = null;
             Enemy.DealDamage = null;
+            Inventory.Changed -= ApplyGear;
         }
 
         public void Add(Enemy e)
@@ -180,15 +203,51 @@ namespace Koenig
             int dmg = Random.Range(DamageMin, DamageMax + 1);
             bool crit = Random.value < CritChance;
             if (crit) dmg *= 2;
+            if (victim.IsBoss)
+                dmg = Mathf.RoundToInt(dmg * (1f + Inventory.Bonus(Affix.BossDamage) * 0.01f));
 
             if (victim.TakeDamage(dmg))
             {
+                Reward(victim);
                 victim.DieEffect();
                 if (_target == victim) _target = null;
                 _enemies.Remove(victim);
                 if (OnRosterChanged != null) OnRosterChanged();
             }
             else Snd.Play(crit ? "bosshit" : "stomp", crit ? 0.9f : 0.6f);
+        }
+
+        // ---------- Добыча ----------
+
+        // Награда за врага. Добыча кладётся НА ЗЕМЛЮ, а не в сумку: цвет
+        // подписи над вещью — половина удовольствия, и решение «идти за
+        // ней или нет» тоже принимает ребёнок.
+        private void Reward(Enemy e)
+        {
+            Inventory.AddAmber(LootTable.AmberFor(e.IsBoss));
+
+            Transform root = _dropRoot != null ? _dropRoot : transform.parent;
+            Vector3 at = root != null
+                ? root.InverseTransformPoint(e.transform.position)
+                : e.transform.position;
+            float mf = Inventory.MagicFind;
+
+            if (!e.IsBoss)
+            {
+                Item one = LootTable.FromEnemy(_level, mf);
+                if (one != null) Drop.Create(root, at, one);
+                return;
+            }
+
+            // С босса падает горстью — раскладываем по кругу, иначе вещи
+            // лягут одна в одну и подбор станет лотереей.
+            Item[] loot = LootTable.FromBoss(_level + 2, mf);
+            for (int i = 0; i < loot.Length; i++)
+            {
+                float ang = i * Mathf.PI * 2f / loot.Length;
+                Vector3 off = new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * 1.6f;
+                Drop.Create(root, at + off, loot[i]);
+            }
         }
 
         // Кого бьём: назначенную цель, если она в досягаемости, иначе

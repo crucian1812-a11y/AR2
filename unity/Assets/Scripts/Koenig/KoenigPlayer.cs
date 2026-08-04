@@ -22,7 +22,7 @@ namespace Koenig
     // ступенях.
     public class KoenigPlayer : MonoBehaviour
     {
-        private const float Speed = 5.5f;
+        public const float BaseSpeed = 5.5f;
         private const float Accel = 12f;
         private const float Gravity = 20f;
 
@@ -60,14 +60,17 @@ namespace Koenig
         // ребёнку важно, чтобы поражение было заметным, но не обидным:
         // герой встаёт у входа с полным здоровьем, а враги на поляне НЕ
         // воскресают — пройденное остаётся пройденным.
-        public const int MaxHp = 40;
+        public const int BaseHp = 40;
 
-        private int _hp = MaxHp;
+        private int _maxHp = BaseHp;
+        private float _speed = BaseSpeed;
+        private int _hp = BaseHp;
         private float _invuln;      // короткая неуязвимость после удара
         private float _atkAnim;     // сколько ещё не перебивать клип удара
 
         public int Hp { get { return _hp; } }
-        public float HpFraction { get { return Mathf.Clamp01((float)_hp / MaxHp); } }
+        public int MaxHp { get { return _maxHp; } }
+        public float HpFraction { get { return Mathf.Clamp01((float)_hp / _maxHp); } }
         public bool Alive { get { return _hp > 0; } }
 
         // Кому сообщать, что здоровье изменилось — HUD рисует полоску.
@@ -208,7 +211,7 @@ namespace Koenig
         public void Heal(int amount)
         {
             if (_hp <= 0) return;
-            _hp = Mathf.Min(MaxHp, _hp + Mathf.Max(1, amount));
+            _hp = Mathf.Min(_maxHp, _hp + Mathf.Max(1, amount));
             if (OnHealthChanged != null) OnHealthChanged();
         }
 
@@ -227,10 +230,25 @@ namespace Koenig
 
         private void Revive()
         {
-            _hp = MaxHp;
+            _hp = _maxHp;
             _invuln = 1.5f;
             _atkAnim = 0f;
             Respawn();
+            if (OnHealthChanged != null) OnHealthChanged();
+        }
+
+        // Пересчёт от надетого. Зовёт бой при любой смене снаряжения.
+        public void ApplyGear(int extraHp, float speedMultiplier)
+        {
+            int was = _maxHp;
+            _maxHp = BaseHp + Mathf.Max(0, extraHp);
+            // Максимум вырос — столько же добавляем текущему здоровью.
+            // Иначе надел доспех и остался с прежней полоской на шкале,
+            // которая стала длиннее: выглядит как будто отняли.
+            if (_maxHp > was) _hp += _maxHp - was;
+            _hp = Mathf.Clamp(_hp, 0, _maxHp);
+
+            _speed = BaseSpeed * Mathf.Clamp(speedMultiplier, 0.5f, 2f);
             if (OnHealthChanged != null) OnHealthChanged();
         }
 
@@ -286,8 +304,8 @@ namespace Koenig
             if (dir.magnitude > 1f) dir = dir.normalized;
 
             float k = Mathf.Min(Accel * dt, 1f);
-            _velocity.x = Mathf.Lerp(_velocity.x, dir.x * Speed, k);
-            _velocity.z = Mathf.Lerp(_velocity.z, dir.z * Speed, k);
+            _velocity.x = Mathf.Lerp(_velocity.x, dir.x * _speed, k);
+            _velocity.z = Mathf.Lerp(_velocity.z, dir.z * _speed, k);
 
             bool grounded = _cc.isGrounded;
             if (grounded)
