@@ -297,8 +297,16 @@ namespace Koenig
                                 : (p + k) % 3 == 1 ? "raider" : "archer";
                     Enemy e = Enemy.Spawn(_world, a, b, kind, 1.5f, id++);
                     e.Hp = 12;
-                    e.Damage = 3;
-                    e.AttackCooldown = 1.5f;
+                    // Было 3 урона раз в 1.5 с. Четверо в пачке снимали
+                    // герою все 40 жизни за семь секунд, и он умирал ровно
+                    // тогда, когда добивал пачку. Двое урона раз в две
+                    // секунды дают время осмотреться и отойти.
+                    e.Damage = 2;
+                    e.AttackCooldown = 2f;
+                    // Дистанция удара считалась от ЦЕНТРА врага плюс его
+                    // радиус — вместе с ростом рыцаря это выглядело как
+                    // удар по воздуху с полутора метров.
+                    e.AttackRange = 0.8f;
                     _combat.Add(e);
                 }
             }
@@ -307,9 +315,11 @@ namespace Koenig
             // боя с отходами. Бьёт больно и редко, чтобы успевать убегать.
             _boss = Enemy.SpawnBoss(_world, new Vector3(0f, y, 34f), new Vector3(-5f, y, 36f),
                 "yeti", 1.6f, 900, 40, 1.8f);
-            _boss.Damage = 7;
-            _boss.AttackCooldown = 2f;
-            _boss.AttackRange = 1.8f;
+            _boss.Damage = 6;
+            _boss.AttackCooldown = 2.4f;
+            _boss.AttackRange = 1.4f;
+            // Великан замахивается дольше — по нему видно, что сейчас будет.
+            _boss.WindUp = 0.55f;
             _combat.Add(_boss);
         }
 

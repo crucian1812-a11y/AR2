@@ -11,6 +11,13 @@ public class ModelImportSettings : AssetPostprocessor
     private const string PropDir = "Assets/Resources/Models/nature/";
     // Собственные ассеты из tools/blender — тоже статичный реквизит.
     private const string CustomDir = "Assets/Resources/Models/custom/";
+    // Модули средневекового пака — тоже статичный реквизит. Без этой строки
+    // дома попадали в ветку ПЕРСОНАЖЕЙ: им включался Legacy-риг и импорт
+    // анимации, а Unity при этом обрабатывает оси иначе, чем для статичной
+    // геометрии, — и модель из Blender ЛОЖИЛАСЬ НА БОК. На экране это
+    // читалось то интерьером дома, то обрезом кадра; на самом деле дом
+    // просто лежал, показывая стену как пол.
+    private const string KoenigDir = "Assets/Resources/Models/koenig/";
     private const string TextureDir = "Assets/Resources/Textures/";
 
     // Клипы, которые должны проигрываться по кругу.
@@ -26,7 +33,8 @@ public class ModelImportSettings : AssetPostprocessor
         ModelImporter mi = assetImporter as ModelImporter;
         if (mi == null) return;
 
-        bool isProp = assetPath.StartsWith(PropDir) || assetPath.StartsWith(CustomDir);
+        bool isProp = assetPath.StartsWith(PropDir) || assetPath.StartsWith(CustomDir)
+                   || assetPath.StartsWith(KoenigDir);
 
         if (isProp)
         {
@@ -71,7 +79,8 @@ public class ModelImportSettings : AssetPostprocessor
     private void OnPreprocessAnimation()
     {
         if (assetPath == null || !assetPath.StartsWith(ModelDir)) return;
-        if (assetPath.StartsWith(PropDir) || assetPath.StartsWith(CustomDir)) return;
+        if (assetPath.StartsWith(PropDir) || assetPath.StartsWith(CustomDir)
+            || assetPath.StartsWith(KoenigDir)) return;
 
         ModelImporter mi = assetImporter as ModelImporter;
         if (mi == null) return;

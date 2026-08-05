@@ -200,7 +200,7 @@ namespace Koenig
 
             _rankText = UiKit.MakeText(_root, Vector2.zero, Sz(232, 28), "", Fs(17),
                 new Color(1f, 0.85f, 0.45f), TextAnchor.MiddleLeft);
-            _rankSub = UiKit.MakeText(_root, Vector2.zero, Sz(240, 40), "", Fs(12),
+            _rankSub = UiKit.MakeText(_root, Vector2.zero, Sz(240, 24), "", Fs(12),
                 new Color(0.8f, 0.86f, 0.95f), TextAnchor.UpperLeft);
 
             // Прозрачная кнопка на весь баннер — тап открывает экран героя.
@@ -269,9 +269,17 @@ namespace Koenig
             City c = KoenigContent.FindCity(cityId);
             List<Quest> qs = QuestLog.ForCity(cityId);
             bool hasLevel = KoenigLevel.HasLevel(cityId);
-            float hLog = 96f + qs.Count * 132f + (hasLevel ? 64f : 0f);
+            // Высота карточки считается по блокам, а не на глаз. Прежняя
+            // формула занижала её, и «Играть уровень» ложилась ПОВЕРХ первого
+            // задания: кнопка занимала [117..167], строка [19..137].
+            //
+            // Заголовок сверху 52, блок уровня 94 (кнопка 50 + зазор 6 +
+            // подпись 24 + зазор 14), каждое задание 132 (панель 118 +
+            // зазор 14), кнопка «Назад» снизу 68.
+            const float HeadH = 52f, LevelH = 94f, RowH = 132f, FootH = 68f;
+            float hLog = HeadH + (hasLevel ? LevelH : 0f) + qs.Count * RowH + FootH;
             Vector2 ctr = Card(hLog, (c != null ? c.Name : "") + " · задания");
-            float top = ctr.y + (hLog * 0.5f - 70f) * KS;
+            float top = ctr.y + (hLog * 0.5f - HeadH - 25f) * KS;
             float rowW = Screen.width * 0.88f;
 
             // Кнопка «поиграть уровень» — цифровая половина квеста города.
@@ -284,20 +292,23 @@ namespace Koenig
                 Keep(UiKit.MakeButton(_root, new Vector2(ctr.x, top),
                     new Vector2(rowW, 50f * KS), label, Fs(17),
                     delegate { PlayCity(pid); }));
-                Keep(UiKit.MakeText(_root, new Vector2(ctr.x, top - 32f * KS),
+                Keep(UiKit.MakeText(_root, new Vector2(ctr.x, top - 43f * KS),
                     Sz(420, 22), fused ? "🌉 Мост золотой: игра + реальность"
                         : digital ? "🎮 Цифровой жетон есть — нужен настоящий, на месте"
                         : "Собери цифровой жетон в игре", Fs(12),
                     fused ? new Color(1f, 0.85f, 0.4f) : new Color(0.8f, 0.86f, 0.95f),
                     TextAnchor.MiddleCenter));
-                top -= 64f * KS;
             }
+
+            // Первая строка задания встаёт под блоком уровня: её центр —
+            // это полвысоты панели ниже границы блока.
+            top = ctr.y + (hLog * 0.5f - HeadH - (hasLevel ? LevelH : 0f) - 59f) * KS;
 
             for (int i = 0; i < qs.Count; i++)
             {
                 Quest q = qs[i];
                 Poi poi = q.Poi;
-                float y = top - i * 128f * KS;
+                float y = top - i * RowH * KS;
                 float cx = ctr.x;
                 // Внутренние края строки и две колонки: слева — название и
                 // задание, справа — награда и статус. Ширины подобраны так,
@@ -616,9 +627,9 @@ namespace Koenig
             // потому сдвигаем на полширины), иначе налезал на портрет Кёни.
             float rankLeft = Screen.width * 0.31f;
             _rankText.rectTransform.anchoredPosition =
-                new Vector2(rankLeft + _rankText.rectTransform.sizeDelta.x * 0.5f, by + 16f * KS);
+                new Vector2(rankLeft + _rankText.rectTransform.sizeDelta.x * 0.5f, by + 18f * KS);
             _rankSub.rectTransform.anchoredPosition =
-                new Vector2(rankLeft + _rankSub.rectTransform.sizeDelta.x * 0.5f, by - 6f * KS);
+                new Vector2(rankLeft + _rankSub.rectTransform.sizeDelta.x * 0.5f, by - 14f * KS);
             _heroTap.image.rectTransform.anchoredPosition = new Vector2(cx, by);
 
             // Нижний ряд из трёх кнопок — по долям ширины, чтобы влезали.

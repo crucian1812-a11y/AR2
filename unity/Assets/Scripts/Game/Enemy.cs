@@ -34,6 +34,15 @@ public class Enemy : MonoBehaviour
     public float AttackCooldown = 1.4f;
     public float AttackRange = 1.2f;
 
+    // Пауза между началом замаха и уроном. Без неё удар прилетал В ТОТ ЖЕ
+    // КАДР, что и начало анимации: ребёнок физически не успевал ничего
+    // сделать — здоровье просто таяло, и бой читался как «бьют издалека».
+    // 0.35 с — примерно контактный кадр клипа; за это время видно, кто
+    // замахнулся, и можно отойти.
+    public float WindUp = 0.35f;
+
+    private float _swing = -1f;   // сколько осталось до удара, -1 — не замахивался
+
     // Кому уходит удар. Врагу знать про героя незачем — как и с целью.
     public static System.Action<Enemy, int> DealDamage;
 
@@ -244,6 +253,22 @@ public class Enemy : MonoBehaviour
 
         if (_atkCd > 0f) _atkCd -= dt;
 
+        // Замах доводится независимо от того, дошёл ли враг: отбежать от
+        // уже начатого удара можно, а вот отменить его нельзя — иначе враг
+        // будет вечно замахиваться и никогда не попадать.
+        if (_swing >= 0f)
+        {
+            _swing -= dt;
+            if (_swing < 0f)
+            {
+                _swing = -1f;
+                Vector3 reach = chase - pos;
+                reach.y = 0f;
+                if (_chasing && reach.magnitude <= AttackRange + Radius + 0.6f
+                    && DealDamage != null) DealDamage(this, Damage);
+            }
+        }
+
         Vector3 goal;
         float speed = Speed;
         if (_chasing)
@@ -263,13 +288,14 @@ public class Enemy : MonoBehaviour
                 if (gap.magnitude <= AttackRange + Radius)
                 {
                     goal = pos;
-                    if (_atkCd <= 0f)
+                    if (_atkCd <= 0f && _swing < 0f)
                     {
+                        // Начали замах: анимация и звук сразу, урон — потом.
                         _atkCd = AttackCooldown;
+                        _swing = WindUp;
                         if (_model != null)
                             _model.Restart(_model.Pick("Bite_InPlace", "Attack", "Jump"), 1.2f);
                         Snd.Play("swing", 0.5f);
-                        if (DealDamage != null) DealDamage(this, Damage);
                     }
                 }
             }
