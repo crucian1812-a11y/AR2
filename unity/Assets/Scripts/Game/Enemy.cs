@@ -43,6 +43,22 @@ public class Enemy : MonoBehaviour
 
     private float _swing = -1f;   // сколько осталось до удара, -1 — не замахивался
 
+    // Где НА САМОМ ДЕЛЕ стоит цель, в координатах родителя. Отдельно от
+    // точки, куда враг идёт: та привязана к маршруту патрулирования и
+    // может отстоять от героя на несколько метров.
+    private Vector3 _prey;
+    private bool _hasPrey;
+
+    // Насколько далеко враг готов отойти от своего маршрута. У медведя
+    // полтора метра: там у врагов нет ни гравитации, ни проверки опоры,
+    // и поводок держал их на проложенной автором линии.
+    //
+    // Для воинов Кёнигсберга это оказалось калечащим: герой отходил с
+    // линии на два метра, враг упирался в поводок, считал «дошёл» и бил
+    // с расстояния. Поэтому поводок теперь настраивается, и в RPG он
+    // длинный — воин обязан ДОЙТИ.
+    public float Leash = 1.5f;
+
     // Кому уходит удар. Врагу знать про героя незачем — как и с целью.
     public static System.Action<Enemy, int> DealDamage;
 
@@ -242,6 +258,7 @@ public class Enemy : MonoBehaviour
         Vector3 pos = transform.localPosition;
 
         Vector3 chase;
+        _hasPrey = false;
         bool sees = FindChaseTarget(pos, out chase);
         if (sees != _chasing)
         {
@@ -262,9 +279,12 @@ public class Enemy : MonoBehaviour
             if (_swing < 0f)
             {
                 _swing = -1f;
-                Vector3 reach = chase - pos;
+                // Мерять надо до ГЕРОЯ, а не до точки маршрута: та может
+                // отстоять от него на длину поводка, и удар прилетал через
+                // всю эту дистанцию.
+                Vector3 reach = _prey - pos;
                 reach.y = 0f;
-                if (_chasing && reach.magnitude <= AttackRange + Radius + 0.6f
+                if (_hasPrey && reach.magnitude <= AttackRange + Radius + 0.5f
                     && DealDamage != null) DealDamage(this, Damage);
             }
         }
@@ -283,7 +303,9 @@ public class Enemy : MonoBehaviour
             // будет толкать героя телом и вечно «догонять» вплотную.
             if (Damage > 0)
             {
-                Vector3 gap = chase - pos;
+                // Замахиваться тоже по расстоянию до героя, а не до цели
+                // движения — иначе враг замахивается, не дойдя.
+                Vector3 gap = (_hasPrey ? _prey : chase) - pos;
                 gap.y = 0f;
                 if (gap.magnitude <= AttackRange + Radius)
                 {
@@ -330,7 +352,7 @@ public class Enemy : MonoBehaviour
     // проложил по проходимому месту, а поводок вокруг её середины
     // выпускал врага за край площадки, где он повисал в воздухе вне
     // досягаемости удара.
-    private const float Leash = 1.5f;
+
 
     // Кого догонять. У медведя цель выдаёт GameRoot, у героя Кёнигсберга
     // будет своя — врагу знать про обоих незачем. Пусто и без GameRoot
@@ -368,6 +390,9 @@ public class Enemy : MonoBehaviour
         Vector3 theirs = transform.parent != null
             ? transform.parent.InverseTransformPoint(target.position)
             : target.position;
+
+        _prey = theirs;
+        _hasPrey = true;
 
         Vector3 flat = theirs - localPos;
         flat.y = 0f;

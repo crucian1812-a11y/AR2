@@ -173,11 +173,22 @@ namespace Koenig
 
             Bounds b;
             if (!CombinedBounds(go, out b)) return go;
+
+            // ГАБАРИТ СЧИТАЕТСЯ В МИРЕ, а ставим мы в координатах родителя.
+            // Пока родителем был мир в начале координат, это совпадало и
+            // ошибки не было видно. Стоило дать в родители дом, сдвинутый
+            // на тринадцать метров и повёрнутый, — и каждый модуль улетал
+            // ровно на эту разницу. Дома «пропали» именно так.
+            Transform par = go.transform.parent;
+            Vector3 cLocal = par != null ? par.InverseTransformPoint(b.center) : b.center;
+            Vector3 footWorld = new Vector3(b.center.x, b.min.y, b.center.z);
+            Vector3 fLocal = par != null ? par.InverseTransformPoint(footWorld) : footWorld;
+
             Vector3 lp = go.transform.localPosition;
             go.transform.localPosition = new Vector3(
-                lp.x + (pos.x - b.center.x),
-                lp.y + (pos.y - b.min.y),
-                lp.z + (pos.z - b.center.z));
+                lp.x + (pos.x - cLocal.x),
+                lp.y + (pos.y - fLocal.y),
+                lp.z + (pos.z - cLocal.z));
             return go;
         }
 
