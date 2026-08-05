@@ -44,7 +44,11 @@ namespace Koenig
                 p.y = ground != null ? ground(p) : center.y;
 
                 float yaw = Random.Range(0f, Mathf.PI);
-                float w = 0.05f * Random.Range(0.75f, 1.5f);
+                // Ширина травинки была 0.05–0.15 м при высоте до полуметра:
+                // отношение как у пшеничного колоса, и обочина читалась
+                // полем пшеницы, а не газоном. Втрое уже — и то же поле
+                // становится травой.
+                float w = 0.018f * Random.Range(0.75f, 1.5f);
                 float h = Random.Range(minHeight, maxHeight);
                 float phase = Random.value;
 
@@ -254,6 +258,81 @@ namespace Koenig
 
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             return go;
+        }
+
+        // ---------- Зелень и камни ----------
+        //
+        // ПОЧЕМУ НЕ ПАК KENNEY. В Resources/Models/nature лежат триста
+        // моделей, и дерево оттуда встало в кадр рядом с текстурованным
+        // фахверком: кубическая крона четырьмя плашками, плоская заливка
+        // без текстуры, бирюзовые гранёные камни. Рядом с домами Quaternius
+        // это выглядит деталью из другой игры — и это ровно та «кубическая
+        // графика», от которой мы уходим.
+        //
+        // Здесь и дерево, и куст, и валун — комковатый шар Gfx.Blob:
+        // силуэт неровный, освещение объёмное, а крона идёт под шейдером
+        // листвы и качается вместе с травой.
+        public static GameObject Tree(Transform parent, Vector3 pos, float height, int seed)
+        {
+            GameObject root = new GameObject("Tree");
+            root.transform.SetParent(parent, false);
+            root.transform.localPosition = pos;
+
+            Material bark = KoenigProp.CatMaterial("woodtrim");
+            Material leaf = Gfx.FoliageMat(new Color(0.34f, 0.50f, 0.24f),
+                                           new Color(0.70f, 0.82f, 0.44f));
+
+            float trunk = height * 0.42f;
+            float r = height * 0.075f;
+            Gfx.Cyl(root.transform, new Vector3(0f, trunk * 0.5f, 0f),
+                new Vector3(r * 2.4f, trunk * 0.5f, r * 2.4f), bark, true);
+            // Развилка: два коротких сука под крону — без них ствол
+            // упирается в шар и дерево читается грибом.
+            for (int i = 0; i < 2; i++)
+            {
+                float a = seed * 1.3f + i * Mathf.PI;
+                GameObject br = Gfx.Cyl(root.transform,
+                    new Vector3(Mathf.Cos(a) * r * 1.6f, trunk * 0.95f, Mathf.Sin(a) * r * 1.6f),
+                    new Vector3(r * 1.3f, height * 0.12f, r * 1.3f), bark, false);
+                br.transform.localRotation = Quaternion.Euler(
+                    Mathf.Sin(a) * 22f, 0f, -Mathf.Cos(a) * 22f);
+            }
+
+            float cr = height * 0.30f;
+            Gfx.Blob(root.transform, new Vector3(0f, trunk + cr * 0.85f, 0f),
+                new Vector3(cr * 1.25f, cr, cr * 1.25f), leaf, seed, 0.30f, false);
+            Gfx.Blob(root.transform, new Vector3(-cr * 0.55f, trunk + cr * 1.45f, cr * 0.2f),
+                new Vector3(cr * 0.8f, cr * 0.7f, cr * 0.8f), leaf, seed + 7, 0.34f, false);
+            Gfx.Blob(root.transform, new Vector3(cr * 0.5f, trunk + cr * 1.3f, -cr * 0.3f),
+                new Vector3(cr * 0.85f, cr * 0.75f, cr * 0.85f), leaf, seed + 13, 0.32f, false);
+            return root;
+        }
+
+        public static void Bush(Transform parent, Vector3 pos, float size, int seed)
+        {
+            Material leaf = Gfx.FoliageMat(new Color(0.30f, 0.46f, 0.22f),
+                                           new Color(0.64f, 0.78f, 0.40f));
+            Gfx.Blob(parent, pos + new Vector3(0f, size * 0.5f, 0f),
+                new Vector3(size * 0.75f, size * 0.5f, size * 0.75f), leaf, seed, 0.38f, false);
+            Gfx.Blob(parent, pos + new Vector3(size * 0.35f, size * 0.34f, size * 0.2f),
+                new Vector3(size * 0.45f, size * 0.34f, size * 0.45f), leaf, seed + 5, 0.4f, false);
+        }
+
+        public static void Boulder(Transform parent, Vector3 pos, float size, int seed)
+        {
+            Material rock = KoenigProp.CatMaterial("rocktrim");
+            Gfx.Blob(parent, pos + new Vector3(0f, size * 0.34f, 0f),
+                new Vector3(size * 0.62f, size * 0.42f, size * 0.55f), rock, seed, 0.24f, true);
+        }
+
+        // Коряга: ствол, вылизанный морем. Наклон обязателен — лежащий
+        // ровно цилиндр читается бревном со стройки, а не находкой.
+        public static void Driftwood(Transform parent, Vector3 pos, float length, float yaw, int seed)
+        {
+            Material bark = KoenigProp.CatMaterial("woodtrim");
+            GameObject go = Gfx.Cyl(parent, pos + new Vector3(0f, length * 0.09f, 0f),
+                new Vector3(length * 0.17f, length * 0.5f, length * 0.17f), bark, true);
+            go.transform.localRotation = Quaternion.Euler(90f, yaw, 8f + (seed % 5) * 3f);
         }
 
         // ---------- Граница мира ----------

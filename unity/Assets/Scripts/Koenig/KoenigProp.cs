@@ -166,30 +166,67 @@ namespace Koenig
         // Поставить модуль без масштабирования: серединой основания в
         // заданную точку. Нужен сборщику домов — у модулей пака начало
         // координат стоит где попало, и складывать их «как есть» нельзя.
+        // Габарит модели В ЕЁ СОБСТВЕННЫХ КООРДИНАТАХ, посчитанный из
+        // sharedMesh.bounds, а не из Renderer.bounds.
+        //
+        // ЭТО И БЫЛА ПРИЧИНА ПРОПАВШИХ ДОМОВ. Renderer.bounds — величина
+        // МИРОВАЯ, и обновляет её система отсечения при отрисовке. У
+        // объекта, созданного только что и ещё ни разу не нарисованного,
+        // она возвращает габарит меша БЕЗ применённого преобразования —
+        // как будто объект лежит в начале координат. В редакторе сцена
+        // рисуется постоянно, и значение успевает стать верным; в
+        // собранном приложении весь уровень строится до первого кадра, и
+        // верным оно не бывает никогда.
+        //
+        // Дальше арифметика доделывала остальное: модуль вставал не в
+        // pos, а примерно в 2·pos плюс положение дома, то есть весь дом
+        // уезжал вдвое дальше от улицы и вылетал за кадр. Реквизит уцелел
+        // только потому, что его родитель — мир в начале координат, и
+        // ошибка сводилась к сантиметрам.
+        //
+        // sharedMesh.bounds — величина местная, к отрисовке не привязана и
+        // верна сразу.
+        private static bool LocalBounds(GameObject go, out Bounds b)
+        {
+            b = new Bounds(Vector3.zero, Vector3.zero);
+            MeshFilter[] mfs = go.GetComponentsInChildren<MeshFilter>();
+            Matrix4x4 inv = go.transform.worldToLocalMatrix;
+            bool has = false;
+            for (int i = 0; i < mfs.Length; i++)
+            {
+                if (mfs[i] == null || mfs[i].sharedMesh == null) continue;
+                Bounds lb = mfs[i].sharedMesh.bounds;
+                Matrix4x4 m = inv * mfs[i].transform.localToWorldMatrix;
+                for (int c = 0; c < 8; c++)
+                {
+                    Vector3 corner = new Vector3(
+                        (c & 1) == 0 ? lb.min.x : lb.max.x,
+                        (c & 2) == 0 ? lb.min.y : lb.max.y,
+                        (c & 4) == 0 ? lb.min.z : lb.max.z);
+                    Vector3 p = m.MultiplyPoint3x4(corner);
+                    if (!has) { b = new Bounds(p, Vector3.zero); has = true; }
+                    else b.Encapsulate(p);
+                }
+            }
+            return has;
+        }
+
         public static GameObject PlaceByFoot(Transform parent, string id, Vector3 pos, float yaw,
             bool collide = true)
         {
-            GameObject go = Load(parent, id, pos, Quaternion.Euler(0f, yaw, 0f), 1f, collide);
+            Quaternion rot = Quaternion.Euler(0f, yaw, 0f);
+            GameObject go = Load(parent, id, pos, rot, 1f, collide);
             if (go == null) return null;
 
             Bounds b;
-            if (!CombinedBounds(go, out b)) return go;
+            if (!LocalBounds(go, out b)) return go;
 
-            // ГАБАРИТ СЧИТАЕТСЯ В МИРЕ, а ставим мы в координатах родителя.
-            // Пока родителем был мир в начале координат, это совпадало и
-            // ошибки не было видно. Стоило дать в родители дом, сдвинутый
-            // на тринадцать метров и повёрнутый, — и каждый модуль улетал
-            // ровно на эту разницу. Дома «пропали» именно так.
-            Transform par = go.transform.parent;
-            Vector3 cLocal = par != null ? par.InverseTransformPoint(b.center) : b.center;
-            Vector3 footWorld = new Vector3(b.center.x, b.min.y, b.center.z);
-            Vector3 fLocal = par != null ? par.InverseTransformPoint(footWorld) : footWorld;
-
-            Vector3 lp = go.transform.localPosition;
+            // Габарит местный, ставим в координатах родителя — значит его
+            // надо развернуть поворотом самого модуля. Развороты здесь
+            // кратны прямому углу, поэтому низ по Y от поворота не зависит.
+            Vector3 c = rot * b.center;
             go.transform.localPosition = new Vector3(
-                lp.x + (pos.x - cLocal.x),
-                lp.y + (pos.y - fLocal.y),
-                lp.z + (pos.z - cLocal.z));
+                pos.x - c.x, pos.y - b.min.y, pos.z - c.z);
             return go;
         }
 
@@ -323,16 +360,28 @@ namespace Koenig
             return go;
         }
 
+        // Мировой габарит — тоже из sharedMesh.bounds, и по той же причине:
+        // Renderer.bounds до первой отрисовки лжёт (см. LocalBounds).
         private static bool CombinedBounds(GameObject go, out Bounds b)
         {
             b = new Bounds(go.transform.position, Vector3.zero);
-            Renderer[] rs = go.GetComponentsInChildren<Renderer>();
+            MeshFilter[] mfs = go.GetComponentsInChildren<MeshFilter>();
             bool has = false;
-            for (int i = 0; i < rs.Length; i++)
+            for (int i = 0; i < mfs.Length; i++)
             {
-                if (rs[i] == null) continue;
-                if (!has) { b = rs[i].bounds; has = true; }
-                else b.Encapsulate(rs[i].bounds);
+                if (mfs[i] == null || mfs[i].sharedMesh == null) continue;
+                Bounds lb = mfs[i].sharedMesh.bounds;
+                Matrix4x4 m = mfs[i].transform.localToWorldMatrix;
+                for (int c = 0; c < 8; c++)
+                {
+                    Vector3 corner = new Vector3(
+                        (c & 1) == 0 ? lb.min.x : lb.max.x,
+                        (c & 2) == 0 ? lb.min.y : lb.max.y,
+                        (c & 4) == 0 ? lb.min.z : lb.max.z);
+                    Vector3 p = m.MultiplyPoint3x4(corner);
+                    if (!has) { b = new Bounds(p, Vector3.zero); has = true; }
+                    else b.Encapsulate(p);
+                }
             }
             return has;
         }

@@ -361,7 +361,7 @@ namespace Koenig
                 float cx = side * (RoadHalf + (FacadeX - RoadHalf) * 0.5f);
                 KoenigScenery.GrassField(_world,
                     new Vector3(cx, 0f, roadMid), new Vector2(0.55f, roadLen * 0.5f),
-                    5200, grassLow, grassTip, 0.16f, 0.5f, null);
+                    7200, grassLow, grassTip, 0.12f, 0.34f, null);
             }
 
             // Липы вдоль обочины. Редко и невысоко: сплошная аллея закрыла
@@ -370,10 +370,8 @@ namespace Koenig
             {
                 float z = StreetZ0 + 10f + i * 14f;
                 float x = (i % 2 == 0) ? -(FacadeX - 0.6f) : (FacadeX - 0.6f);
-                Gfx.Prop(_world, i % 2 == 0 ? "tree_detailed" : "tree_oak",
-                    new Vector3(x, 0.02f, z), 4.6f, i * 47f, 0.16f);
-                Gfx.Prop(_world, "plant_bushSmall",
-                    new Vector3(-x, 0.02f, z + 5f), 0.55f, i * 31f);
+                KoenigScenery.Tree(_world, new Vector3(x, 0.02f, z), 4.4f + (i % 3) * 0.5f, i * 3 + 1);
+                KoenigScenery.Bush(_world, new Vector3(-x, 0.02f, z + 5f), 0.7f, i * 5 + 2);
             }
 
             // Реквизит: телега и ящики прижаты к обочине, чтобы не мешать
@@ -432,8 +430,8 @@ namespace Koenig
 
             for (int i = -1; i <= 1; i += 2)
             {
-                Gfx.Prop(_world, "tree_detailed", new Vector3(i * 8.5f, 0.12f, mid + 4.5f), 5.2f, i * 40f, 0.18f);
-                Gfx.Prop(_world, "plant_bushLarge", new Vector3(i * 9.5f, 0.12f, mid - 4f), 0.9f, i * 25f);
+                KoenigScenery.Tree(_world, new Vector3(i * 8.5f, 0.12f, mid + 4.5f), 5.2f, i * 11 + 20);
+                KoenigScenery.Bush(_world, new Vector3(i * 9.5f, 0.12f, mid - 4f), 1.1f, i * 9 + 30);
             }
         }
 
@@ -468,7 +466,7 @@ namespace Koenig
             {
                 KoenigScenery.GrassField(_world,
                     new Vector3(side * 12f, 0f, 39.5f), new Vector2(9f, 3.6f), 5400,
-                    duneLow, duneTip, 0.35f, 0.95f,
+                    duneLow, duneTip, 0.28f, 0.7f,
                     delegate(Vector3 p) { return SandHeight(p.x, p.z) - 0.05f; });
             }
             // Редкие кустики травы по сухому песку — чтобы пляж не был
@@ -489,15 +487,15 @@ namespace Koenig
                     new Vector3(x, SandHeight(x, z) - 0.1f, z), 90f, _gs, false, out t);
             }
 
-            // Что выносит на балтийский берег: коряги, валуны, лодка.
-            Gfx.Prop(_world, "log_large", new Vector3(-7.5f, SandHeight(-7.5f, 43f), 43f), 0.75f, 62f);
-            Gfx.Prop(_world, "log", new Vector3(8.5f, SandHeight(8.5f, 45f), 45f), 0.5f, 18f);
-            Gfx.Prop(_world, "stump_old", new Vector3(-11f, SandHeight(-11f, 42f), 42f), 1.1f, 0f);
-            Gfx.Prop(_world, "rock_smallA", new Vector3(5.5f, SandHeight(5.5f, 47f), 47f), 0.55f, 30f);
-            Gfx.Prop(_world, "rock_smallC", new Vector3(-4.5f, SandHeight(-4.5f, 48f), 48f), 0.42f, 80f);
-            Gfx.Prop(_world, "rock_largeB", new Vector3(-13f, SandHeight(-13f, 45f), 45f), 1.5f, 120f);
-            Gfx.Prop(_world, "rock_smallE", new Vector3(12f, SandHeight(12f, 47f), 47f), 0.7f, 200f);
-            Gfx.Prop(_world, "canoe", new Vector3(7.5f, SandHeight(7.5f, 42.5f), 42.5f), 0.7f, 108f);
+            // Что выносит на балтийский берег: коряги и валуны.
+            KoenigScenery.Driftwood(_world, new Vector3(-7.5f, SandHeight(-7.5f, 43f), 43f), 2.6f, 62f, 3);
+            KoenigScenery.Driftwood(_world, new Vector3(8.5f, SandHeight(8.5f, 45f), 45f), 1.8f, 18f, 7);
+            KoenigScenery.Driftwood(_world, new Vector3(-11f, SandHeight(-11f, 42f), 42f), 2.1f, 105f, 11);
+            KoenigScenery.Boulder(_world, new Vector3(5.5f, SandHeight(5.5f, 47f), 47f), 1.1f, 4);
+            KoenigScenery.Boulder(_world, new Vector3(-4.5f, SandHeight(-4.5f, 48f), 48f), 0.8f, 9);
+            KoenigScenery.Boulder(_world, new Vector3(-13f, SandHeight(-13f, 45f), 45f), 2.4f, 14);
+            KoenigScenery.Boulder(_world, new Vector3(12f, SandHeight(12f, 47f), 47f), 1.4f, 19);
+            KoenigScenery.Boulder(_world, new Vector3(-2.6f, SandHeight(-2.6f, 44f), 44f), 0.7f, 23);
 
             // Деревянные мостки в воду. Единственная вертикаль на пляже,
             // кроме маяка, — и единственное, что задаёт масштаб морю.
