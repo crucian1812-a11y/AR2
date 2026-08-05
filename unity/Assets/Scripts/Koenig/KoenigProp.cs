@@ -166,9 +166,10 @@ namespace Koenig
         // Поставить модуль без масштабирования: серединой основания в
         // заданную точку. Нужен сборщику домов — у модулей пака начало
         // координат стоит где попало, и складывать их «как есть» нельзя.
-        public static GameObject PlaceByFoot(Transform parent, string id, Vector3 pos, float yaw)
+        public static GameObject PlaceByFoot(Transform parent, string id, Vector3 pos, float yaw,
+            bool collide = true)
         {
-            GameObject go = Load(parent, id, pos, Quaternion.Euler(0f, yaw, 0f), 1f, true);
+            GameObject go = Load(parent, id, pos, Quaternion.Euler(0f, yaw, 0f), 1f, collide);
             if (go == null) return null;
 
             Bounds b;
@@ -190,6 +191,86 @@ namespace Koenig
                 lp.y + (pos.y - fLocal.y),
                 lp.z + (pos.z - cLocal.z));
             return go;
+        }
+
+        // Склейка ВСЕХ потомков в один меш на материал.
+        //
+        // Дом собран из тридцати шести модулей, у каждого два-три подмеша:
+        // сто вызовов отрисовки на дом и две тысячи на улицу. Столько не
+        // тянет ни один телефон, и это не «медленно», а «слайд-шоу».
+        //
+        // Здесь треугольники всех модулей переносятся в систему координат
+        // дома и сливаются по материалам: дом становится четырьмя мешами
+        // вместо ста. Исходные объекты уничтожаются — но ТОЛЬКО после того,
+        // как склейка удалась целиком: если меши окажутся нечитаемыми,
+        // лучше отрисовать дом дорого, чем не отрисовать вовсе.
+        public static void CombineChildren(GameObject root)
+        {
+            Renderer[] rs = root.GetComponentsInChildren<Renderer>();
+            if (rs.Length < 2) return;
+
+            // Сносить будем ПРЯМЫХ потомков: renderer может сидеть не на
+            // корне модуля, а на его ребёнке, и удаление одного лишь
+            // рисовальщика оставило бы после себя лес пустых узлов.
+            List<GameObject> old = new List<GameObject>();
+            for (int i = 0; i < root.transform.childCount; i++)
+                old.Add(root.transform.GetChild(i).gameObject);
+
+            List<Material> mats = new List<Material>();
+            List<List<CombineInstance>> parts = new List<List<CombineInstance>>();
+            Matrix4x4 toRoot = root.transform.worldToLocalMatrix;
+
+            try
+            {
+                for (int i = 0; i < rs.Length; i++)
+                {
+                    MeshFilter mf = rs[i] != null ? rs[i].GetComponent<MeshFilter>() : null;
+                    if (mf == null || mf.sharedMesh == null) continue;
+
+                    Material[] ms = rs[i].sharedMaterials;
+                    int n = Mathf.Min(ms.Length, mf.sharedMesh.subMeshCount);
+                    for (int s = 0; s < n; s++)
+                    {
+                        int slot = mats.IndexOf(ms[s]);
+                        if (slot < 0)
+                        {
+                            mats.Add(ms[s]);
+                            parts.Add(new List<CombineInstance>());
+                            slot = mats.Count - 1;
+                        }
+                        CombineInstance ci = new CombineInstance();
+                        ci.mesh = mf.sharedMesh;
+                        ci.subMeshIndex = s;
+                        ci.transform = toRoot * rs[i].transform.localToWorldMatrix;
+                        parts[slot].Add(ci);
+                    }
+                }
+                if (mats.Count == 0) return;
+
+                for (int i = 0; i < mats.Count; i++)
+                {
+                    Mesh m = new Mesh();
+                    m.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+                    m.CombineMeshes(parts[i].ToArray(), true, true);
+                    m.RecalculateBounds();
+
+                    GameObject part = new GameObject("Part");
+                    part.transform.SetParent(root.transform, false);
+                    part.AddComponent<MeshFilter>().sharedMesh = m;
+                    MeshRenderer pr = part.AddComponent<MeshRenderer>();
+                    pr.sharedMaterial = mats[i];
+                    pr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                    pr.receiveShadows = true;
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("KoenigProp: склейка не удалась — " + e.Message);
+                return;
+            }
+
+            for (int i = 0; i < old.Count; i++)
+                if (old[i] != null) Object.Destroy(old[i]);
         }
 
         public static GameObject LoadSizedWidth(Transform parent, string id, Vector3 pos,

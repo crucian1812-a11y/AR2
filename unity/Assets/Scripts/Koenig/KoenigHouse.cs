@@ -27,6 +27,12 @@ namespace Koenig
     //
     // Дом 6 × 6 в один этаж выходит 8.25 в ширину при 8.8 в высоту:
     // отношение 1.07, настоящая городская масса.
+    //
+    // ЦЕНА СБОРКИ И ЧЕМ ОНА ПЛАТИТСЯ. Тридцать шесть модулей на дом — это
+    // около сотни вызовов отрисовки, и восемнадцать домов складывались бы
+    // в две тысячи. Поэтому сразу после сборки дом склеивается в четыре
+    // меша по материалам (KoenigProp.CombineChildren), а столкновение
+    // держит один короб вместо тридцати шести мешей-коллайдеров.
     public static class KoenigHouse
     {
         public const float Module = 2.0f;    // ширина стенового модуля
@@ -72,6 +78,13 @@ namespace Koenig
                     Place(t, s == 0 ? plain : win, new Vector3(o, y, half - WallHalf), 180f);
                     Place(t, s == 0 ? plain : win, new Vector3(-half + WallHalf, y, o), 90f);
                     Place(t, plain, new Vector3(half - WallHalf, y, o), 270f);
+
+                    // Ставни на окнах фасада. Фасад — единственная стена,
+                    // которую видно с улицы, и весь характер дома держится
+                    // на ней; ставня даёт ей третий план и цветное пятно.
+                    if (!door && (i + variant) % 2 == 0)
+                        Place(t, "WindowShutters_Wide_Round_Closed",
+                              new Vector3(o, y, -half - 0.02f), 0f);
                 }
 
                 // Угловые столбы прикрывают стык двух рядов стен.
@@ -89,14 +102,31 @@ namespace Koenig
             string roof = modules >= 3 ? "Roof_RoundTiles_6x6" : "Roof_RoundTiles_4x4";
             Place(t, roof, new Vector3(0f, top, 0f), 0f);
 
-            // Труба сбоку от конька — силуэт дома без неё слишком гладкий.
-            Place(t, "Prop_Chimney", new Vector3(half * 0.45f, top + 1.2f, half * 0.3f), 0f);
+            // Труба на СКЛОНЕ, ОБРАЩЁННОМ К КАМЕРЕ: за коньком она была бы
+            // закрыта кровлей целиком, и силуэт дома снова стал бы гладким.
+            Place(t, "Prop_Chimney", new Vector3(half * 0.5f, top + 1.1f, -half * 0.25f), 0f);
+
+            // Подкос под свесом кровли у двухэтажных: он объясняет глазу,
+            // на чём держится вынос, и разбивает голую полосу второго этажа.
+            if (storeys > 1)
+            {
+                Place(t, "Prop_Support", new Vector3(-half * 0.6f, Storey, -half - 0.1f), 0f);
+                Place(t, "Prop_Support", new Vector3(half * 0.6f, Storey, -half - 0.1f), 0f);
+            }
 
             // Плющ на каждом третьем доме: сплошной ряд одинаковых фасадов
             // читается стеной, а редкая зелень его разбивает.
             if (variant % 3 == 0)
                 Place(t, "Prop_Vine1", new Vector3(-half * 0.4f, 0.2f, -half - 0.05f), 0f);
 
+            KoenigProp.CombineChildren(go);
+
+            // Столкновение — один короб на дом. Внутрь всё равно не войти,
+            // а тридцать шесть мешевых коллайдеров стоили бы дороже всей
+            // остальной физики уровня вместе взятой.
+            BoxCollider bc = go.AddComponent<BoxCollider>();
+            bc.center = new Vector3(0f, top * 0.5f, 0f);
+            bc.size = new Vector3(modules * Module, top, modules * Module);
             return go;
         }
 
@@ -114,7 +144,7 @@ namespace Koenig
 
         private static void Place(Transform parent, string id, Vector3 pos, float yaw)
         {
-            KoenigProp.PlaceByFoot(parent, id, pos, yaw);
+            KoenigProp.PlaceByFoot(parent, id, pos, yaw, false);
         }
     }
 }

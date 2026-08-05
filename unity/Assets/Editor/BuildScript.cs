@@ -208,7 +208,11 @@ public static class BuildScript
         pipeline.msaaSampleCount = 4;
         pipeline.supportsCameraDepthTexture = true;
         pipeline.supportsCameraOpaqueTexture = false;
-        pipeline.shadowDistance = 90f;
+        // Девяносто метров растягивали три каскада на всю эту длину, и
+        // тени выходили мылом. Игровая камера Кёнигсберга стоит в 42 м от
+        // героя, медвежья — ближе; семидесяти хватает обеим с запасом, а
+        // каскады ложатся заметно плотнее.
+        pipeline.shadowDistance = 70f;
         pipeline.shadowCascadeCount = 3;
         pipeline.shadowDepthBias = 0.6f;
         pipeline.shadowNormalBias = 0.6f;

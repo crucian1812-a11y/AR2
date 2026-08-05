@@ -114,6 +114,10 @@ namespace UnityEngine
     {
         public float x, y, width, height;
         public Rect(float x, float y, float w, float h) { this.x = x; this.y = y; width = w; height = h; }
+        public float xMin { get { return x; } }
+        public float yMin { get { return y; } }
+        public float xMax { get { return x + width; } }
+        public float yMax { get { return y + height; } }
     }
 
     public struct Bounds
@@ -143,6 +147,7 @@ namespace UnityEngine
         public static float Abs(float f) { return 0f; }
         public static int Abs(int f) { return 0; }
         public static float Sign(float f) { return 0f; }
+        public static float Exp(float f) { return 0f; }
         public static float Sin(float f) { return 0f; }
         public static float Cos(float f) { return 0f; }
         public static float Tan(float f) { return 0f; }
@@ -323,7 +328,20 @@ namespace UnityEngine
         public void SetTriangles(int[] tris, int submesh, bool calcBounds) { }
         public void SetTriangles(System.Collections.Generic.List<int> tris, int submesh, bool calcBounds) { }
         public Rendering.IndexFormat indexFormat { get; set; }
+        public void CombineMeshes(CombineInstance[] combine) { }
+        public void CombineMeshes(CombineInstance[] combine, bool mergeSubMeshes) { }
+        public void CombineMeshes(CombineInstance[] combine, bool mergeSubMeshes, bool useMatrices) { }
     }
+
+    public struct CombineInstance
+    {
+        public Mesh mesh { get; set; }
+        public int subMeshIndex { get; set; }
+        public Matrix4x4 transform { get; set; }
+    }
+
+    [System.Flags]
+    public enum DepthTextureMode { None = 0, Depth = 1, DepthNormals = 2, MotionVectors = 4 }
 
 
     public class Texture : Object
@@ -539,6 +557,7 @@ namespace UnityEngine
         public RenderTexture targetTexture { get; set; }
         public bool orthographic { get; set; }
         public float orthographicSize { get; set; }
+        public DepthTextureMode depthTextureMode { get; set; }
         public Vector3 WorldToScreenPoint(Vector3 p) { return Vector3.zero; }
         public Vector3 ScreenToWorldPoint(Vector3 p) { return Vector3.zero; }
     }
