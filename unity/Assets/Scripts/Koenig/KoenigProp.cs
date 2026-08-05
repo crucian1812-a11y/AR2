@@ -60,6 +60,45 @@ namespace Koenig
             return m;
         }
 
+        // Склейка подмешей, у которых после переназначения оказался ОДИН
+        // материал.
+        //
+        // Дома пака собраны в Blender так, что каждый несёт от 54 до 80
+        // материалов: MI_Plaster, MI_Plaster.001, MI_Plaster.002 и так
+        // далее — дубликаты, наплодившиеся при сборке. Мы сводим их к
+        // четырём общим по имени, но ЧИСЛО ПОДМЕШЕЙ от этого не меняется,
+        // а каждый подмеш — отдельный вызов отрисовки. Двенадцать домов
+        // давали под восемьсот вызовов только на застройку; плотную улицу
+        // с такой ценой не построить.
+        //
+        // Здесь треугольники подмешей с одинаковым материалом сливаются в
+        // один список. Дом становится четырьмя вызовами вместо шестидесяти.
+        // Меш при этом копируется: править общий ресурс нельзя, он один на
+        // все экземпляры.
+        private static Material[] MergeSubmeshes(Renderer r, Material[] mats)
+        {
+            MeshFilter mf = r.GetComponent<MeshFilter>();
+            if (mf == null || mf.sharedMesh == null) return mats;
+            if (mats.Length < 2 || mf.sharedMesh.subMeshCount != mats.Length) return mats;
+
+            List<Material> uniq = new List<Material>();
+            List<List<int>> tris = new List<List<int>>();
+            for (int i = 0; i < mats.Length; i++)
+            {
+                int slot = uniq.IndexOf(mats[i]);
+                if (slot < 0) { uniq.Add(mats[i]); tris.Add(new List<int>()); slot = uniq.Count - 1; }
+                tris[slot].AddRange(mf.sharedMesh.GetTriangles(i));
+            }
+            if (uniq.Count == mats.Length) return mats;   // склеивать нечего
+
+            Mesh copy = Object.Instantiate(mf.sharedMesh);
+            copy.subMeshCount = uniq.Count;
+            for (int i = 0; i < uniq.Count; i++) copy.SetTriangles(tris[i], i, false);
+            copy.RecalculateBounds();
+            mf.sharedMesh = copy;
+            return uniq.ToArray();
+        }
+
         // Категория по имени материала из FBX (важен порядок: частное раньше
         // общего — unevenbrick/redbrick до brick, roundtiles до brick).
         private static string CatFromName(string raw)
@@ -215,6 +254,7 @@ namespace Koenig
                     if (cat == null) cat = idCat;
                     outM[s] = CatMaterial(cat);
                 }
+                outM = MergeSubmeshes(rs[i], outM);
                 rs[i].sharedMaterials = outM;
                 rs[i].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
                 rs[i].receiveShadows = true;

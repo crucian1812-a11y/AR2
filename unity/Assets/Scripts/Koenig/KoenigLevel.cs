@@ -194,8 +194,8 @@ namespace Koenig
             Gfx.Box(_world, new Vector3(0f, -0.5f, 0f), new Vector3(150f, 1f, 150f), grass, true);
 
             // Мощёная улица по центру (север-юг), настоящая каменная текстура.
-            Material cobble = Tiled("T_UnevenBrick", new Vector2(26f, 84f), new Color(0.66f, 0.63f, 0.57f), 1.6f);
-            Gfx.Box(_world, new Vector3(0f, 0.02f, 2f), new Vector3(26f, 0.2f, 84f), cobble, true);
+            Material cobble = Tiled("T_UnevenBrick", new Vector2(24f, 92f), new Color(0.66f, 0.63f, 0.57f), 1.6f);
+            Gfx.Box(_world, new Vector3(0f, 0.02f, 2f), new Vector3(24f, 0.2f, 92f), cobble, true);
 
             // Балтийское море на севере за парапетом.
             Material sea = Gfx.Mat(new Color(0.18f, 0.44f, 0.62f), 0.7f, 0.1f);
@@ -209,21 +209,32 @@ namespace Koenig
             // Готовые дома вдоль улицы: западный ряд смотрит на восток,
             // восточный — на запад. Высоту нормируем, ширина у вариантов
             // своя (проверено в Blender-рендере).
+            // УЛИЦА, А НЕ ПЛОЩАДЬ. Раньше шесть домов на сторону стояли на
+            // x = ±20 с шагом 14 м при собственной ширине 3.6 м: между ними
+            // зияло по десять метров, и застройка читалась редкими
+            // островками в море брусчатки.
+            //
+            // Теперь фасады на ±13, шаг 4.5 м — дома почти смыкаются в
+            // сплошной фронт, как в старом городе. Двадцать на сторону
+            // вместо шести стали возможны только после склейки подмешей
+            // (KoenigProp.MergeSubmeshes): дом теперь стоит четырёх вызовов
+            // отрисовки вместо шестидесяти пяти.
+            //
+            // Высоты чередуются: ровный карниз читается забором, а разная
+            // этажность даёт силуэт — при ортографии это один из немногих
+            // способов показать глубину.
             string[] v = { "houses/House_PlasterA", "houses/House_StoneB",
                            "houses/House_WideC", "houses/House_TallD" };
-            float[] zs = { -34f, -20f, -6f, 8f, 22f, 36f };
-            for (int i = 0; i < zs.Length; i++)
+            float[] hs = { 7.2f, 6.6f, 7.8f, 6.9f, 8.4f, 7.0f };
+            for (int i = 0; i < 20; i++)
             {
+                float z = -43f + i * 4.5f;
                 string wId = v[i % v.Length];
                 string eId = v[(i + 2) % v.Length];
-                // Было 9.5 и 12 — при кадре в 13 метров один такой дом
-                // занимал его целиком, и улицы не было видно вовсе.
-                // Семь метров это двухэтажный фахверк с кровлей: на экране
-                // треть кадра, мимо него видно, что происходит дальше.
-                float wh = wId.Contains("Tall") ? 8f : 7f;
-                float eh = eId.Contains("Tall") ? 8f : 7f;
-                KoenigProp.LoadSized(_world, wId, new Vector3(-20f, 0.1f, zs[i]), 90f, wh);
-                KoenigProp.LoadSized(_world, eId, new Vector3(20f, 0.1f, zs[i]), 270f, eh);
+                KoenigProp.LoadSized(_world, wId, new Vector3(-13f, 0.1f, z), 90f,
+                                     hs[i % hs.Length]);
+                KoenigProp.LoadSized(_world, eId, new Vector3(13f, 0.1f, z + 2.2f), 270f,
+                                     hs[(i + 3) % hs.Length]);
             }
 
             // Башня-доминанта в конце улицы (у моря), у неё жетон.
@@ -235,12 +246,7 @@ namespace Koenig
             KoenigProp.LoadScaled(_world, "Prop_Crate", new Vector3(8f, 0.15f, -6f), 20f, _gs, true, out t);
             KoenigProp.LoadScaled(_world, "Prop_Crate", new Vector3(9.2f, 0.15f, -5f), 70f, _gs, true, out t);
             KoenigProp.LoadScaled(_world, "Prop_Crate", new Vector3(-9f, 0.15f, 10f), 10f, _gs, true, out t);
-            for (int i = 0; i < 10; i++)
-                KoenigProp.LoadScaled(_world, "Prop_WoodenFence_Single",
-                    new Vector3(-13f, 0.15f, -34f + i * 8f), 0f, _gs, true, out t);
-            for (int i = 0; i < 10; i++)
-                KoenigProp.LoadScaled(_world, "Prop_WoodenFence_Single",
-                    new Vector3(13f, 0.15f, -34f + i * 8f), 0f, _gs, true, out t);
+            // Заборы вдоль улицы убраны: на их месте теперь стоят фасады.
             KoenigProp.LoadScaled(_world, "Prop_MetalFence_Simple", new Vector3(6f, 0.15f, 44f), 90f, _gs, true, out t);
 
             Gfx.Glow(_world, new Vector3(-10f, 4f, 0f), 4f, new Color(1f, 0.9f, 0.6f, 0.4f));

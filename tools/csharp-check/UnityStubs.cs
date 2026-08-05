@@ -318,6 +318,10 @@ namespace UnityEngine
         public void RecalculateNormals() { }
         public void RecalculateBounds() { }
         public void MarkDynamic() { }
+        public int subMeshCount { get; set; }
+        public int[] GetTriangles(int submesh) { return new int[0]; }
+        public void SetTriangles(int[] tris, int submesh, bool calcBounds) { }
+        public void SetTriangles(System.Collections.Generic.List<int> tris, int submesh, bool calcBounds) { }
         public Rendering.IndexFormat indexFormat { get; set; }
     }
 
