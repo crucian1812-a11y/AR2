@@ -140,7 +140,41 @@ namespace Koenig
                 }
                 e.HostStep(dt);
             }
+
+            Separate();
             if (changed && OnRosterChanged != null) OnRosterChanged();
+        }
+
+        // Расталкивание. Enemy идёт к цели по прямой, без всякого учёта
+        // соседей, поэтому пачка в погоне схлопывалась в одну точку и
+        // читалась одним врагом с четырьмя полосками урона. Здесь соседи
+        // ближе суммы радиусов мягко разъезжаются — этого хватает, чтобы
+        // отряд остался отрядом.
+        private void Separate()
+        {
+            for (int i = 0; i < _enemies.Count; i++)
+            {
+                Enemy a = _enemies[i];
+                if (a == null || a.Dying) continue;
+                for (int k = i + 1; k < _enemies.Count; k++)
+                {
+                    Enemy b = _enemies[k];
+                    if (b == null || b.Dying) continue;
+
+                    Vector3 d = b.transform.localPosition - a.transform.localPosition;
+                    d.y = 0f;
+                    float want = (a.Radius + b.Radius) * 1.6f;
+                    float dist = d.magnitude;
+                    if (dist >= want) continue;
+
+                    // Совпали точно — разводим по произвольной оси, иначе
+                    // делить на ноль.
+                    Vector3 push = dist > 0.01f ? d / dist : new Vector3(1f, 0f, 0f);
+                    float half = (want - dist) * 0.5f;
+                    a.transform.localPosition -= push * half;
+                    b.transform.localPosition += push * half;
+                }
+            }
         }
 
         // ---------- Цель ----------
@@ -205,6 +239,8 @@ namespace Koenig
             if (crit) dmg *= 2;
             if (victim.IsBoss)
                 dmg = Mathf.RoundToInt(dmg * (1f + Inventory.Bonus(Affix.BossDamage) * 0.01f));
+
+            WorldTags.Damage(victim.Center, dmg, crit);
 
             if (victim.TakeDamage(dmg))
             {

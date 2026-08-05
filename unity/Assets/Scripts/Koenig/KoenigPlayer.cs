@@ -229,6 +229,10 @@ namespace Koenig
             // произошло, невозможно.
             _invuln = 0.5f;
             Snd.Play("hurt", 0.8f);
+            // Урон по себе тоже показываем цифрой: иначе полоска просто
+            // тает, и непонятно, кто и насколько бьёт.
+            WorldTags.Note(transform.position + Vector3.up * 1.6f,
+                "-" + Mathf.Max(1, amount), new Color(1f, 0.45f, 0.4f));
             if (_model != null)
             {
                 _model.Restart(_model.Pick("HitRecieve", "Jump"), 1.2f);

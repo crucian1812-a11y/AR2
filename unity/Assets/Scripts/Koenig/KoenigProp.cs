@@ -163,6 +163,24 @@ namespace Koenig
 
         // Как LoadSized, но приводим к нужной ШИРИНЕ следа (max по X/Z) —
         // для крыш и мостовых, которые «плоские» и по высоте не мерятся.
+        // Поставить модуль без масштабирования: серединой основания в
+        // заданную точку. Нужен сборщику домов — у модулей пака начало
+        // координат стоит где попало, и складывать их «как есть» нельзя.
+        public static GameObject PlaceByFoot(Transform parent, string id, Vector3 pos, float yaw)
+        {
+            GameObject go = Load(parent, id, pos, Quaternion.Euler(0f, yaw, 0f), 1f, true);
+            if (go == null) return null;
+
+            Bounds b;
+            if (!CombinedBounds(go, out b)) return go;
+            Vector3 lp = go.transform.localPosition;
+            go.transform.localPosition = new Vector3(
+                lp.x + (pos.x - b.center.x),
+                lp.y + (pos.y - b.min.y),
+                lp.z + (pos.z - b.center.z));
+            return go;
+        }
+
         public static GameObject LoadSizedWidth(Transform parent, string id, Vector3 pos,
             float yaw, float targetWidth, bool collide = true)
         {

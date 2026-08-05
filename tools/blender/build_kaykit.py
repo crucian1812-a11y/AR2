@@ -44,6 +44,15 @@ FPS = 24
 
 # Кого собираем: id в игре → файл персонажа и его текстура.
 # Рыцарь — герой, остальные пойдут на средневековых воинов-врагов.
+# Оружие в руку. У рига есть гнездо handslot.r — кость специально под
+# это. Оружие пака размечено в ТЕ ЖЕ атласы персонажей, поэтому меч
+# берёт текстуру рыцаря и красится верно без единой правки.
+WEAPONS = {
+    "Knight": "sword_1handed.fbx",
+    "Barbarian": "axe_1handed.fbx",
+    "Rogue": "dagger.fbx",
+}
+
 CHARACTERS = [
     ("Knight", "Knight.fbx", "knight_texture.png"),
     ("Rogue", "Rogue.fbx", "rogue_texture.png"),
@@ -138,6 +147,51 @@ def build(pack_dir, char_id, char_file, tex_file):
     if not arms:
         sys.exit("в %s нет скелета" % char_file)
     arm = arms[0]
+
+    # Оружие цепляем ДО анимаций: сначала геометрия, потом клипы.
+    wep = WEAPONS.get(char_id)
+    if wep:
+        for sub in ("fbx(unity)", "fbx"):
+            wpath = os.path.join(pack_dir, "Assets", sub, wep)
+            if os.path.exists(wpath):
+                known = set(o.name for o in bpy.data.objects)
+                bpy.ops.import_scene.fbx(filepath=wpath)
+                fresh = [o for o in bpy.data.objects
+                         if o.name not in known and o.type == "MESH"]
+                bone = arm.data.bones.get("handslot.r")
+                blen = bone.length if bone else 0.11
+                for o in fresh:
+                    # У модели оружия геометрия СМЕЩЕНА относительно начала
+                    # координат: поставив начало в руку, мы получали меч у
+                    # груди. Сначала переносим начало в саму геометрию, а
+                    # потом сдвигаем на половину длины клинка, чтобы в кости
+                    # оказалась рукоять, а не середина.
+                    bpy.context.view_layer.objects.active = o
+                    for other in bpy.context.selected_objects:
+                        other.select_set(False)
+                    o.select_set(True)
+                    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+                    bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="BOUNDS")
+
+                    # Самая длинная ось локального габарита — это клинок.
+                    dims = o.dimensions
+                    half = max(dims.x, dims.y, dims.z) * 0.5
+
+                    o.parent = arm
+                    o.parent_type = "BONE"
+                    o.parent_bone = "handslot.r"
+                    o.matrix_parent_inverse.identity()
+                    # Blender вешает потомка на ХВОСТ кости; гнездо руки —
+                    # в её голове, отсюда -blen. Ещё +half уводит клинок от
+                    # ладони наружу, чтобы в руке была рукоять.
+                    # Клинок модели стоит вдоль своей оси Z, а ось кости —
+                    # это Y. Поворот -90° по X совмещает их, и только после
+                    # него сдвиг «на полклинка» уводит остриё от ладони,
+                    # оставляя в руке рукоять.
+                    o.rotation_euler = (math.radians(-90.0), 0.0, 0.0)
+                    o.location = (0.0, -blen + half * 0.86, 0.0)
+                print("ОРУЖИЕ:", wep, "-> %d меш(ей), клинок %.2f м" % (len(fresh), half * 2))
+                break
 
     got = []
     for f in ("Rig_Medium_MovementBasic.fbx", "Rig_Medium_General.fbx"):
