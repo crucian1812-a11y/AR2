@@ -148,7 +148,9 @@ public static class Arena
                 podium.transform.SetParent(holder.transform, false);
                 podium.transform.localPosition = pos;
                 podium.transform.localScale = size;
-                podium.GetComponent<Renderer>().sharedMaterial = stand;
+                Renderer pr = podium.GetComponent<Renderer>();
+                pr.sharedMaterial = stand;
+                pr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 Object.Destroy(podium.GetComponent<Collider>());
 
                 for (int i = 0; i < 16; i++)
@@ -174,6 +176,12 @@ public static class Arena
                 }
             }
         }
+
+        // Трибуны — это около двухсот неподвижных объектов. По отдельности
+        // они дают столько же вызовов отрисовки, сколько вся остальная
+        // сцена вместе взятая; объединение сводит их в считанные вызовы.
+        // Делать это можно только потому, что зрители не двигаются.
+        StaticBatchingUtility.Combine(holder);
     }
 
     // ------------------------------------------------------------- свет
@@ -253,15 +261,25 @@ public static class Arena
         RenderSettings.fogDensity = 0.028f;
     }
 
-    private static void Slab(Transform parent, string name, Vector3 pos, Vector3 size,
-                             Color c, float smoothness)
+    private static GameObject Slab(Transform parent, string name, Vector3 pos, Vector3 size,
+                                   Color c, float smoothness, bool castShadows = false)
     {
         GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
         go.name = name;
         go.transform.SetParent(parent, false);
         go.transform.localPosition = pos;
         go.transform.localScale = size;
-        go.GetComponent<Renderer>().sharedMaterial = Lit(c, smoothness);
+
+        Renderer r = go.GetComponent<Renderer>();
+        r.sharedMaterial = Lit(c, smoothness);
+        // Тени в этой сцене нужны только от бойцов. Стены и трибуны, попадая
+        // в карту теней, съедали бы её разрешение — то есть делали бы мягче
+        // и грязнее единственную тень, которая на самом деле важна.
+        r.shadowCastingMode = castShadows
+            ? UnityEngine.Rendering.ShadowCastingMode.On
+            : UnityEngine.Rendering.ShadowCastingMode.Off;
+
         Object.Destroy(go.GetComponent<Collider>());
+        return go;
     }
 }

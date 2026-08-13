@@ -710,6 +710,12 @@ namespace UnityEngine
         public static void Save() { }
     }
 
+    public static class StaticBatchingUtility
+    {
+        public static void Combine(GameObject root) { }
+        public static void Combine(GameObject[] gos, GameObject root) { }
+    }
+
     public static class Resources
     {
         public static T GetBuiltinResource<T>(string path) where T : Object { return null; }
