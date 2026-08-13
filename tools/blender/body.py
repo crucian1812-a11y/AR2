@@ -49,13 +49,19 @@ def material(name, rgb, roughness=0.65, metallic=0.0, sheen=0.0):
 
 
 def palette(gi_rgb):
+    # Суффикс по цвету обязателен. Материалы кешируются по имени, и без
+    # него второй боец в сцене переиспользовал бы «Gi» первого — оба
+    # выходили синими, а превью парных поз только для того и нужно, чтобы
+    # различать роли. В игре имена материалов важнее их цвета: FighterRig
+    # опознаёт по ним шейдер, поэтому суффикс идёт после «Gi», а не до.
+    tag = "_%02x%02x%02x" % tuple(int(max(0.0, min(1.0, c)) * 255) for c in gi_rgb)
     return {
-        "gi": material("Gi", gi_rgb, 0.92, sheen=0.35),
-        "gi_dark": material("GiDark", [c * 0.72 for c in gi_rgb], 0.94, sheen=0.3),
-        "skin": material("Skin", (0.80, 0.60, 0.47), 0.55),
-        "belt": material("Belt", (0.045, 0.045, 0.055), 0.7),
-        "hair": material("Hair", (0.08, 0.06, 0.05), 0.6),
-        "eye": material("Eye", (0.06, 0.05, 0.05), 0.35),
+        "gi": material("Gi" + tag, gi_rgb, 0.92, sheen=0.35),
+        "gi_dark": material("GiDark" + tag, [c * 0.72 for c in gi_rgb], 0.94, sheen=0.3),
+        "skin": material("Skin" + tag, (0.80, 0.60, 0.47), 0.55),
+        "belt": material("Belt" + tag, (0.045, 0.045, 0.055), 0.7),
+        "hair": material("Hair" + tag, (0.08, 0.06, 0.05), 0.6),
+        "eye": material("Eye" + tag, (0.06, 0.05, 0.05), 0.35),
     }
 
 
