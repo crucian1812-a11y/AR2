@@ -19,14 +19,31 @@ public class ModelImportSettings : AssetPostprocessor
     private const string PropDir = "Assets/Resources/Models/props/";
     private const string TextureDir = "Assets/Resources/Textures/";
 
-    // Клипы, которые должны проигрываться по кругу. Позиции партера —
-    // это именно зацикленные «удержания»: боец в них живёт, пока не
-    // сменит позицию, и клип не должен обрываться.
-    private static readonly string[] LoopingClips =
+    // Клипы называются «<роль>_<что>»: Top_Mount, Bottom_Pass_Closed.
+    // Зацикливать нужно ровно удержания позиций — боец живёт в позиции,
+    // пока не сменит её, и клип не должен обрываться. Переходы, наоборот,
+    // играются один раз.
+    //
+    // Список позиций дублирует enum Pos из Positions.cs. Дублирование
+    // осознанное: Editor-скрипт не должен зависеть от игровой сборки, а
+    // расхождение сразу видно — клип просто перестанет зацикливаться.
+    private static readonly string[] HeldPositions =
     {
-        "idle", "idle_standing", "idle_guard", "idle_mount", "idle_side",
-        "idle_back", "idle_half", "idle_turtle", "breathe"
+        "standing", "closedguard", "openguard", "halfguard",
+        "sidecontrol", "mount", "backcontrol", "turtledown"
     };
+
+    private static bool IsHold(string clipName)
+    {
+        string low = clipName.ToLowerInvariant();
+        int underscore = low.IndexOf('_');
+        if (underscore < 0 || underscore + 1 >= low.Length) return false;
+
+        string what = low.Substring(underscore + 1);
+        for (int i = 0; i < HeldPositions.Length; i++)
+            if (what == HeldPositions[i]) return true;
+        return false;
+    }
 
     private void OnPreprocessModel()
     {
@@ -90,11 +107,7 @@ public class ModelImportSettings : AssetPostprocessor
             if (bar >= 0 && bar + 1 < n.Length) n = n.Substring(bar + 1);
             clips[i].name = n;
 
-            string low = n.ToLowerInvariant();
-            bool loop = false;
-            for (int k = 0; k < LoopingClips.Length; k++)
-                if (low == LoopingClips[k]) loop = true;
-
+            bool loop = IsHold(n);
             clips[i].loopTime = loop;
             clips[i].wrapMode = loop ? WrapMode.Loop : WrapMode.Once;
 
