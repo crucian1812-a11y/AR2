@@ -86,6 +86,31 @@ jobs:
         with:
           lfs: true
 
+      # Анимации не лежат в репозитории, а собираются здесь: они целиком
+      # описаны кодом в tools/blender, и держать рядом с кодом ещё и
+      # результат — значит добавлять к истории мегабайты при каждой правке
+      # позы. Blender подключается как модуль Python, окно ему не нужно.
+      #
+      # Шаг обязан идти ДО освобождения диска. bpy — нативный модуль и
+      # линкуется с системными библиотеками X, а free-disk-space с
+      # large-packages сносит их вместе с прочим: пакет ставится, а
+      # `import bpy` падает. Сборка #3 упала ровно так. Освобождать
+      # место ради 300 МБ Blender незачем — чистка нужна Unity, которой
+      # требуются десятки гигабайт, а к тому времени FBX уже собран и
+      # лежит в рабочей папке, которую чистка не трогает.
+      - name: Python 3.11 для bpy
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Собрать анимации в Blender
+        run: |
+          set -e
+          # Версия закреплена: bpy жёстко привязан к версии Python, и
+          # плавающая версия ломала бы сборку в неожиданный момент.
+          python -m pip install --quiet "bpy==5.0.1"
+          python tools/blender/build_anims.py
+          ls -la unity/Assets/Resources/Models/fighters/
 
       # Unity Hub скачивает редактор по паре «версия + changeset», поэтому
       # в ProjectVersion.txt обязателен хеш ревизии. Определяем его на лету,
@@ -114,24 +139,6 @@ jobs:
           large-packages: true
           docker-images: true
           swap-storage: true
-
-      # Анимации не лежат в репозитории, а собираются здесь: они целиком
-      # описаны кодом в tools/blender, и держать рядом с кодом ещё и
-      # результат — значит добавлять к истории мегабайты при каждой правке
-      # позы. Blender подключается как модуль Python, окно ему не нужно.
-      - name: Python 3.11 для bpy
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Собрать анимации в Blender
-        run: |
-          set -e
-          # Версия закреплена: bpy жёстко привязан к версии Python, и
-          # плавающая версия ломала бы сборку в неожиданный момент.
-          python -m pip install --quiet "bpy==5.0.1"
-          python tools/blender/build_anims.py
-          ls -la unity/Assets/Resources/Models/fighters/
 
       # unity-setup ищет Unity Hub строго в /opt/unityhub/unityhub и падает
       # с ENOENT ещё до того, как сборка увидит проект (сборки #69 и #70:

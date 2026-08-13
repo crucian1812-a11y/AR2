@@ -34,8 +34,12 @@ import sys
 
 try:
     import bpy
-except ImportError:
-    sys.exit("Нужен пакет bpy: python3 -m pip install --break-system-packages bpy")
+except ImportError as exc:
+    # Показываем настоящую причину. Пакет может стоять и всё равно не
+    # грузиться: bpy — нативный модуль, и ему нужны системные библиотеки.
+    # Совет «поставьте пакет» в таком случае только сбивает с толку.
+    sys.exit("Не удалось загрузить bpy (%s).\n"
+             "Установка: python3 -m pip install --break-system-packages bpy" % exc)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import poses  # noqa: E402
