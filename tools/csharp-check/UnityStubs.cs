@@ -850,6 +850,7 @@ namespace UnityEngine
             public enum AntialiasingMode { None, FastApproximateAntialiasing, SubpixelMorphologicalAntiAliasing, TemporalAntiAliasing }
             public enum AntialiasingQuality { Low, Medium, High }
             public enum DepthPrimingMode { Disabled, Auto, Forced }
+            public enum RenderingMode { Forward, ForwardPlus, Deferred, DeferredPlus }
 
             public class UniversalAdditionalCameraData : Component
             {
@@ -877,6 +878,7 @@ namespace UnityEngine
             public class UniversalRendererData : ScriptableRendererData
             {
                 public DepthPrimingMode depthPrimingMode { get; set; }
+                public RenderingMode renderingMode { get; set; }
             }
 
             public class UniversalRenderPipelineAsset : RenderPipelineAsset

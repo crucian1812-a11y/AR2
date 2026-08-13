@@ -120,6 +120,14 @@ public static class BuildScript
 
         // Глубина и нормали нужны для SSAO и глубины резкости.
         renderer.depthPrimingMode = DepthPrimingMode.Disabled;
+
+        // Обычный Forward, а не Forward+ (в Unity 6 он по умолчанию).
+        // Собственные шейдеры бойцов перебирают дополнительные источники
+        // классическим циклом GetAdditionalLightsCount/GetAdditionalLight.
+        // При Forward+ этот цикл видит не тот набор источников, и заливка
+        // от прожекторов над татами легла бы неверно — ошибка тихая, она
+        // не роняет сборку, а просто портит свет.
+        renderer.renderingMode = RenderingMode.Forward;
         AddAmbientOcclusion(renderer, rendererPath);
 
         UniversalRenderPipelineAsset pipeline =
