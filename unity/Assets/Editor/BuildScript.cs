@@ -19,6 +19,8 @@ public static class BuildScript
     private static readonly string[] RequiredShaders =
     {
         "Bjj/Lit",
+        "Bjj/Skin",
+        "Bjj/Cloth",
         "UI/Default",
         "Sprites/Default"
         // Universal Render Pipeline/Lit сюда добавлять нельзя: у него

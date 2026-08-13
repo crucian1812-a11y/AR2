@@ -189,7 +189,8 @@ namespace UnityEngine
         public static float time { get { return 0f; } }
         public static float deltaTime { get { return 0f; } }
         public static float unscaledDeltaTime { get { return 0f; } }
-        public static float fixedDeltaTime { get { return 0f; } }
+        public static float unscaledTime { get { return 0f; } }
+        public static float fixedDeltaTime { get { return 0f; } set { } }
         public static float timeScale { get { return 0f; } set { } }
         public static int frameCount { get { return 0; } }
     }
@@ -215,6 +216,7 @@ namespace UnityEngine
         public static void DestroyImmediate(Object o) { }
         public static void DontDestroyOnLoad(Object o) { }
         public static T Instantiate<T>(T o) where T : Object { return o; }
+        public static T Instantiate<T>(T o, Transform parent) where T : Object { return o; }
         public static bool operator ==(Object a, Object b) { return false; }
         public static bool operator !=(Object a, Object b) { return false; }
         public static implicit operator bool(Object o) { return false; }
@@ -230,6 +232,7 @@ namespace UnityEngine
         public T GetComponentInChildren<T>() where T : class { return null; }
         public T GetComponentInParent<T>() where T : class { return null; }
         public T[] GetComponentsInChildren<T>() where T : class { return null; }
+        public T[] GetComponentsInChildren<T>(bool includeInactive) where T : class { return null; }
     }
 
     public class Behaviour : Component { public bool enabled { get; set; } }
@@ -279,6 +282,7 @@ namespace UnityEngine
         public T GetComponent<T>() where T : class { return null; }
         public T GetComponentInChildren<T>() where T : class { return null; }
         public T[] GetComponentsInChildren<T>() where T : class { return null; }
+        public T[] GetComponentsInChildren<T>(bool includeInactive) where T : class { return null; }
         public static GameObject CreatePrimitive(PrimitiveType t) { return null; }
         public static GameObject Find(string n) { return null; }
     }
@@ -416,7 +420,7 @@ namespace UnityEngine
 
     public enum WrapMode { Once, Loop, PingPong, Default, ClampForever, Clamp }
 
-    public class AnimationClip : Object { public bool legacy { get; set; } public WrapMode wrapMode { get; set; } }
+    public class AnimationClip : Object { public bool legacy { get; set; } public WrapMode wrapMode { get; set; } public float length { get { return 0f; } } }
 
     public class AnimationState
     {
@@ -544,6 +548,7 @@ namespace UnityEngine
         public float intensity { get; set; }
         public float range { get; set; }
         public float spotAngle { get; set; }
+        public float innerSpotAngle { get; set; }
         public LightShadows shadows { get; set; }
         public float shadowStrength { get; set; }
         public float shadowBias { get; set; }
@@ -709,6 +714,7 @@ namespace UnityEngine
     {
         public static T GetBuiltinResource<T>(string path) where T : Object { return null; }
         public static T Load<T>(string path) where T : Object { return null; }
+        public static T[] LoadAll<T>(string path) where T : Object { return null; }
     }
 
     public class RectTransform : Transform
@@ -739,12 +745,13 @@ namespace UnityEngine
     {
         using UnityEngine;
 
-        public class VolumeParameter<T> { public void Override(T v) { } public T value { get; set; } }
+        public class VolumeParameter<T> { public void Override(T v) { } public T value { get; set; } public bool overrideState { get; set; } }
         public class ClampedFloatParameter : VolumeParameter<float> { }
         public class MinFloatParameter : VolumeParameter<float> { }
         public class FloatParameter : VolumeParameter<float> { }
         public class BoolParameter : VolumeParameter<bool> { }
         public class ColorParameter : VolumeParameter<Color> { }
+        public class Vector4Parameter : VolumeParameter<Vector4> { }
 
         public class VolumeComponent : ScriptableObject { public bool active { get; set; } }
 
@@ -760,6 +767,7 @@ namespace UnityEngine
             public float priority { get; set; }
             public float weight { get; set; }
             public VolumeProfile profile { get; set; }
+            public VolumeProfile sharedProfile { get; set; }
         }
 
         public class RenderPipelineAsset : ScriptableObject { }
@@ -785,6 +793,7 @@ namespace UnityEngine
                 public MinFloatParameter intensity;
                 public ClampedFloatParameter scatter;
                 public ColorParameter tint;
+                public BoolParameter highQualityFiltering;
             }
 
             public class ColorAdjustments : VolumeComponent
@@ -805,6 +814,16 @@ namespace UnityEngine
                 public MinFloatParameter gaussianStart;
                 public MinFloatParameter gaussianEnd;
                 public ClampedFloatParameter gaussianMaxRadius;
+                public MinFloatParameter focusDistance;
+                public ClampedFloatParameter aperture;
+                public ClampedFloatParameter focalLength;
+            }
+
+            public class ShadowsMidtonesHighlights : VolumeComponent
+            {
+                public Vector4Parameter shadows;
+                public Vector4Parameter midtones;
+                public Vector4Parameter highlights;
             }
 
             public enum FilmGrainLookup { Thin1, Thin2, Medium1, Large01 }
@@ -988,6 +1007,78 @@ namespace UnityEngine
             public static EventSystem current { get { return null; } }
         }
         public class StandaloneInputModule : Behaviour { }
+    }
+
+    // ------------------------------------------------------------------
+    // Анимация: Animator и Playables.
+    //
+    // Клипы играются графом Playables, а не ассетом AnimatorController —
+    // ассетов в этом проекте нет вовсе. Настоящие типы Unity здесь
+    // структуры, и заглушки тоже: код полагается на то, что поле графа
+    // инициализируется значением по умолчанию и IsValid() у него ложно.
+    // ------------------------------------------------------------------
+
+    public enum AnimatorCullingMode { AlwaysAnimate, CullUpdateTransforms, CullCompletely }
+
+    public class Animator : Behaviour
+    {
+        public bool applyRootMotion { get; set; }
+        public AnimatorCullingMode cullingMode { get; set; }
+    }
+}
+
+namespace UnityEngine.Playables
+{
+    using UnityEngine;
+
+    public enum DirectorUpdateMode { DSPClock, GameTime, UnscaledGameTime, Manual }
+
+    public struct PlayableGraph
+    {
+        public static PlayableGraph Create(string name) { return new PlayableGraph(); }
+        public void SetTimeUpdateMode(DirectorUpdateMode mode) { }
+        public void Play() { }
+        public bool IsValid() { return false; }
+        public void Destroy() { }
+    }
+}
+
+namespace UnityEngine.Animations
+{
+    using UnityEngine;
+    using UnityEngine.Playables;
+
+    public struct AnimationClipPlayable
+    {
+        public static AnimationClipPlayable Create(PlayableGraph graph, AnimationClip clip)
+        {
+            return new AnimationClipPlayable();
+        }
+        public void SetApplyFootIK(bool value) { }
+        public void SetDuration(double duration) { }
+        public bool IsValid() { return false; }
+        public void Destroy() { }
+    }
+
+    public struct AnimationMixerPlayable
+    {
+        public static AnimationMixerPlayable Create(PlayableGraph graph, int inputCount)
+        {
+            return new AnimationMixerPlayable();
+        }
+        public void ConnectInput(int inputIndex, AnimationClipPlayable source, int sourceOutput) { }
+        public void DisconnectInput(int inputIndex) { }
+        public void SetInputWeight(int inputIndex, float weight) { }
+        public bool IsValid() { return false; }
+    }
+
+    public struct AnimationPlayableOutput
+    {
+        public static AnimationPlayableOutput Create(PlayableGraph graph, string name, Animator target)
+        {
+            return new AnimationPlayableOutput();
+        }
+        public void SetSourcePlayable(AnimationMixerPlayable playable) { }
     }
 }
 

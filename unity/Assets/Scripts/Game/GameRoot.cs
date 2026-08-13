@@ -1,18 +1,20 @@
 using UnityEngine;
 
-// Сборка схватки: арена, два бойца, камера, интерфейс и соперник.
-// Здесь же — единственное место, где состояние Match превращается в картинку.
+// Сборка схватки: зал, два бойца, камера, пост-обработка, интерфейс, ИИ.
+// Единственное место, где состояние Match превращается в картинку.
 public class GameRoot : MonoBehaviour
 {
+    private const Side Player = Side.A;
+
     private Match _match;
     private Ai _ai;
-    private FighterView _a;
-    private FighterView _b;
-    private Camera _cam;
-    private Pos _staged = (Pos)(-1);
-    private Side _stagedTop = (Side)(-1);
+    private FighterRig _a;
+    private FighterRig _b;
+    private CameraDirector _cam;
 
-    private const Side Player = Side.A;
+    private Pos _shownPos = (Pos)(-1);
+    private Side _shownTop = (Side)(-1);
+    private float _moveHold;      // сколько ещё играть клип перехода
 
     public static GameRoot Create()
     {
@@ -25,31 +27,26 @@ public class GameRoot : MonoBehaviour
         int seed = System.Environment.TickCount;
         _match = new Match(seed);
         _ai = new Ai(_match, Side.B, seed + 7919, 0.55f);
+        _match.OnMoveStart += PlayMove;
 
         Arena.Build(transform);
+        PostFx.Build(transform);
 
-        _a = FighterView.Create(transform, Side.A, Arena.GiBlue);
-        _b = FighterView.Create(transform, Side.B, Arena.GiRed);
+        // Оба бойца стоят в одной точке: взаимное расположение целиком
+        // лежит в анимации (см. tools/blender/README.md). Разносить их
+        // ещё и здесь значило бы применить смещение дважды.
+        _a = FighterRig.Create(transform, Side.A, Arena.GiBlue, Arena.RimBlue);
+        _b = FighterRig.Create(transform, Side.B, Arena.GiRed, Arena.RimRed);
 
-        BuildCamera();
+        _cam = CameraDirector.Create(transform, _match);
         Hud.Create(transform, _match, Player);
 
-        ApplyStaging(true);
+        ShowHold(true);
     }
 
-    private void BuildCamera()
+    private void OnDestroy()
     {
-        GameObject go = new GameObject("MainCamera");
-        go.transform.SetParent(transform, false);
-        go.tag = "MainCamera";
-
-        _cam = go.AddComponent<Camera>();
-        _cam.fieldOfView = 42f;
-        _cam.nearClipPlane = 0.05f;
-        _cam.farClipPlane = 120f;
-        _cam.clearFlags = CameraClearFlags.SolidColor;
-        _cam.backgroundColor = new Color(0.05f, 0.055f, 0.07f);
-        go.AddComponent<AudioListener>();
+        if (_match != null) _match.OnMoveStart -= PlayMove;
     }
 
     private void Update()
@@ -58,59 +55,69 @@ public class GameRoot : MonoBehaviour
         _match.Tick(dt);
         _ai.Tick(dt);
 
-        if (_staged != _match.Position || _stagedTop != _match.Top) ApplyStaging(false);
-        MoveCamera(dt);
-    }
+        if (_moveHold > 0f) _moveHold -= dt;
 
-    // Раскладка бойцов по позиции. Кто именно наверху, известно из Match,
-    // поэтому одна и та же таблица поз работает в обе стороны.
-    private void ApplyStaging(bool instant)
-    {
-        _staged = _match.Position;
-        _stagedTop = _match.Top;
-
-        Stage st = Staging.For(_match.Position);
-
-        FighterView top = _match.Top == Side.B ? _b : _a;
-        FighterView bottom = _match.Top == Side.B ? _a : _b;
-
-        top.Apply(st.PosTop, st.EulerTop, st.LyingTop);
-        bottom.Apply(st.PosBottom, st.EulerBottom, st.LyingBottom);
-
-        if (instant)
+        // Клип удержания возвращается, только когда доиграл переход:
+        // иначе бросок обрывался бы на середине.
+        if (_moveHold <= 0f &&
+            (_shownPos != _match.Position || _shownTop != _match.Top))
         {
-            top.transform.localPosition = st.PosTop;
-            top.transform.localRotation = Quaternion.Euler(st.EulerTop);
-            bottom.transform.localPosition = st.PosBottom;
-            bottom.transform.localRotation = Quaternion.Euler(st.EulerBottom);
-            PlaceCamera(st, true);
-        }
-    }
-
-    private void MoveCamera(float dt)
-    {
-        PlaceCamera(Staging.For(_match.Position), false);
-    }
-
-    // Камера ведёт себя как телевизионная: своя точка для каждой позиции и
-    // плавный переезд между ними. Резкие скачки ракурса читаются как ошибка.
-    private void PlaceCamera(Stage st, bool instant)
-    {
-        Vector3 focus = new Vector3(0f, 0.55f, 0f);
-        Vector3 want = focus + st.CamOffset;
-
-        if (instant)
-        {
-            _cam.transform.position = want;
-            _cam.transform.LookAt(focus);
-            return;
+            ShowHold(false);
         }
 
-        _cam.transform.position =
-            Vector3.Lerp(_cam.transform.position, want, Time.deltaTime * 2.6f);
+        UpdateSweat();
+    }
 
-        Quaternion look = Quaternion.LookRotation(focus - _cam.transform.position);
-        _cam.transform.rotation =
-            Quaternion.Slerp(_cam.transform.rotation, look, Time.deltaTime * 3.2f);
+    private void PlayMove(Move m, Side who)
+    {
+        // Роль в клипе — не «кто ходит», а кто сейчас сверху: клипы сняты
+        // парой, и нижний должен играть свою половину того же приёма.
+        bool aIsTop = _match.Top != Side.B;
+
+        _a.Play(Res.MoveName(aIsTop, m.Clip), false, 0.14f);
+        _b.Play(Res.MoveName(!aIsTop, m.Clip), false, 0.14f);
+
+        _moveHold = m.Time;
+        _cam.Kick(m.IsSubmission ? 0.35f : 0.18f);
+
+        // Позиция сменится только после успеха, поэтому показ обновится
+        // сам, когда доиграет переход.
+        _shownPos = (Pos)(-1);
+    }
+
+    private void ShowHold(bool instant)
+    {
+        _shownPos = _match.Position;
+        _shownTop = _match.Top;
+
+        bool aIsTop = _match.Top != Side.B;
+        float blend = instant ? 0.001f : 0.25f;
+
+        _a.Play(Res.HoldName(aIsTop, _match.Position), true, blend);
+        _b.Play(Res.HoldName(!aIsTop, _match.Position), true, blend);
+    }
+
+    // Пот растёт по мере усталости и не убывает: отдышаться можно, но
+    // высохнуть посреди схватки — нет. Поэтому берётся минимум сил за
+    // матч, а не текущее значение.
+    private float _sweatA;
+    private float _sweatB;
+
+    private void UpdateSweat()
+    {
+        float wantA = 1f - _match.StaminaA / Match.MaxStamina;
+        float wantB = 1f - _match.StaminaB / Match.MaxStamina;
+
+        // Ещё немного от времени раунда: даже свежий боец к пятой минуте
+        // мокрый.
+        float clock = 1f - _match.Clock / Match.RoundTime;
+        wantA = Mathf.Max(wantA, clock * 0.7f);
+        wantB = Mathf.Max(wantB, clock * 0.7f);
+
+        _sweatA = Mathf.Max(_sweatA, wantA);
+        _sweatB = Mathf.Max(_sweatB, wantB);
+
+        _a.SetSweat(_sweatA);
+        _b.SetSweat(_sweatB);
     }
 }

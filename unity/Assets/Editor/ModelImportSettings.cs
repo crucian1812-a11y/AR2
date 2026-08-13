@@ -5,16 +5,11 @@ using UnityEngine;
 // «голые» FBX и PNG, а Unity в CI импортирует их с нуля. Без этого скрипта
 // риг слетал бы на настройки по умолчанию.
 //
-// Отличие от медвежьего проекта, откуда взят подход: там Legacy-риг, здесь
-// Humanoid. Legacy проще (клипы играются по имени, ассет контроллера не
-// нужен), но он не даёт ни ретаргета между моделями, ни IK. Для борьбы
-// нужно и то, и другое: руки бойца должны держаться за тело соперника,
-// а не проходить сквозь него — см. §4 в docs/bjj/PLAN.md.
+// Риг бойцов — Generic; почему именно он, а не Humanoid, разобрано ниже,
+// в OnPreprocessModel.
 public class ModelImportSettings : AssetPostprocessor
 {
     private const string ModelDir = "Assets/Resources/Models/";
-    // Персонажи: скелет Humanoid, анимации импортируются.
-    private const string FighterDir = "Assets/Resources/Models/fighters/";
     // Реквизит: татами, стены зала, мебель — статичные меши без скелета.
     private const string PropDir = "Assets/Resources/Models/props/";
     private const string TextureDir = "Assets/Resources/Textures/";
@@ -60,18 +55,25 @@ public class ModelImportSettings : AssetPostprocessor
         }
         else
         {
-            // Humanoid: Unity строит отображение костей на свой эталонный
-            // скелет, и клип, снятый на одной модели, играется на любой
-            // другой. У пака Quaternius риг как раз Humanoid — без этого
-            // ретаргет пришлось бы делать руками для каждой модели.
-            mi.animationType = ModelImporterAnimationType.Human;
+            // Generic, а не Humanoid — вопреки первоначальному плану.
+            //
+            // Humanoid нужен для ретаргета клипов между разными моделями,
+            // и ради него он и выбирался. Но он же нормирует позу через
+            // «мышцы» с пределами подвижности, а позиции борьбы как раз
+            // предельные: закрытая гвардия, треугольник, крюки на спине.
+            // Humanoid обрезал бы их — руки и ноги не доходили бы до
+            // нужных углов, и парные клипы разъехались бы именно там, где
+            // точность важнее всего.
+            //
+            // Клипы сняты на том же скелете, что и модель (tools/blender),
+            // поэтому ретаргет не нужен вовсе, а Generic проигрывает позу
+            // ровно так, как она была сделана. Если позже подключать
+            // модели из чужого пака, здесь меняется одна строка — и тогда
+            // придётся смириться с пределами Humanoid.
+            mi.animationType = ModelImporterAnimationType.Generic;
             mi.importAnimation = true;
             mi.animationCompression = ModelImporterAnimationCompression.KeyframeReduction;
             mi.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
-
-            // Аватар создаётся из самой модели. Для бойцов это верно: у нас
-            // один базовый скелет, а не набор моделей под общий аватар.
-            mi.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
         }
 
         mi.importCameras = false;

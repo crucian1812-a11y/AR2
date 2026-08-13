@@ -35,6 +35,13 @@ def setup_render(width=720, height=480, samples=24):
     scene.render.resolution_x = width
     scene.render.resolution_y = height
     scene.render.film_transparent = False
+    # Экспозиция и тонмаппинг. С настройками по умолчанию площадные
+    # источники выбивали цвета в белёсое: тёмно-синее кимоно рендерилось
+    # блёкло-голубым, а чёрный пояс — серым. Судить о цвете модели по
+    # такому кадру нельзя.
+    scene.view_settings.view_transform = "AgX"
+    scene.view_settings.look = "AgX - Base Contrast"
+    scene.view_settings.exposure = -0.35
 
     world = bpy.data.worlds.new("W")
     scene.world = world
@@ -63,13 +70,13 @@ def add_ground():
 def add_light():
     bpy.ops.object.light_add(type="AREA", location=(2.4, -2.6, 3.4))
     key = bpy.context.active_object
-    key.data.energy = 900
+    key.data.energy = 420
     key.data.size = 3.0
     key.rotation_euler = (0.75, 0.0, 0.75)
 
     bpy.ops.object.light_add(type="AREA", location=(-2.8, -1.6, 2.0))
     fill = bpy.context.active_object
-    fill.data.energy = 260
+    fill.data.energy = 120
     fill.data.size = 3.5
     fill.rotation_euler = (1.1, 0.0, -1.0)
 
@@ -127,10 +134,31 @@ def render_position(name, top_pose, bot_pose):
     shot(name + "_top", (0.05, -0.9, 3.1), (0, 0, 0.3), lens=40)
 
 
+def render_rig():
+    """Одиночный боец в позе покоя — проверка самой модели."""
+    import rig
+
+    rig.reset_scene()
+    setup_render(width=760, height=560, samples=40)
+    add_ground()
+    add_light()
+    arm, mesh = rig.build_fighter()
+    print("  полигонов:", len(mesh.data.polygons))
+    bx, by, bz = rig.bounds(mesh)
+    print("  габариты  X %.2f..%.2f  Z %.2f..%.2f" % (bx[0], bx[1], bz[0], bz[1]))
+    shot("rig_front", (0.0, -3.4, 1.05), (0, 0, 0.95), lens=50)
+    shot("rig_side", (3.2, -0.4, 1.05), (0, 0, 0.95), lens=50)
+    shot("rig_head", (0.0, -1.05, 1.62), (0, 0, 1.60), lens=55)
+
+
 if __name__ == "__main__":
     import poses
 
     wanted = sys.argv[1:]
+    if wanted and wanted[0] == "rig":
+        render_rig()
+        sys.exit(0)
+
     names = wanted if wanted else list(poses.POSITIONS.keys())
 
     for name in names:

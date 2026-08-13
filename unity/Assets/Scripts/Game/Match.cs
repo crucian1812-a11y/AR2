@@ -43,6 +43,11 @@ public class Match
 
     public event Action<string> OnEvent;
 
+    // Начало приёма. Нужно показу: клип перехода должен пойти в тот же
+    // миг, что и отсчёт времени приёма, иначе движение и правила
+    // расходятся — самая заметная рассинхронизация, какая тут бывает.
+    public event Action<Move, Side> OnMoveStart;
+
     public Match(int seed)
     {
         _rng = new System.Random(seed);
@@ -88,6 +93,8 @@ public class Match
         _busy = m.Time;
         _moveTime = m.Time;
         _currentValid = true;
+
+        if (OnMoveStart != null) OnMoveStart(m, who);
         return true;
     }
 

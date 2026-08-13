@@ -80,32 +80,6 @@ BONES = [
 ]
 
 
-# Части болванки: (кость, половина габарита, смещение от середины кости).
-# Каждая деталь принадлежит ровно одной кости с весом 1 — автовесами
-# кубическую болванку привязывать нельзя, детали «поплывут».
-PARTS = [
-    ("Hips",          (0.115, 0.085, 0.09),  (0, 0, 0.01)),
-    ("Spine",         (0.125, 0.085, 0.09),  (0, 0, 0)),
-    ("Chest",         (0.155, 0.095, 0.11),  (0, 0, 0.01)),
-    ("Neck",          (0.045, 0.045, 0.05),  (0, 0, 0)),
-    ("Head",          (0.088, 0.095, 0.105), (0, 0.005, 0.02)),
-
-    ("LeftUpperArm",  (0.14, 0.05, 0.05),    (0, 0, 0)),
-    ("LeftLowerArm",  (0.085, 0.043, 0.043), (0, 0, 0)),
-    ("LeftHand",      (0.05, 0.028, 0.055),  (0, 0, 0)),
-    ("RightUpperArm", (0.14, 0.05, 0.05),    (0, 0, 0)),
-    ("RightLowerArm", (0.085, 0.043, 0.043), (0, 0, 0)),
-    ("RightHand",     (0.05, 0.028, 0.055),  (0, 0, 0)),
-
-    ("LeftUpperLeg",  (0.065, 0.07, 0.225),  (0, 0, 0)),
-    ("LeftLowerLeg",  (0.055, 0.06, 0.205),  (0, 0, 0)),
-    ("LeftFoot",      (0.05, 0.09, 0.035),   (0, 0, 0)),
-    ("RightUpperLeg", (0.065, 0.07, 0.225),  (0, 0, 0)),
-    ("RightLowerLeg", (0.055, 0.06, 0.205),  (0, 0, 0)),
-    ("RightFoot",     (0.05, 0.09, 0.035),   (0, 0, 0)),
-]
-
-
 def reset_scene():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.context.scene.unit_settings.system = "METRIC"
@@ -154,65 +128,14 @@ def bone_midpoint(arm_obj, bone_name):
     return (b.head_local + b.tail_local) * 0.5
 
 
-def build_body(arm_obj, gi_color=(0.2, 0.32, 0.7)):
-    """Кубическая болванка, привязанная к костям по одной детали на кость."""
-    gi = material("Gi", gi_color, 0.85)
-    skin = material("Skin", (0.82, 0.64, 0.5), 0.62)
-    belt = material("Belt", (0.05, 0.05, 0.06), 0.7)
-
-    meshes = []
-    for bone_name, half, offset in PARTS:
-        center = bone_midpoint(arm_obj, bone_name) + mathutils.Vector(offset)
-
-        bpy.ops.mesh.primitive_cube_add(size=2.0, location=center)
-        obj = bpy.context.active_object
-        obj.name = "P_" + bone_name
-        obj.scale = half
-
-        # Габариты запекаем в вершины: иначе масштаб объекта поедет при
-        # привязке к скелету и деталь раздуется вместе с костью.
-        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-
-        is_skin = bone_name in ("Head", "Neck", "LeftLowerArm", "RightLowerArm",
-                               "LeftHand", "RightHand", "LeftLowerLeg", "RightLowerLeg")
-        obj.data.materials.append(skin if is_skin else gi)
-
-        # Весовая группа на одну кость с весом 1.
-        vg = obj.vertex_groups.new(name=bone_name)
-        vg.add(range(len(obj.data.vertices)), 1.0, "REPLACE")
-        meshes.append(obj)
-
-    # Пояс — отдельной деталью на тазе: по нему видно, где «перёд», и
-    # в партере это единственный надёжный ориентир.
-    center = bone_midpoint(arm_obj, "Hips")
-    bpy.ops.mesh.primitive_cube_add(size=2.0, location=center + mathutils.Vector((0, 0, -0.07)))
-    obj = bpy.context.active_object
-    obj.name = "P_Belt"
-    obj.scale = (0.135, 0.10, 0.028)
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    obj.data.materials.append(belt)
-    vg = obj.vertex_groups.new(name="Hips")
-    vg.add(range(len(obj.data.vertices)), 1.0, "REPLACE")
-    meshes.append(obj)
-
-    # Склеиваем в один меш: один объект — один SkinnedMeshRenderer в Unity.
-    bpy.ops.object.select_all(action="DESELECT")
-    for m in meshes:
-        m.select_set(True)
-    bpy.context.view_layer.objects.active = meshes[0]
-    bpy.ops.object.join()
-
-    body = bpy.context.active_object
-    body.name = "Body"
-
-    # Привязка к скелету по существующим весовым группам, без автовесов.
-    body.parent = arm_obj
-    mod = body.modifiers.new(name="Armature", type="ARMATURE")
-    mod.object = arm_obj
-    return body
+def build_body(arm_obj, gi_color=(0.11, 0.21, 0.60)):
+    """Меш бойца из fighter.py, привязанный к скелету."""
+    import fighter
+    parts = fighter.build(gi_color)
+    return fighter.attach(arm_obj, parts)
 
 
-def build_fighter(name="Fighter", gi_color=(0.2, 0.32, 0.7)):
+def build_fighter(name="Fighter", gi_color=(0.11, 0.21, 0.60)):
     """Собирает скелет и болванку. Возвращает (арматура, меш)."""
     arm = build_armature(name)
     body = build_body(arm, gi_color)
