@@ -1,0 +1,259 @@
+name: Build BJJ APK
+
+on:
+  push:
+    branches:
+      - claude/bjj-game-unity-09ry6v
+      - main
+    paths:
+      - "unity/**"
+      - "tools/csharp-check/**"
+      - ".github/workflows/build-bjj-apk.yml"
+  workflow_dispatch:
+
+env:
+  UNITY_VERSION: "6000.0.80f1"
+
+jobs:
+  # Компиляция C# против заглушек Unity API занимает секунды и ловит
+  # опечатки и несоответствия типов. Сборка Unity идёт 25–45 минут, и
+  # узнавать из неё про пропущенную точку с запятой — расточительство.
+  csharp:
+    name: Проверка C# без Unity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Поставить компилятор Mono
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends mono-mcs
+
+      - name: Скомпилировать против заглушек
+        run: bash tools/csharp-check/check.sh
+
+  check-credentials:
+    name: Проверка доступа к Unity
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          HAS_USERNAME: ${{ secrets.UNITY_USERNAME }}
+          HAS_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          missing=""
+          [ -z "$HAS_USERNAME" ] && missing="$missing UNITY_USERNAME"
+          [ -z "$HAS_PASSWORD" ] && missing="$missing UNITY_PASSWORD"
+
+          if [ -z "$missing" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Данные для активации Unity найдены — собираем APK."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Не заданы секреты:$missing — сборка APK пропущена."
+            echo ""
+            echo "==============================================================="
+            echo " Чтобы собрать APK, добавьте два секрета:"
+            echo "   Settings -> Secrets and variables -> Actions ->"
+            echo "   New repository secret"
+            echo ""
+            echo "   UNITY_USERNAME — почта аккаунта Unity"
+            echo "   UNITY_PASSWORD — пароль от него"
+            echo ""
+            echo " Серийный номер НЕ нужен: у бесплатной лицензии Unity"
+            echo " Personal его не существует."
+            echo ""
+            echo " Инструкция: docs/bjj/LICENSE_SETUP.md"
+            echo "==============================================================="
+          fi
+
+  build:
+    name: Сборка APK
+    needs: [csharp, check-credentials]
+    if: needs.check-credentials.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Unity Hub скачивает редактор по паре «версия + changeset», поэтому
+      # в ProjectVersion.txt обязателен хеш ревизии. Определяем его на лету,
+      # чтобы файл не устаревал при смене версии Unity.
+      - name: Определить changeset Unity
+        run: |
+          set -e
+          CHANGESET=$(npx --yes unity-changeset@3 "$UNITY_VERSION" | tr -d '[:space:]')
+          if ! printf '%s' "$CHANGESET" | grep -qE '^[0-9a-f]{12}$'; then
+            echo "::error::Не удалось определить changeset для $UNITY_VERSION (получено: '$CHANGESET')"
+            exit 1
+          fi
+          printf 'm_EditorVersion: %s\nm_EditorVersionWithRevision: %s (%s)\n' \
+            "$UNITY_VERSION" "$UNITY_VERSION" "$CHANGESET" \
+            > unity/ProjectSettings/ProjectVersion.txt
+          echo "ProjectVersion.txt:"
+          cat unity/ProjectSettings/ProjectVersion.txt
+
+      - name: Освободить место на диске
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      # unity-setup ищет Unity Hub строго в /opt/unityhub/unityhub и падает
+      # с ENOENT ещё до того, как сборка увидит проект (сборки #69 и #70:
+      # три минуты вместо двадцати двух). Пакет при этом ставится и
+      # числится в dpkg как «уже новейшей версии» — то есть либо Hub 3.20
+      # разложил файлы иначе, либо их подчистил шаг освобождения диска.
+      #
+      # Путь переопределяется переменной UNITY_HUB_PATH, поэтому ставим Hub
+      # сами и спрашиваем его расположение у dpkg вместо угадывания. Заодно
+      # это делает шаг независимым от порядка очистки диска.
+      - name: Поставить Unity Hub и определить путь к нему
+        run: |
+          set -euo pipefail
+          sudo install -d -m 0755 /usr/share/keyrings
+          curl -fsSL https://hub.unity3d.com/linux/keys/public \
+            | sudo gpg --dearmor -o /usr/share/keyrings/unityhub-ci.gpg
+          echo "deb [signed-by=/usr/share/keyrings/unityhub-ci.gpg] https://hub-dist.unity3d.com/artifactory/hub-debian-prod-local stable main" \
+            | sudo tee /etc/apt/sources.list.d/unityhub-ci.list > /dev/null
+          sudo apt-get update -qq
+          # xvfb нужен обёртке ниже: Hub тянет графические библиотеки даже
+          # в headless-режиме.
+          sudo apt-get install -y --no-install-recommends unityhub xvfb
+
+          echo "=========== файлы пакета unityhub ==========="
+          dpkg -L unityhub | grep -iE 'unityhub|appimage' || true
+
+          HUB=""
+          while read -r f; do
+            if [ -f "$f" ] && [ -x "$f" ]; then HUB="$f"; break; fi
+          done < <(dpkg -L unityhub | grep -iE '/unityhub$|[Aa]pp[Ii]mage$')
+
+          if [ -z "$HUB" ]; then
+            echo "::error::Бинарник Unity Hub не найден — смотрите список файлов выше"
+            exit 1
+          fi
+          echo "UNITY_HUB_PATH=$HUB" >> "$GITHUB_ENV"
+          echo "Unity Hub: $HUB"
+
+          # Ссылка по старому адресу: на него смотрит и проверка доступа в
+          # unity-setup, и обёртка, которую он себе пишет.
+          sudo mkdir -p /opt/unityhub
+          sudo ln -sfn "$HUB" /opt/unityhub/unityhub
+
+          # На Linux unity-setup запускает Hub не по пути, а по имени
+          # команды: executable = platform === 'linux' ? 'unity-hub' : ...
+          # Обёртку /usr/bin/unity-hub он создаёт только когда сам ставит
+          # пакет; у нас пакет уже стоит, установка пропускается — отсюда
+          # «spawn unity-hub ENOENT». Пишем обёртку сами, на найденный путь.
+          printf '#!/bin/bash\nxvfb-run --auto-servernum %s "$@" 2>/dev/null\n' "$HUB" \
+            | sudo tee /usr/bin/unity-hub > /dev/null
+          sudo chmod 755 /usr/bin/unity-hub
+
+          echo "проверка обёртки:"
+          unity-hub --headless help 2>&1 | head -n 5 || true
+
+      # Ставит Unity Hub, редактор и модуль Android (SDK/NDK/JDK внутри).
+      - name: Установить Unity
+        uses: RageAgainstThePixel/unity-setup@v2
+        with:
+          unity-version: ${{ env.UNITY_VERSION }}
+          build-targets: Android
+          cache-installation: true
+
+      # Активация бесплатной Personal-лицензии: только почта и пароль,
+      # серийный номер не требуется. Лицензия освобождается после сборки.
+      - name: Активировать лицензию Unity
+        uses: RageAgainstThePixel/activate-unity-license@v2
+        with:
+          license: Personal
+          username: ${{ secrets.UNITY_USERNAME }}
+          password: ${{ secrets.UNITY_PASSWORD }}
+
+      - name: Кэш Library
+        uses: actions/cache@v4
+        with:
+          path: unity/Library
+          key: Library-Android-${{ hashFiles('unity/Assets/**', 'unity/Packages/**', 'unity/ProjectSettings/**') }}
+          restore-keys: |
+            Library-Android-
+
+      - name: Собрать APK
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/build"
+          LOG="$GITHUB_WORKSPACE/unity-build.log"
+
+          set +e
+          "$UNITY_EDITOR_PATH" \
+            -quit -batchmode -nographics \
+            -projectPath "$GITHUB_WORKSPACE/unity" \
+            -executeMethod BuildScript.BuildAndroid \
+            -outputPath "$GITHUB_WORKSPACE/build/Bjj.apk" \
+            -logFile "$LOG"
+          STATUS=$?
+          set -e
+
+          echo "=========== ошибки и предупреждения из лога ==========="
+          grep -nE "error CS|Error building|BuildScript:|Exception|Shader error|ERROR:" "$LOG" | head -n 120 || true
+          echo "=========== последние 250 строк лога Unity ==========="
+          tail -n 250 "$LOG" || true
+
+          if [ $STATUS -ne 0 ]; then
+            echo "::error::Unity завершился с кодом $STATUS — полный лог в артефакте unity-build-log"
+            exit $STATUS
+          fi
+
+      - name: Сохранить полный лог Unity
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-build-log
+          path: unity-build.log
+          if-no-files-found: ignore
+
+      - name: Найти собранный APK
+        id: findapk
+        run: |
+          set -e
+          APK=$(find build -name '*.apk' -print -quit)
+          if [ -z "$APK" ]; then
+            echo "::error::APK не найден"
+            find build -type f | head -50 || true
+            exit 1
+          fi
+          echo "apk=$APK" >> "$GITHUB_OUTPUT"
+          ls -la "$APK"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BJJ-APK
+          path: ${{ steps.findapk.outputs.apk }}
+
+      - name: Опубликовать APK в релиз
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-bjj
+          name: "BJJ — последний APK"
+          prerelease: true
+          make_latest: false
+          body: |
+            Автоматическая сборка игры по бразильскому джиу-джитсу.
+
+            **Как установить:**
+            1. Скачайте `Bjj.apk` ниже на телефон.
+            2. Откройте файл и разрешите установку из неизвестных источников.
+
+            Требуется 64-битный Android (arm64), версия 7.0 и новее.
+
+            Текущий этап — серый бокс: бойцы показаны капсулами, но уже
+            работают граф позиций, стамина, очки, сабмишны и соперник.
+            Модели и анимации появятся на следующем этапе.
+          files: ${{ steps.findapk.outputs.apk }}
