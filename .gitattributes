@@ -1,0 +1,54 @@
+* text=auto
+
+# ---------------------------------------------------------------------------
+# Unity-проект игры (unity/) — тяжёлые бинарники через Git LFS.
+# Паттерны намеренно ограничены папкой unity/, чтобы не трогать AR-демо в корне.
+# ---------------------------------------------------------------------------
+
+# 3D-модели и анимации
+unity/**/*.fbx   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.FBX   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.blend filter=lfs diff=lfs merge=lfs -text
+unity/**/*.obj   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.dae   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.glb   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.gltf  filter=lfs diff=lfs merge=lfs -text
+
+# Текстуры
+unity/**/*.png   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.jpg   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.jpeg  filter=lfs diff=lfs merge=lfs -text
+unity/**/*.tga   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.tif   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.tiff  filter=lfs diff=lfs merge=lfs -text
+unity/**/*.psd   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.exr   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.hdr   filter=lfs diff=lfs merge=lfs -text
+
+# Звук
+unity/**/*.wav   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.ogg   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.mp3   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.aif   filter=lfs diff=lfs merge=lfs -text
+
+# Видео
+unity/**/*.mp4   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.mov   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.webm  filter=lfs diff=lfs merge=lfs -text
+
+# Прочее тяжёлое
+unity/**/*.unitypackage filter=lfs diff=lfs merge=lfs -text
+unity/**/*.ttf   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.otf   filter=lfs diff=lfs merge=lfs -text
+unity/**/*.cubemap filter=lfs diff=lfs merge=lfs -text
+
+# ---------------------------------------------------------------------------
+# Unity YAML: сцены и префабы мержим построчно, а не как бинарь.
+# ---------------------------------------------------------------------------
+unity/**/*.unity        merge=unityyamlmerge eol=lf
+unity/**/*.prefab       merge=unityyamlmerge eol=lf
+unity/**/*.asset        merge=unityyamlmerge eol=lf
+unity/**/*.controller   merge=unityyamlmerge eol=lf
+unity/**/*.anim         merge=unityyamlmerge eol=lf
+unity/**/*.mat          merge=unityyamlmerge eol=lf
+unity/**/*.physicMaterial merge=unityyamlmerge eol=lf
