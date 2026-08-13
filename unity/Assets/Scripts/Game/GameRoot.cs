@@ -70,12 +70,16 @@ public class GameRoot : MonoBehaviour
 
     private void PlayMove(Move m, Side who)
     {
-        // Роль в клипе — не «кто ходит», а кто сейчас сверху: клипы сняты
-        // парой, и нижний должен играть свою половину того же приёма.
-        bool aIsTop = _match.Top != Side.B;
+        // Роль в парном клипе задаёт сам приём, а не текущее «кто сверху».
+        // Приём с ByTop выполняет верхний, без него — нижний, и это верно
+        // даже в стойке, где наверху формально никого нет. Если брать роль
+        // из Match.Top, то бросок, начатый вторым бойцом, проигрывался бы
+        // у него как половина защищающегося.
+        bool moverIsTopRole = m.ByTop;
+        bool aIsTopRole = who == Side.A ? moverIsTopRole : !moverIsTopRole;
 
-        _a.Play(Res.MoveName(aIsTop, m.Clip), false, 0.14f);
-        _b.Play(Res.MoveName(!aIsTop, m.Clip), false, 0.14f);
+        _a.Play(Res.MoveName(aIsTopRole, m.Clip), false, 0.14f);
+        _b.Play(Res.MoveName(!aIsTopRole, m.Clip), false, 0.14f);
 
         _moveHold = m.Time;
         _cam.Kick(m.IsSubmission ? 0.35f : 0.18f);
