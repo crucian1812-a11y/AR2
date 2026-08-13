@@ -8,6 +8,7 @@ on:
     paths:
       - "unity/**"
       - "tools/csharp-check/**"
+      - "tools/blender/**"
       - ".github/workflows/build-bjj-apk.yml"
   workflow_dispatch:
 
@@ -77,13 +78,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      # lfs обязателен: модели и анимации лежат в LFS, а checkout по
-      # умолчанию тянет вместо них текстовые указатели. Unity импортировал
-      # бы указатель как повреждённый FBX — ошибка выглядела бы как
-      # проблема модели, а не как недокачанный файл.
+      # lfs пригодится для моделей из пака, когда они появятся: checkout
+      # по умолчанию тянет вместо LFS-файлов текстовые указатели, и Unity
+      # импортировал бы указатель как повреждённый FBX — ошибка выглядела
+      # бы как проблема модели, а не как недокачанный файл.
       - uses: actions/checkout@v4
         with:
           lfs: true
+
 
       # Unity Hub скачивает редактор по паре «версия + changeset», поэтому
       # в ProjectVersion.txt обязателен хеш ревизии. Определяем его на лету,
@@ -112,6 +114,24 @@ jobs:
           large-packages: true
           docker-images: true
           swap-storage: true
+
+      # Анимации не лежат в репозитории, а собираются здесь: они целиком
+      # описаны кодом в tools/blender, и держать рядом с кодом ещё и
+      # результат — значит добавлять к истории мегабайты при каждой правке
+      # позы. Blender подключается как модуль Python, окно ему не нужно.
+      - name: Python 3.11 для bpy
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Собрать анимации в Blender
+        run: |
+          set -e
+          # Версия закреплена: bpy жёстко привязан к версии Python, и
+          # плавающая версия ломала бы сборку в неожиданный момент.
+          python -m pip install --quiet "bpy==5.0.1"
+          python tools/blender/build_anims.py
+          ls -la unity/Assets/Resources/Models/fighters/
 
       # unity-setup ищет Unity Hub строго в /opt/unityhub/unityhub и падает
       # с ENOENT ещё до того, как сборка увидит проект (сборки #69 и #70:
@@ -188,7 +208,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: unity/Library
-          key: Library-Android-${{ hashFiles('unity/Assets/**', 'unity/Packages/**', 'unity/ProjectSettings/**') }}
+          key: Library-Android-${{ hashFiles('unity/Assets/**', 'unity/Packages/**', 'unity/ProjectSettings/**', 'tools/blender/**') }}
           restore-keys: |
             Library-Android-
 

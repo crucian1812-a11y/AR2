@@ -23,3 +23,9 @@ crashlytics-build.properties
 # Сцена создаётся скриптом сборки, в репозитории не хранится.
 Assets/Scenes/
 Assets/Scenes.meta
+
+# Анимации собираются из tools/blender/build_anims.py прямо в CI.
+# В репозиторий не кладутся: LFS-эндпоинт GitHub закрыт сетевой политикой
+# окружения, а обычным блобом каждая пересборка добавляла бы к истории
+# несколько мегабайт навсегда.
+Assets/Resources/Models/fighters/*.fbx
