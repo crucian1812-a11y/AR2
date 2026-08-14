@@ -254,19 +254,74 @@ public static class Arena
                 // Конус света под софитом. Он и делает зал «событием»: без
                 // него источники висят в пустоте, и картинка читается как
                 // студия, а не как арена.
-                GameObject cone = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                cone.name = "LightCone";
-                cone.transform.SetParent(parent, false);
-                cone.transform.localPosition = new Vector3(i * 3.4f, 4.2f, j * 3.4f);
-                cone.transform.localScale = new Vector3(3.2f, 3.7f, 3.2f);
-
-                Renderer cr = cone.GetComponent<Renderer>();
-                cr.sharedMaterial = Glow(new Color(0.62f, 0.72f, 0.95f), 0.30f);
-                cr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                cr.receiveShadows = false;
-                Object.Destroy(cone.GetComponent<Collider>());
+                //
+                // Именно конус, а не цилиндр из готовых примитивов: пучок
+                // света расширяется книзу, и ровная труба в аддитивном
+                // режиме читается светящейся колонной, а не лучом.
+                BuildCone(parent, new Vector3(i * 3.4f, 7.7f, j * 3.4f),
+                          0.55f, 2.6f, 7.2f);
             }
         }
+    }
+
+    // Конус света: усечённый конус из одного кольца, узкий у софита и
+    // широкий у пола. Боковины двусторонние — луч видно и снаружи, и
+    // изнутри, когда камера въезжает в него.
+    private static void BuildCone(Transform parent, Vector3 apex,
+                                  float topRadius, float bottomRadius, float height)
+    {
+        const int sides = 14;
+
+        Vector3[] verts = new Vector3[sides * 2];
+        Vector3[] normals = new Vector3[sides * 2];
+        int[] tris = new int[sides * 6];
+
+        for (int i = 0; i < sides; i++)
+        {
+            float a = (i / (float)sides) * Mathf.PI * 2f;
+            float cx = Mathf.Cos(a);
+            float cz = Mathf.Sin(a);
+
+            // Верх кольца в нуле объекта, низ — на -height: так поворот и
+            // положение задаются точкой подвеса софита.
+            verts[i] = new Vector3(cx * topRadius, 0f, cz * topRadius);
+            verts[i + sides] = new Vector3(cx * bottomRadius, -height, cz * bottomRadius);
+
+            // Нормаль наружу по образующей — по ней шейдер и считает
+            // яркость по касательной.
+            Vector3 n = new Vector3(cx, 0.22f, cz).normalized;
+            normals[i] = n;
+            normals[i + sides] = n;
+        }
+
+        for (int i = 0; i < sides; i++)
+        {
+            int j = (i + 1) % sides;
+            int t = i * 6;
+            tris[t + 0] = i;
+            tris[t + 1] = i + sides;
+            tris[t + 2] = j + sides;
+            tris[t + 3] = i;
+            tris[t + 4] = j + sides;
+            tris[t + 5] = j;
+        }
+
+        Mesh mesh = new Mesh();
+        mesh.name = "LightCone";
+        mesh.vertices = verts;
+        mesh.normals = normals;
+        mesh.triangles = tris;
+        mesh.RecalculateBounds();
+
+        GameObject go = new GameObject("LightCone");
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = apex;
+
+        go.AddComponent<MeshFilter>().sharedMesh = mesh;
+        MeshRenderer r = go.AddComponent<MeshRenderer>();
+        r.sharedMaterial = Glow(new Color(0.60f, 0.70f, 0.95f), 0.26f);
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        r.receiveShadows = false;
     }
 
     private static void AddSpot(Transform parent, Vector3 pos, Color color, float intensity)
