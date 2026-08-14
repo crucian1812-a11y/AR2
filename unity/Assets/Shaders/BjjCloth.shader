@@ -20,6 +20,8 @@ Shader "Bjj/Cloth"
         _SheenPower ("Sheen Power", Range(0.5,8)) = 2.6
         _Smoothness ("Smoothness", Range(0,1)) = 0.08
         _Sweat ("Sweat", Range(0,1)) = 0
+        _StitchScale ("Stitch Scale", Float) = 26
+        _WearStrength ("Wear", Range(0,1)) = 0.3
         _RimColor ("Rim Color", Color) = (1,1,1,1)
         _RimPower ("Rim Power", Range(0.5,8)) = 3.2
         _RimStrength ("Rim Strength", Range(0,3)) = 0
@@ -45,6 +47,8 @@ Shader "Bjj/Cloth"
             half _Sweat;
             half _RimPower;
             half _RimStrength;
+            half _StitchScale;
+            half _WearStrength;
         CBUFFER_END
         ENDHLSL
 
@@ -67,12 +71,15 @@ Shader "Bjj/Cloth"
             #pragma multi_compile_instancing
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "BjjNoise.hlsl"
 
             struct Attributes
             {
                 float4 positionOS : POSITION;
                 float3 normalOS   : NORMAL;
                 float2 uv         : TEXCOORD0;
+                float2 restXY     : TEXCOORD1;
+                float2 restZ      : TEXCOORD2;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -81,7 +88,7 @@ Shader "Bjj/Cloth"
                 float4 positionCS  : SV_POSITION;
                 float3 positionWS  : TEXCOORD0;
                 float3 normalWS    : TEXCOORD1;
-                float3 positionOS  : TEXCOORD2;
+                float3 rest        : TEXCOORD2;
                 float4 shadowCoord : TEXCOORD3;
                 float fogFactor    : TEXCOORD4;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -96,21 +103,31 @@ Shader "Bjj/Cloth"
                 VertexPositionInputs pos = GetVertexPositionInputs(IN.positionOS.xyz);
                 OUT.positionCS = pos.positionCS;
                 OUT.positionWS = pos.positionWS;
-                OUT.positionOS = IN.positionOS.xyz;
+                OUT.rest = BjjRestPos(IN.restXY, IN.restZ);
                 OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
                 OUT.shadowCoord = GetShadowCoord(pos);
                 OUT.fogFactor = ComputeFogFactor(pos.positionCS.z);
                 return OUT;
             }
 
-            // Переплетение нитей. Считается по координатам модели, а не по
-            // UV: развёртки у модели нет, а привязка к объекту даёт узор,
-            // который не плывёт при анимации.
+            // Переплетение нитей: две перпендикулярные волны. Считается по
+            // координатам ПОЗЫ ПОКОЯ — по координатам объекта узор полз бы
+            // по ткани при каждом движении.
             half Weave (float3 p)
             {
                 float2 q = p.xy * _WeaveScale;
                 half w = (sin(q.x) * sin(q.y)) * 0.5h + 0.5h;
-                return lerp(1.0h, w, _WeaveStrength);
+                // Нити основы чуть заметнее утка: у настоящей ткани
+                // саржевого плетения направления неравноправны.
+                half warp = (sin(q.x * 0.5h) * 0.5h + 0.5h) * 0.35h;
+                return lerp(1.0h, saturate(w + warp), _WeaveStrength);
+            }
+
+            // Стёжка по краям: строчки вдоль отворотов и низа куртки.
+            half Stitch (float3 p)
+            {
+                half line1 = abs(frac(p.z * _StitchScale) - 0.5h);
+                return smoothstep(0.0h, 0.06h, line1);
             }
 
             half4 Frag (Varyings IN) : SV_Target
@@ -123,12 +140,30 @@ Shader "Bjj/Cloth"
                 half4 shadowMask = half4(1, 1, 1, 1);
                 Light main = GetMainLight(IN.shadowCoord, IN.positionWS, shadowMask);
 
-                half3 albedo = _Color.rgb * Weave(IN.positionOS);
+                // Микрорельеф ткани: переплетение возмущает нормаль, а не
+                // только красит. Без этого ги остаётся идеально гладким —
+                // а идеальная гладкость и выдаёт компьютерную модель.
+                float3 grad = BjjNoiseGrad(IN.rest * 70.0, 0.5);
+                float3 T, B;
+                BjjBasis(N, T, B);
+                N = BjjPerturbNormal(N, T, B, 0.0, grad, 0.020);
+
+                half3 albedo = _Color.rgb * Weave(IN.rest);
+
+                // Потёртости на коленях, локтях и плечах — там, где кимоно
+                // трёт о татами. Ткань там светлее и более ворсистая.
+                half wear = saturate(BjjFbm(IN.rest * 3.4h) * 1.7h - 0.35h);
+                albedo = lerp(albedo, albedo * 1.22h + 0.02h, wear * _WearStrength);
 
                 // Намокшая ткань темнеет — это самый заметный признак
                 // тяжёлого раунда, и стоит он одного lerp.
-                albedo *= lerp(1.0h, 0.72h, _Sweat);
-                half smoothness = lerp(_Smoothness, 0.55h, _Sweat);
+                // Пропитывается ткань неравномерно: спина и грудь мокнут
+                // первыми, поэтому маска, а не общий множитель.
+                half sweatMask = saturate(BjjFbm(IN.rest * 4.2h + float3(2.3h, 0, 0)) * 2.1h);
+                half sweat = saturate(_Sweat * (0.40h + sweatMask));
+
+                albedo *= lerp(1.0h, 0.68h, sweat);
+                half smoothness = lerp(_Smoothness, 0.58h, sweat);
 
                 half ndotl = saturate(dot(N, main.direction));
                 half3 color = albedo * main.color * ndotl * main.shadowAttenuation;
@@ -140,7 +175,7 @@ Shader "Bjj/Cloth"
 
                 half3 H = SafeNormalize(main.direction + V);
                 half spec = pow(saturate(dot(N, H)), lerp(12.0h, 90.0h, smoothness));
-                color += main.color * spec * lerp(0.02h, 0.35h, _Sweat) * main.shadowAttenuation;
+                color += main.color * spec * lerp(0.02h, 0.40h, sweat) * main.shadowAttenuation;
 
                 #if defined(_ADDITIONAL_LIGHTS)
                 uint count = GetAdditionalLightsCount();
@@ -156,6 +191,9 @@ Shader "Bjj/Cloth"
 
                 half rim = pow(saturate(1.0h - saturate(dot(N, V))), _RimPower);
                 color += _RimColor.rgb * rim * _RimStrength;
+
+                // Строчка: тонкие тёмные линии по ткани.
+                color *= lerp(0.86h, 1.0h, Stitch(IN.rest));
 
                 color = MixFog(color, IN.fogFactor);
                 return half4(color, 1.0h);

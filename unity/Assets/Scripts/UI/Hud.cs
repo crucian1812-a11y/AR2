@@ -286,6 +286,7 @@ public class Hud : MonoBehaviour
 
     private void Press(Move m)
     {
+        Snd.Play("click", 0.5f);
         if (_match.TryMove(_player, m)) _flashLife = 0.12f;
     }
 }

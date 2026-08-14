@@ -62,6 +62,8 @@ def palette(gi_rgb):
         "belt": material("Belt" + tag, (0.045, 0.045, 0.055), 0.7),
         "hair": material("Hair" + tag, (0.08, 0.06, 0.05), 0.6),
         "eye": material("Eye" + tag, (0.06, 0.05, 0.05), 0.35),
+        # Рот темнее кожи, но не чёрный: чёрная щель читается дырой.
+        "mouth": material("Mouth" + tag, (0.28, 0.15, 0.14), 0.55),
     }
 
 

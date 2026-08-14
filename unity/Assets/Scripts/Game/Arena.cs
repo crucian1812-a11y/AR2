@@ -19,6 +19,16 @@ public static class Arena
     public static readonly Color RimBlue = new Color(0.45f, 0.68f, 1.0f);
     public static readonly Color RimRed = new Color(1.0f, 0.52f, 0.42f);
 
+    // Аддитивное свечение: конусы света и вспышки на трибунах.
+    public static Material Glow(Color c, float intensity)
+    {
+        Shader sh = Shader.Find("Bjj/Glow");
+        Material m = new Material(sh);
+        m.SetColor("_Color", c);
+        m.SetFloat("_Intensity", intensity);
+        return m;
+    }
+
     public static Material Lit(Color c, float smoothness = 0.1f)
     {
         Shader s = Shader.Find("Bjj/Lit");
@@ -53,8 +63,10 @@ public static class Arena
         // даёт масштаб.
         Slab(parent, "MatOuter", new Vector3(0f, -0.03f, 0f),
              new Vector3(11f, 0.06f, 11f), MatOuter, 0.22f);
+        // Татами слегка глянцевое: винил бликует, и отблеск софитов на
+        // нём — половина ощущения освещённой площадки.
         Slab(parent, "MatInner", new Vector3(0f, 0.001f, 0f),
-             new Vector3(7.4f, 0.062f, 7.4f), MatInner, 0.22f);
+             new Vector3(7.4f, 0.062f, 7.4f), MatInner, 0.38f);
 
         // Швы между матами: тонкие тёмные полосы. Ровная заливка размером
         // семь метров выглядит пластиковым листом.
@@ -177,11 +189,23 @@ public static class Arena
             }
         }
 
+        BuildFlashes(holder.transform);
+
         // Трибуны — это около двухсот неподвижных объектов. По отдельности
         // они дают столько же вызовов отрисовки, сколько вся остальная
         // сцена вместе взятая; объединение сводит их в считанные вызовы.
         // Делать это можно только потому, что зрители не двигаются.
         StaticBatchingUtility.Combine(holder);
+    }
+
+    // Вспышки фотокамер на трибунах. Мелочь, которая сильнее всего
+    // говорит «здесь событие, и на него смотрят люди»: редкие короткие
+    // искры в темноте зала. Объединять их в батч нельзя — они мигают.
+    private static void BuildFlashes(Transform parent)
+    {
+        GameObject holder = new GameObject("Flashes");
+        holder.transform.SetParent(parent, false);
+        holder.AddComponent<CrowdFlashes>().Build();
     }
 
     // ------------------------------------------------------------- свет
@@ -226,6 +250,21 @@ public static class Arena
                 fixture.GetComponent<Renderer>().shadowCastingMode =
                     UnityEngine.Rendering.ShadowCastingMode.Off;
                 Object.Destroy(fixture.GetComponent<Collider>());
+
+                // Конус света под софитом. Он и делает зал «событием»: без
+                // него источники висят в пустоте, и картинка читается как
+                // студия, а не как арена.
+                GameObject cone = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                cone.name = "LightCone";
+                cone.transform.SetParent(parent, false);
+                cone.transform.localPosition = new Vector3(i * 3.4f, 4.2f, j * 3.4f);
+                cone.transform.localScale = new Vector3(3.2f, 3.7f, 3.2f);
+
+                Renderer cr = cone.GetComponent<Renderer>();
+                cr.sharedMaterial = Glow(new Color(0.62f, 0.72f, 0.95f), 0.30f);
+                cr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                cr.receiveShadows = false;
+                Object.Destroy(cone.GetComponent<Collider>());
             }
         }
     }

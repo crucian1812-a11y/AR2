@@ -22,6 +22,10 @@ Shader "Bjj/Skin"
         _SubsurfaceStrength ("Subsurface Strength", Range(0,2)) = 0.55
         _Smoothness ("Smoothness", Range(0,1)) = 0.24
         _Sweat ("Sweat", Range(0,1)) = 0
+        _PoreScale ("Pore Scale", Float) = 190
+        _PoreStrength ("Pore Strength", Range(0,1)) = 0.35
+        _MottleScale ("Mottle Scale", Float) = 9
+        _MottleStrength ("Mottle Strength", Range(0,1)) = 0.22
         _RimColor ("Rim Color", Color) = (1,1,1,1)
         _RimPower ("Rim Power", Range(0.5,8)) = 3.4
         _RimStrength ("Rim Strength", Range(0,3)) = 0
@@ -46,6 +50,10 @@ Shader "Bjj/Skin"
             half _Sweat;
             half _RimPower;
             half _RimStrength;
+            half _PoreScale;
+            half _PoreStrength;
+            half _MottleScale;
+            half _MottleStrength;
         CBUFFER_END
         ENDHLSL
 
@@ -68,12 +76,16 @@ Shader "Bjj/Skin"
             #pragma multi_compile_instancing
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "BjjNoise.hlsl"
 
             struct Attributes
             {
                 float4 positionOS : POSITION;
                 float3 normalOS   : NORMAL;
                 float2 uv         : TEXCOORD0;
+                // Координаты позы покоя: неподвижны при анимации.
+                float2 restXY     : TEXCOORD1;
+                float2 restZ      : TEXCOORD2;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -84,7 +96,7 @@ Shader "Bjj/Skin"
                 float3 normalWS    : TEXCOORD1;
                 float4 shadowCoord : TEXCOORD2;
                 float fogFactor    : TEXCOORD3;
-                float4 screenPos   : TEXCOORD4;
+                float3 rest        : TEXCOORD4;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -97,7 +109,7 @@ Shader "Bjj/Skin"
                 VertexPositionInputs pos = GetVertexPositionInputs(IN.positionOS.xyz);
                 OUT.positionCS = pos.positionCS;
                 OUT.positionWS = pos.positionWS;
-                OUT.screenPos = ComputeScreenPos(pos.positionCS);
+                OUT.rest = BjjRestPos(IN.restXY, IN.restZ);
                 OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
                 OUT.shadowCoord = GetShadowCoord(pos);
                 OUT.fogFactor = ComputeFogFactor(pos.positionCS.z);
@@ -120,12 +132,33 @@ Shader "Bjj/Skin"
                 half4 shadowMask = half4(1, 1, 1, 1);
                 Light main = GetMainLight(IN.shadowCoord, IN.positionWS, shadowMask);
 
+                // Микрорельеф кожи. Поры дрожат по нормали, крупные пятна
+                // меняют цвет: живая кожа не одноцветная, а идеально
+                // ровный тон — первый признак пластика.
+                float3 poreP = IN.rest * _PoreScale;
+                float3 grad = BjjNoiseGrad(poreP, 0.35);
+                float3 T, B;
+                BjjBasis(N, T, B);
+                N = BjjPerturbNormal(N, T, B, 0.0, grad, _PoreStrength * 0.012);
+
+                half mottle = BjjFbm(IN.rest * _MottleScale) - 0.5h;
+
                 half3 albedo = _Color.rgb;
+                // Пятна уводят тон и в красноту, и в желтизну — разнотон
+                // важнее самой яркости.
+                albedo *= 1.0h + mottle * _MottleStrength;
+                albedo.r *= 1.0h + mottle * _MottleStrength * 0.55h;
+                albedo.b *= 1.0h - mottle * _MottleStrength * 0.30h;
 
                 // Пот: поверхность становится глаже и чуть темнее — мокрая
                 // ткань и кожа всегда темнее сухой, это читается сразу.
-                half smoothness = lerp(_Smoothness, 0.72h, _Sweat);
-                albedo *= lerp(1.0h, 0.86h, _Sweat);
+                // Пот ложится пятнами, а не ровным слоем: равномерный
+                // глянец по всему телу читается как мокрый пластик.
+                half sweatMask = saturate(BjjFbm(IN.rest * 5.5h + float3(0, 0, 1.7h)) * 1.9h);
+                half sweat = saturate(_Sweat * (0.45h + sweatMask));
+
+                half smoothness = lerp(_Smoothness, 0.78h, sweat);
+                albedo *= lerp(1.0h, 0.84h, sweat);
 
                 half ndotl = dot(N, main.direction);
                 half diffuse = WrapDiffuse(ndotl, _WrapAmount) * main.shadowAttenuation;
@@ -142,7 +175,7 @@ Shader "Bjj/Skin"
                 // Блик по Блинну-Фонгу: дешевле GGX и для кожи достаточно.
                 half3 H = SafeNormalize(main.direction + V);
                 half spec = pow(saturate(dot(N, H)), lerp(18.0h, 128.0h, smoothness));
-                color += main.color * spec * lerp(0.06h, 0.55h, _Sweat) * main.shadowAttenuation;
+                color += main.color * spec * lerp(0.06h, 0.62h, sweat) * main.shadowAttenuation;
 
                 // Дополнительные источники — заливка арены.
                 #if defined(_ADDITIONAL_LIGHTS)

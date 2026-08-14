@@ -21,6 +21,7 @@ public static class BuildScript
         "Bjj/Lit",
         "Bjj/Skin",
         "Bjj/Cloth",
+        "Bjj/Glow",
         "UI/Default",
         "Sprites/Default"
         // Universal Render Pipeline/Lit сюда добавлять нельзя: у него
