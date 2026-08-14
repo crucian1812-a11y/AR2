@@ -38,6 +38,8 @@ public class Hud : MonoBehaviour
     private Image _lockPanel;
     private Text _lockLabel;
     private Text _grips;
+    private Text _hints;
+    private Gestures _gestures;
 
     private float _toastLife;
     private float _posPulse;
@@ -119,9 +121,39 @@ public class Hud : MonoBehaviour
                                 Mathf.RoundToInt(19f * _s),
                                 new Color(0.85f, 0.9f, 1f), TextAnchor.MiddleCenter);
 
+        // Подсказка по жестам — в правом нижнем углу, полупрозрачная.
+        // Она сообщает, что сделает каждое движение пальца, и исчезает,
+        // когда делать нечего.
+        _hints = UiKit.MakeText(root, new Vector2(w - 190f * _s, 96f * _s),
+                                new Vector2(360f * _s, 190f * _s), "",
+                                Mathf.RoundToInt(21f * _s),
+                                new Color(1f, 1f, 1f, 0.82f), TextAnchor.LowerRight);
+
         GameObject holder = new GameObject("Moves");
         holder.transform.SetParent(root, false);
         _buttonRoot = holder.transform;
+
+        _gestures = Gestures.Create(transform);
+        _gestures.OnGesture += HandleGesture;
+    }
+
+    private void OnDestroy()
+    {
+        if (_gestures != null) _gestures.OnGesture -= HandleGesture;
+    }
+
+    private void HandleGesture(Gesture g)
+    {
+        string did = Controls.Apply(_match, _player, g);
+        if (did == "")
+        {
+            // Промах тоже нужно подтвердить: без отклика игрок думает,
+            // что не распознался жест, и повторяет его ещё несколько раз.
+            Snd.Play("click", 0.25f, 0.8f);
+            return;
+        }
+        Snd.Play("click", 0.5f);
+        _flashLife = 0.10f;
     }
 
     // Полоса перетягивания в сабмишне. Она появляется в центре экрана —
@@ -203,6 +235,7 @@ public class Hud : MonoBehaviour
 
         UpdateLock();
         UpdateGrips();
+        UpdateHints();
 
         if (_shownFor != _match.Position || _shownPhase != _match.Now)
         {
@@ -314,113 +347,53 @@ public class Hud : MonoBehaviour
         _flash.color = c;
     }
 
+    // Список кнопок заменён подсказкой: что сделает каждый жест прямо
+    // сейчас. Кнопки занимали треть экрана — ровно ту, где идёт борьба, —
+    // и заставляли читать названия вместо того, чтобы смотреть на бойцов.
     private void RebuildButtons()
     {
         for (int i = 0; i < _buttons.Count; i++) Destroy(_buttons[i]);
         _buttons.Clear();
-
-        if (_match.Finished) return;
-
-        // Набор кнопок зависит от фазы. Показывать список приёмов, пока
-        // соперник проводит свой, было бы обманом: нажать всё равно
-        // нельзя, а единственное осмысленное действие — сопротивляться.
-        switch (_match.Now)
-        {
-            case Phase.Submission:
-                BigButton(_match.Mover == _player ? "ДОЖАТЬ" : "ВЫРВАТЬСЯ",
-                          _match.Mover == _player
-                              ? new Color(0.20f, 0.52f, 0.24f, 0.95f)
-                              : new Color(0.62f, 0.16f, 0.15f, 0.95f),
-                          delegate { Struggle(); });
-                return;
-
-            case Phase.Move:
-                if (_match.Mover != _player)
-                {
-                    BigButton("СОПРОТИВЛЯТЬСЯ", new Color(0.55f, 0.34f, 0.10f, 0.95f),
-                              delegate { Resist(); });
-                }
-                return;
-        }
-
-        BuildMoveButtons();
     }
 
-    // Крупная кнопка во всю нижнюю треть: в этих фазах решение одно, и
-    // искать его пальцем среди мелких кнопок неправильно.
-    private void BigButton(string label, Color color, System.Action onClick)
+    private void UpdateHints()
     {
-        float bw = 300f * _s;
-        float bh = 92f * _s;
-
-        Button b = UiKit.MakeButton(_buttonRoot,
-            new Vector2(Screen.width - bw * 0.5f - 22f * _s, 70f * _s),
-            new Vector2(bw, bh), label, Mathf.RoundToInt(26f * _s), onClick);
-        b.GetComponent<Image>().color = color;
-        _buttons.Add(b.gameObject);
-    }
-
-    private void BuildMoveButtons()
-    {
-        List<Move> moves = _match.Available(_player);
-
-        float bw = 268f * _s;
-        float bh = 56f * _s;
-        float gap = 7f * _s;
-        int row = 0;
-
-        // Захваты идут первыми снизу: это самое частое действие, и оно
-        // должно быть под пальцем без промаха.
-        if (_match.Grips(_player) < Match.MaxGrips)
+        if (_match.Finished)
         {
-            AddButton("Взять захват", 6, row++, bw, bh, gap,
-                      new Color(0.16f, 0.30f, 0.36f, 0.95f), delegate { Grip(); });
-        }
-        if (_match.Grips(Match.Other(_player)) > 0)
-        {
-            AddButton("Сорвать захват", 10, row++, bw, bh, gap,
-                      new Color(0.34f, 0.24f, 0.16f, 0.95f), delegate { BreakGrip(); });
+            _hints.text = "";
+            return;
         }
 
-        for (int i = 0; i < moves.Count; i++)
+        if (_match.Now == Phase.Submission)
         {
-            Move m = moves[i];
-            bool enough = _match.Stamina(_player) >= m.Stamina;
-
-            Color color;
-            if (m.IsSubmission) color = new Color(0.50f, 0.13f, 0.17f, 0.95f);
-            else if (m.ByTop) color = new Color(0.15f, 0.26f, 0.42f, 0.95f);
-            else color = new Color(0.17f, 0.34f, 0.31f, 0.95f);
-            if (!enough) color = new Color(0.18f, 0.18f, 0.20f, 0.85f);
-
-            Move captured = m;
-            Button b = AddButton(m.Name, Mathf.RoundToInt(m.Stamina), row++, bw, bh, gap,
-                                 color, delegate { Press(captured); });
-            b.interactable = enough;
+            _hints.text = _match.Mover == _player
+                ? "<b>жми и води пальцем — дожимай</b>"
+                : "<b>жми и води пальцем — вырывайся</b>";
+            return;
         }
-    }
 
-    private Button AddButton(string label, int cost, int row, float bw, float bh, float gap,
-                             Color color, System.Action onClick)
-    {
-        float y = 34f * _s + (bh + gap) * row;
+        if (_match.Now == Phase.Move)
+        {
+            _hints.text = _match.Mover == _player
+                ? "приём идёт…"
+                : "<b>жми — сопротивляйся</b>";
+            return;
+        }
 
-        Button b = UiKit.MakeButton(_buttonRoot,
-            new Vector2(Screen.width - bw * 0.5f - 22f * _s, y),
-            new Vector2(bw, bh), label, Mathf.RoundToInt(20f * _s), onClick);
-        b.GetComponent<Image>().color = color;
+        string up = Controls.Preview(_match, _player, Gesture.SwipeForward);
+        string down = Controls.Preview(_match, _player, Gesture.SwipeBack);
+        string side = Controls.Preview(_match, _player, Gesture.SwipeLeft);
+        string hold = Controls.Preview(_match, _player, Gesture.Hold);
+        string tap = Controls.Preview(_match, _player, Gesture.Tap);
 
-        // Цена отдельной цифрой у левого края: название читается само по
-        // себе, а цифры сравниваются между кнопками.
-        Text costText = UiKit.MakeText(b.transform, Vector2.zero,
-            new Vector2(46f * _s, bh), cost.ToString(), Mathf.RoundToInt(18f * _s),
-            new Color(1f, 1f, 1f, 0.72f), TextAnchor.MiddleCenter);
-        costText.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-        costText.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-        costText.rectTransform.anchoredPosition = new Vector2(-bw * 0.5f + 26f * _s, 0f);
+        string text = "";
+        if (up != "") text += "↑  " + up + "\n";
+        if (down != "") text += "↓  " + down + "\n";
+        if (side != "" && side != up && side != down) text += "↔  " + side + "\n";
+        if (hold != "") text += "удержание  " + hold + "\n";
+        if (tap != "") text += "тап  " + tap;
 
-        _buttons.Add(b.gameObject);
-        return b;
+        _hints.text = text;
     }
 
     private void Resist()
