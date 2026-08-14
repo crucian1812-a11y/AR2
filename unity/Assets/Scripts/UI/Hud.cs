@@ -27,11 +27,7 @@ public class Hud : MonoBehaviour
     private Image _staminaAWarn;
     private Image _progress;
     private Image _flash;
-    private Transform _buttonRoot;
 
-    private readonly List<GameObject> _buttons = new List<GameObject>();
-    private Pos _shownFor = (Pos)(-1);
-    private Phase _shownPhase = (Phase)(-1);
     private string _lastEvent = "";
 
     private Image _lockFill;
@@ -128,10 +124,6 @@ public class Hud : MonoBehaviour
                                 new Vector2(360f * _s, 190f * _s), "",
                                 Mathf.RoundToInt(21f * _s),
                                 new Color(1f, 1f, 1f, 0.82f), TextAnchor.LowerRight);
-
-        GameObject holder = new GameObject("Moves");
-        holder.transform.SetParent(root, false);
-        _buttonRoot = holder.transform;
 
         _gestures = Gestures.Create(transform);
         _gestures.OnGesture += HandleGesture;
@@ -237,12 +229,6 @@ public class Hud : MonoBehaviour
         UpdateGrips();
         UpdateHints();
 
-        if (_shownFor != _match.Position || _shownPhase != _match.Now)
-        {
-            _shownFor = _match.Position;
-            _shownPhase = _match.Now;
-            RebuildButtons();
-        }
     }
 
     private void UpdateGrips()
@@ -347,15 +333,6 @@ public class Hud : MonoBehaviour
         _flash.color = c;
     }
 
-    // Список кнопок заменён подсказкой: что сделает каждый жест прямо
-    // сейчас. Кнопки занимали треть экрана — ровно ту, где идёт борьба, —
-    // и заставляли читать названия вместо того, чтобы смотреть на бойцов.
-    private void RebuildButtons()
-    {
-        for (int i = 0; i < _buttons.Count; i++) Destroy(_buttons[i]);
-        _buttons.Clear();
-    }
-
     private void UpdateHints()
     {
         if (_match.Finished)
@@ -396,31 +373,4 @@ public class Hud : MonoBehaviour
         _hints.text = text;
     }
 
-    private void Resist()
-    {
-        if (_match.TryResist(_player)) Snd.Play("grip", 0.4f, 1.2f);
-    }
-
-    private void Struggle()
-    {
-        if (_match.TryStruggle(_player)) Snd.Play("cloth", 0.45f, 1.3f);
-    }
-
-    private void Grip()
-    {
-        if (_match.TryGrip(_player)) Snd.Play("grip", 0.5f);
-        RebuildButtons();
-    }
-
-    private void BreakGrip()
-    {
-        if (_match.TryBreakGrip(_player)) Snd.Play("cloth", 0.55f, 0.9f);
-        RebuildButtons();
-    }
-
-    private void Press(Move m)
-    {
-        Snd.Play("click", 0.5f);
-        if (_match.TryMove(_player, m)) _flashLife = 0.12f;
-    }
 }
