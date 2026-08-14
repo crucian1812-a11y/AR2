@@ -31,8 +31,13 @@ public class Hud : MonoBehaviour
 
     private readonly List<GameObject> _buttons = new List<GameObject>();
     private Pos _shownFor = (Pos)(-1);
-    private bool _shownBusy = true;
+    private Phase _shownPhase = (Phase)(-1);
     private string _lastEvent = "";
+
+    private Image _lockFill;
+    private Image _lockPanel;
+    private Text _lockLabel;
+    private Text _grips;
 
     private float _toastLife;
     private float _posPulse;
@@ -105,9 +110,43 @@ public class Hud : MonoBehaviour
         _flash = UiKit.MakePanel(root, new Vector2(w * 0.5f, h * 0.5f),
                                  new Vector2(w, h), new Color(1f, 1f, 1f, 0f));
 
+        BuildLockBar(root, w, h);
+
+        // Захваты — цифрами под полоской сил игрока. В борьбе за ги это
+        // такой же ресурс, как силы, и он должен быть на виду.
+        _grips = UiKit.MakeText(root, new Vector2(w * 0.5f - _barW * 0.5f - 132f * _s, h - 92f * _s),
+                                new Vector2(_barW, 30f * _s), "",
+                                Mathf.RoundToInt(19f * _s),
+                                new Color(0.85f, 0.9f, 1f), TextAnchor.MiddleCenter);
+
         GameObject holder = new GameObject("Moves");
         holder.transform.SetParent(root, false);
         _buttonRoot = holder.transform;
+    }
+
+    // Полоса перетягивания в сабмишне. Она появляется в центре экрана —
+    // единственное, ради чего это правило нарушается: в этот момент
+    // смотреть больше не на что, всё решается здесь.
+    private void BuildLockBar(Transform root, float w, float h)
+    {
+        _lockPanel = UiKit.MakePanel(root, new Vector2(w * 0.5f, h * 0.52f),
+                                     new Vector2(w * 0.56f, 26f * _s),
+                                     new Color(0f, 0f, 0f, 0.75f));
+
+        _lockFill = UiKit.MakePanel(root, new Vector2(w * 0.5f, h * 0.52f),
+                                    new Vector2(0f, 22f * _s),
+                                    new Color(0.85f, 0.18f, 0.16f, 0.95f));
+        _lockFill.rectTransform.pivot = new Vector2(0f, 0.5f);
+        _lockFill.rectTransform.anchoredPosition =
+            new Vector2(w * 0.5f - w * 0.28f, h * 0.52f);
+
+        _lockLabel = UiKit.MakeText(root, new Vector2(w * 0.5f, h * 0.58f),
+                                    new Vector2(w * 0.8f, 40f * _s), "",
+                                    Mathf.RoundToInt(24f * _s),
+                                    new Color(1f, 0.85f, 0.5f), TextAnchor.MiddleCenter);
+
+        _lockPanel.gameObject.SetActive(false);
+        _lockFill.gameObject.SetActive(false);
     }
 
     private void MakeScore(Transform root, float x, float y, Color color, out Text label)
@@ -162,12 +201,52 @@ public class Hud : MonoBehaviour
         _progress.rectTransform.sizeDelta = new Vector2(
             _match.Busy ? Screen.width * 0.42f * _match.BusyProgress : 0f, 6f * _s);
 
-        if (_shownFor != _match.Position || _shownBusy != _match.Busy)
+        UpdateLock();
+        UpdateGrips();
+
+        if (_shownFor != _match.Position || _shownPhase != _match.Now)
         {
             _shownFor = _match.Position;
-            _shownBusy = _match.Busy;
+            _shownPhase = _match.Now;
             RebuildButtons();
         }
+    }
+
+    private void UpdateGrips()
+    {
+        int mine = _match.Grips(_player);
+        int theirs = _match.Grips(Match.Other(_player));
+
+        // Точками, а не числом: захваты считаются до двух, и точки
+        // читаются быстрее цифры.
+        string dots = "";
+        for (int i = 0; i < Match.MaxGrips; i++) dots += i < mine ? "●" : "○";
+        string theirDots = "";
+        for (int i = 0; i < Match.MaxGrips; i++) theirDots += i < theirs ? "●" : "○";
+
+        _grips.text = "захваты  " + dots + "   /   " + theirDots;
+    }
+
+    private void UpdateLock()
+    {
+        bool on = _match.Now == Phase.Submission;
+        _lockPanel.gameObject.SetActive(on);
+        _lockFill.gameObject.SetActive(on);
+
+        if (!on)
+        {
+            _lockLabel.text = "";
+            return;
+        }
+
+        _lockFill.rectTransform.sizeDelta =
+            new Vector2(Screen.width * 0.56f * _match.Lock, 22f * _s);
+
+        bool attacking = _match.Mover == _player;
+        _lockLabel.text = attacking ? "ДОЖИМАЙ!" : "ВЫРЫВАЙСЯ!";
+        _lockFill.color = attacking
+            ? new Color(0.30f, 0.75f, 0.35f, 0.95f)
+            : new Color(0.85f, 0.18f, 0.16f, 0.95f);
     }
 
     private void UpdateStamina()
@@ -242,46 +321,128 @@ public class Hud : MonoBehaviour
 
         if (_match.Finished) return;
 
+        // Набор кнопок зависит от фазы. Показывать список приёмов, пока
+        // соперник проводит свой, было бы обманом: нажать всё равно
+        // нельзя, а единственное осмысленное действие — сопротивляться.
+        switch (_match.Now)
+        {
+            case Phase.Submission:
+                BigButton(_match.Mover == _player ? "ДОЖАТЬ" : "ВЫРВАТЬСЯ",
+                          _match.Mover == _player
+                              ? new Color(0.20f, 0.52f, 0.24f, 0.95f)
+                              : new Color(0.62f, 0.16f, 0.15f, 0.95f),
+                          delegate { Struggle(); });
+                return;
+
+            case Phase.Move:
+                if (_match.Mover != _player)
+                {
+                    BigButton("СОПРОТИВЛЯТЬСЯ", new Color(0.55f, 0.34f, 0.10f, 0.95f),
+                              delegate { Resist(); });
+                }
+                return;
+        }
+
+        BuildMoveButtons();
+    }
+
+    // Крупная кнопка во всю нижнюю треть: в этих фазах решение одно, и
+    // искать его пальцем среди мелких кнопок неправильно.
+    private void BigButton(string label, Color color, System.Action onClick)
+    {
+        float bw = 300f * _s;
+        float bh = 92f * _s;
+
+        Button b = UiKit.MakeButton(_buttonRoot,
+            new Vector2(Screen.width - bw * 0.5f - 22f * _s, 70f * _s),
+            new Vector2(bw, bh), label, Mathf.RoundToInt(26f * _s), onClick);
+        b.GetComponent<Image>().color = color;
+        _buttons.Add(b.gameObject);
+    }
+
+    private void BuildMoveButtons()
+    {
         List<Move> moves = _match.Available(_player);
-        if (moves.Count == 0) return;
 
         float bw = 268f * _s;
-        float bh = 60f * _s;
-        float gap = 8f * _s;
+        float bh = 56f * _s;
+        float gap = 7f * _s;
+        int row = 0;
+
+        // Захваты идут первыми снизу: это самое частое действие, и оно
+        // должно быть под пальцем без промаха.
+        if (_match.Grips(_player) < Match.MaxGrips)
+        {
+            AddButton("Взять захват", 6, row++, bw, bh, gap,
+                      new Color(0.16f, 0.30f, 0.36f, 0.95f), delegate { Grip(); });
+        }
+        if (_match.Grips(Match.Other(_player)) > 0)
+        {
+            AddButton("Сорвать захват", 10, row++, bw, bh, gap,
+                      new Color(0.34f, 0.24f, 0.16f, 0.95f), delegate { BreakGrip(); });
+        }
 
         for (int i = 0; i < moves.Count; i++)
         {
             Move m = moves[i];
-            float y = 34f * _s + (bh + gap) * i;
             bool enough = _match.Stamina(_player) >= m.Stamina;
 
-            Button b = UiKit.MakeButton(_buttonRoot,
-                new Vector2(Screen.width - bw * 0.5f - 22f * _s, y),
-                new Vector2(bw, bh), m.Name,
-                Mathf.RoundToInt(21f * _s),
-                delegate { Press(m); });
+            Color color;
+            if (m.IsSubmission) color = new Color(0.50f, 0.13f, 0.17f, 0.95f);
+            else if (m.ByTop) color = new Color(0.15f, 0.26f, 0.42f, 0.95f);
+            else color = new Color(0.17f, 0.34f, 0.31f, 0.95f);
+            if (!enough) color = new Color(0.18f, 0.18f, 0.20f, 0.85f);
 
-            Image bg = b.GetComponent<Image>();
-            if (m.IsSubmission) bg.color = new Color(0.50f, 0.13f, 0.17f, 0.95f);
-            else if (m.ByTop) bg.color = new Color(0.15f, 0.26f, 0.42f, 0.95f);
-            else bg.color = new Color(0.17f, 0.34f, 0.31f, 0.95f);
-
-            if (!enough) bg.color = new Color(0.18f, 0.18f, 0.20f, 0.85f);
+            Move captured = m;
+            Button b = AddButton(m.Name, Mathf.RoundToInt(m.Stamina), row++, bw, bh, gap,
+                                 color, delegate { Press(captured); });
             b.interactable = enough;
-
-            // Цена приёма — отдельной цифрой у левого края кнопки, а не
-            // в подписи: название читается само по себе, цифра сравнивается
-            // между кнопками.
-            Text cost = UiKit.MakeText(b.transform,
-                new Vector2(-bw * 0.5f + 26f * _s, 0f), new Vector2(46f * _s, bh),
-                Mathf.RoundToInt(m.Stamina).ToString(), Mathf.RoundToInt(18f * _s),
-                new Color(1f, 1f, 1f, enough ? 0.72f : 0.38f), TextAnchor.MiddleCenter);
-            cost.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-            cost.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            cost.rectTransform.anchoredPosition = new Vector2(-bw * 0.5f + 26f * _s, 0f);
-
-            _buttons.Add(b.gameObject);
         }
+    }
+
+    private Button AddButton(string label, int cost, int row, float bw, float bh, float gap,
+                             Color color, System.Action onClick)
+    {
+        float y = 34f * _s + (bh + gap) * row;
+
+        Button b = UiKit.MakeButton(_buttonRoot,
+            new Vector2(Screen.width - bw * 0.5f - 22f * _s, y),
+            new Vector2(bw, bh), label, Mathf.RoundToInt(20f * _s), onClick);
+        b.GetComponent<Image>().color = color;
+
+        // Цена отдельной цифрой у левого края: название читается само по
+        // себе, а цифры сравниваются между кнопками.
+        Text costText = UiKit.MakeText(b.transform, Vector2.zero,
+            new Vector2(46f * _s, bh), cost.ToString(), Mathf.RoundToInt(18f * _s),
+            new Color(1f, 1f, 1f, 0.72f), TextAnchor.MiddleCenter);
+        costText.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+        costText.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        costText.rectTransform.anchoredPosition = new Vector2(-bw * 0.5f + 26f * _s, 0f);
+
+        _buttons.Add(b.gameObject);
+        return b;
+    }
+
+    private void Resist()
+    {
+        if (_match.TryResist(_player)) Snd.Play("grip", 0.4f, 1.2f);
+    }
+
+    private void Struggle()
+    {
+        if (_match.TryStruggle(_player)) Snd.Play("cloth", 0.45f, 1.3f);
+    }
+
+    private void Grip()
+    {
+        if (_match.TryGrip(_player)) Snd.Play("grip", 0.5f);
+        RebuildButtons();
+    }
+
+    private void BreakGrip()
+    {
+        if (_match.TryBreakGrip(_player)) Snd.Play("cloth", 0.55f, 0.9f);
+        RebuildButtons();
     }
 
     private void Press(Move m)

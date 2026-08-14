@@ -82,9 +82,10 @@ public class CameraDirector : MonoBehaviour
         float creep = Mathf.Lerp(1f, 0.86f, Mathf.Clamp01(_dwell / 10f));
         offset *= creep;
 
-        if (_match.Finished && _match.Position == Pos.Submitted)
+        if (_match.Now == Phase.Submission || (_match.Finished && _match.Position == Pos.Submitted))
         {
-            // Добивание: вплотную и низко, почти на уровень татами.
+            // Приём захвачен — камера идёт вплотную и низко, почти на
+            // уровень татами, и держится там до развязки.
             offset = new Vector3(1.5f * _sideSign, 0.95f, 1.5f * _sideSign);
             _focus = new Vector3(0f, 0.42f, 0f);
         }
@@ -122,7 +123,7 @@ public class CameraDirector : MonoBehaviour
 
         // Переезд между ракурсами. Быстрее при добивании: там важно
         // успеть подойти, пока идёт замедление.
-        float speed = _match.Finished ? 4.2f : 2.4f;
+        float speed = (_match.Finished || _match.Now == Phase.Submission) ? 4.2f : 2.4f;
         transform.position = Vector3.Lerp(transform.position, _wantPos, dt * speed);
 
         Quaternion look = Quaternion.LookRotation(_wantFocus - transform.position);

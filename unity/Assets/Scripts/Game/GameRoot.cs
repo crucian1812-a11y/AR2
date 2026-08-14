@@ -12,6 +12,7 @@ public class GameRoot : MonoBehaviour
     private FighterRig _b;
     private CameraDirector _cam;
 
+    private string _opponentStyle = "";
     private Pos _shownPos = (Pos)(-1);
     private Side _shownTop = (Side)(-1);
     private float _moveHold;      // сколько ещё играть клип перехода
@@ -26,12 +27,22 @@ public class GameRoot : MonoBehaviour
     {
         int seed = System.Environment.TickCount;
         _match = new Match(seed);
-        _ai = new Ai(_match, Side.B, seed + 7919, 0.55f);
+
+        // Стиль соперника выбирается на матч: одни и те же двадцать
+        // приёмов при разных склонностях гоняют схватку по разным ветвям
+        // графа, и партия ощущается иначе.
+        System.Random pick = new System.Random(seed);
+        Style style = Ai.RandomStyle(pick);
+        _ai = new Ai(_match, Side.B, seed + 7919, 0.55f, style);
+        _opponentStyle = Ai.StyleName(style);
         _match.OnMoveStart += PlayMove;
         _match.OnEvent += Announce;
+        _match.OnGrip += OnGrip;
+        _match.OnStruggle += OnStruggle;
 
         Snd.Create();
         Snd.Play("bell", 0.7f);
+        Snd.Play("whistle", 0.35f);
 
         Arena.Build(transform);
         PostFx.Build(transform);
@@ -46,6 +57,7 @@ public class GameRoot : MonoBehaviour
         Hud.Create(transform, _match, Player);
 
         ShowHold(true);
+        Debug.Log("Соперник: " + _opponentStyle);
     }
 
     private void OnDestroy()
@@ -54,6 +66,8 @@ public class GameRoot : MonoBehaviour
         {
             _match.OnMoveStart -= PlayMove;
             _match.OnEvent -= Announce;
+            _match.OnGrip -= OnGrip;
+            _match.OnStruggle -= OnStruggle;
         }
     }
 
@@ -85,8 +99,11 @@ public class GameRoot : MonoBehaviour
     private void UpdateAudio(float dt)
     {
         float dominance = Positions.Adv(_match.Position);
-        Snd.SetCrowd(dominance * 0.7f + (_match.Busy ? 0.3f : 0f));
-        Snd.SetTension(_match.Finished ? 0f : dominance);
+        bool sub = _match.Now == Phase.Submission;
+
+        // В сабмишне зал встаёт: это громче любой смены позиции.
+        Snd.SetCrowd(sub ? 1f : dominance * 0.7f + (_match.Busy ? 0.3f : 0f));
+        Snd.SetTension(_match.Finished ? 0f : (sub ? 1f : dominance));
 
         // Чем меньше сил, тем чаще и тяжелее дыхание.
         float lowest = Mathf.Min(_match.StaminaA, _match.StaminaB) / Match.MaxStamina;
@@ -123,6 +140,19 @@ public class GameRoot : MonoBehaviour
         // Позиция сменится только после успеха, поэтому показ обновится
         // сам, когда доиграет переход.
         _shownPos = (Pos)(-1);
+    }
+
+    private void OnGrip(Side who)
+    {
+        Snd.Play("grip", 0.45f, Random.Range(0.95f, 1.15f));
+    }
+
+    // Каждый рывок в перетягивании слышен: без звука полоса на экране
+    // остаётся абстракцией, а с ним чувствуется борьба.
+    private void OnStruggle(Side who, bool attacker)
+    {
+        Snd.Play(attacker ? "grip" : "cloth", 0.5f, Random.Range(0.9f, 1.2f));
+        if (!attacker) _cam.Kick(0.08f);
     }
 
     // Итог приёма озвучивается отдельно от его начала: между попыткой и

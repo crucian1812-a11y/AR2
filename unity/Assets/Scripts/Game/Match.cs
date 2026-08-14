@@ -2,67 +2,87 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// Состояние схватки: позиция, кто наверху, силы, очки, часы.
+// Состояние схватки: позиция, кто наверху, силы, захваты, очки, часы.
 // Модели и анимации сюда не заглядывают — наоборот, они читают состояние.
-// Благодаря этому ядро проверяется без графики (и уже играется на капсулах).
+//
+// Схватка живёт в одной из трёх фаз:
+//
+//   Neutral    — никто ничего не делает, идёт возня и восстановление
+//   Move       — кто-то проводит приём, второй может сопротивляться
+//   Submission — приём захвачен, идёт перетягивание до сдачи или выхода
+//
+// Фаза Move существует именно ради сопротивления. Мгновенный бросок кубика
+// в момент нажатия сделал бы соперника зрителем; здесь у него есть секунда
+// с лишним, чтобы потратить силы и сбить чужой шанс.
+public enum Phase { Neutral, Move, Submission }
+
 public class Match
 {
     public const float RoundTime = 300f;   // 5 минут, как в белом поясе
     public const float MaxStamina = 100f;
+    public const int MaxGrips = 2;
 
     public Pos Position { get; private set; }
     public Side Top { get; private set; }
+    public Phase Now { get; private set; }
 
     public float StaminaA { get; private set; }
     public float StaminaB { get; private set; }
     public int ScoreA { get; private set; }
     public int ScoreB { get; private set; }
 
+    // Захваты за кимоно. Держать захват — значит вести схватку: свои шансы
+    // выше, чужие ниже. Это и делает ги не декорацией, а частью правил.
+    public int GripsA { get; private set; }
+    public int GripsB { get; private set; }
+
     public float Clock { get; private set; }
     public bool Finished { get; private set; }
     public Side Winner { get; private set; }
     public string LastEvent { get; private set; }
 
-    // Пока идёт приём, оба бойца заняты: новых попыток не принимаем.
-    public bool Busy { get { return _busy > 0f; } }
+    public bool Busy { get { return Now != Phase.Neutral; } }
     public float BusyProgress { get { return _moveTime <= 0f ? 1f : 1f - _busy / _moveTime; } }
     public Move CurrentMove { get { return _current; } }
+    public Side Mover { get { return _mover; } }
+
+    // Перетягивание в сабмишне: 0 — соперник вырвался, 1 — сдача.
+    public float Lock { get; private set; }
+    public float Resistance { get { return _resist; } }
 
     private float _busy;
     private float _moveTime;
     private Move _current;
     private Side _mover;
     private bool _currentValid;
+    private float _resist;
 
-    // Позиции, за которые очки уже начислены: по правилам они даются
-    // один раз, иначе качели «верхом → сбоку → верхом» дают бесконечно.
     private readonly HashSet<Pos> _scoredA = new HashSet<Pos>();
     private readonly HashSet<Pos> _scoredB = new HashSet<Pos>();
 
     private readonly System.Random _rng;
 
     public event Action<string> OnEvent;
-
-    // Начало приёма. Нужно показу: клип перехода должен пойти в тот же
-    // миг, что и отсчёт времени приёма, иначе движение и правила
-    // расходятся — самая заметная рассинхронизация, какая тут бывает.
     public event Action<Move, Side> OnMoveStart;
+    public event Action<Side> OnGrip;
+    public event Action<Side, bool> OnStruggle;   // кто и «дожал ли» (иначе вырвался)
 
     public Match(int seed)
     {
         _rng = new System.Random(seed);
         Position = Pos.Standing;
         Top = Side.Neutral;
+        Now = Phase.Neutral;
         StaminaA = MaxStamina;
         StaminaB = MaxStamina;
         Clock = RoundTime;
         LastEvent = "Схватка началась";
     }
 
+    public static Side Other(Side s) { return s == Side.A ? Side.B : Side.A; }
+
     public bool AmTop(Side who)
     {
-        // В нейтральной позиции наверху нет никого, но ходы «сверху»
-        // должны быть доступны обоим — иначе из стойки нельзя войти в ноги.
         if (Positions.IsNeutral(Position)) return true;
         return Top == who;
     }
@@ -72,14 +92,19 @@ public class Match
         return who == Side.A ? StaminaA : StaminaB;
     }
 
+    public int Grips(Side who)
+    {
+        return who == Side.A ? GripsA : GripsB;
+    }
+
     public List<Move> Available(Side who)
     {
         if (Finished || Busy) return new List<Move>();
         return Transitions.For(Position, AmTop(who));
     }
 
-    // Попытка провести приём. Возвращает false, если ход сейчас невозможен —
-    // не хватает сил, идёт другой приём или схватка кончилась.
+    // ------------------------------------------------------------- ходы
+
     public bool TryMove(Side who, Move m)
     {
         if (Finished || Busy) return false;
@@ -93,10 +118,79 @@ public class Match
         _busy = m.Time;
         _moveTime = m.Time;
         _currentValid = true;
+        _resist = 0f;
+        Now = Phase.Move;
 
         if (OnMoveStart != null) OnMoveStart(m, who);
         return true;
     }
+
+    /// Взять захват за кимоно. Дёшево, но занимает ход и время.
+    public bool TryGrip(Side who)
+    {
+        if (Finished || Busy) return false;
+        if (Grips(who) >= MaxGrips) return false;
+        if (Stamina(who) < 6f) return false;
+
+        Spend(who, 6f);
+        if (who == Side.A) GripsA++; else GripsB++;
+
+        // Захват сам по себе занимает мгновение, но открывает соперника:
+        // пока держишь, у него на один захват меньше возможностей сорвать.
+        Say(who == Side.A ? "Синий взял захват" : "Красный взял захват");
+        if (OnGrip != null) OnGrip(who);
+        return true;
+    }
+
+    /// Сорвать чужой захват. Стоит дороже, чем взять свой.
+    public bool TryBreakGrip(Side who)
+    {
+        if (Finished || Busy) return false;
+        Side other = Other(who);
+        if (Grips(other) <= 0) return false;
+        if (Stamina(who) < 10f) return false;
+
+        Spend(who, 10f);
+        if (other == Side.A) GripsA--; else GripsB--;
+        Say(who == Side.A ? "Синий сорвал захват" : "Красный сорвал захват");
+        return true;
+    }
+
+    /// Сопротивление приёму, пока он идёт. Каждое нажатие стоит сил и
+    /// снижает чужой шанс — но с убывающей отдачей, иначе достаточно
+    /// было бы долбить одну кнопку.
+    public bool TryResist(Side who)
+    {
+        if (Now != Phase.Move) return false;
+        if (who == _mover) return false;
+        if (Stamina(who) < 4f) return false;
+
+        Spend(who, 4f);
+        _resist += (1f - _resist) * 0.28f;
+        return true;
+    }
+
+    /// Дожать приём (атакующий) или вырваться (защищающийся).
+    public bool TryStruggle(Side who)
+    {
+        if (Now != Phase.Submission) return false;
+        if (Stamina(who) < 5f) return false;
+
+        Spend(who, 5f);
+        bool attacker = who == _mover;
+
+        // Атакующему дожимать легче, чем защищающемуся вырываться: в этом
+        // и состоит опасность позиции. Но защищающийся не обречён —
+        // у свежего шанс почти равный.
+        float power = attacker ? 0.055f : -0.048f;
+        power *= 0.6f + 0.4f * (Stamina(who) / MaxStamina);
+
+        Lock = Mathf.Clamp01(Lock + power);
+        if (OnStruggle != null) OnStruggle(who, attacker);
+        return true;
+    }
+
+    // ------------------------------------------------------------- такт
 
     public void Tick(float dt)
     {
@@ -110,55 +204,100 @@ public class Match
             return;
         }
 
-        if (_busy > 0f)
+        switch (Now)
         {
-            _busy -= dt;
-            if (_busy <= 0f)
-            {
-                _busy = 0f;
-                if (_currentValid) Resolve();
-            }
+            case Phase.Move:
+                _busy -= dt;
+                if (_busy <= 0f)
+                {
+                    _busy = 0f;
+                    if (_currentValid) Resolve();
+                }
+                break;
+
+            case Phase.Submission:
+                TickSubmission(dt);
+                break;
+
+            default:
+                Recover(dt);
+                break;
+        }
+    }
+
+    private void TickSubmission(float dt)
+    {
+        // Захват затягивается сам по себе: если защищающийся ничего не
+        // делает, он проигрывает. Бездействие обязано наказываться,
+        // иначе перетягивание превращается в ожидание.
+        Lock = Mathf.Clamp01(Lock + dt * 0.085f);
+
+        // Оба горят втрое быстрее обычного: это самая тяжёлая работа в
+        // схватке.
+        Spend(_mover, dt * 3.4f);
+        Spend(Other(_mover), dt * 4.6f);
+
+        if (Lock >= 1f)
+        {
+            Finished = true;
+            Winner = _mover;
+            Position = Pos.Submitted;
+            Now = Phase.Neutral;
+            Say(_current.Name + " — сдача! Побеждает " +
+                (_mover == Side.A ? "синий" : "красный"));
             return;
         }
 
-        Recover(dt);
+        if (Lock <= 0f)
+        {
+            Now = Phase.Neutral;
+            // Вырвался — но приём стоил обоим, и позиция остаётся прежней.
+            Say("Вырвался из приёма!");
+        }
     }
 
-    // Приём доводится до конца именно здесь, а не в момент нажатия:
-    // пока идёт время приёма, соперник видит, что происходит, — и в
-    // следующих этапах сможет вмешаться.
     private void Resolve()
     {
         _currentValid = false;
-        Side other = _mover == Side.A ? Side.B : Side.A;
+        Now = Phase.Neutral;
+        Side other = Other(_mover);
 
         float chance = Transitions.Chance(_current, Stamina(_mover), Stamina(other));
+
+        // Захваты и сопротивление сдвигают шанс. Захват соперника мешает
+        // не меньше, чем собственный помогает.
+        chance += Grips(_mover) * 0.07f - Grips(other) * 0.06f;
+        chance -= _resist * 0.42f;
+        chance = Mathf.Clamp(chance, 0.04f, 0.95f);
+
         bool ok = _rng.NextDouble() < chance;
 
         if (!ok)
         {
-            // Неудача тоже стоит сил защищающемуся: он сопротивлялся.
-            Spend(other, _current.Stamina * 0.4f);
+            Spend(other, _current.Stamina * 0.25f);
             Say(_current.Name + " — не вышло");
             return;
         }
 
         if (_current.IsSubmission)
         {
-            Finished = true;
-            Winner = _mover;
-            Position = Pos.Submitted;
-            Say(_current.Name + " — чисто! Победа " + (_mover == Side.A ? "синего" : "красного"));
+            // Приём не заканчивает схватку сразу: он захвачен, дальше
+            // перетягивание. Кульминация вида спорта не должна решаться
+            // одним броском кубика.
+            Now = Phase.Submission;
+            Lock = 0.42f;
+            Say(_current.Name + " — захвачен!");
             return;
         }
 
         Position = _current.To;
 
-        // Кто наверху после перехода. Свипт и уходы снизу переворачивают
-        // расклад: тот, кто был внизу, оказывается сверху.
         if (Positions.IsNeutral(Position)) Top = Side.Neutral;
-        else if (_current.ByTop) Top = _mover;
-        else Top = _mover;   // ход снизу удался — инициатор занимает верх
+        else Top = _mover;
+
+        // Смена позиции рвёт захваты: держаться было не за что.
+        GripsA = 0;
+        GripsB = 0;
 
         Award(_mover, Position);
         Say(_current.Name);
@@ -175,8 +314,6 @@ public class Match
         if (who == Side.A) ScoreA += pts; else ScoreB += pts;
     }
 
-    // Силы восстанавливаются, но у того, кто внизу, — заметно медленнее:
-    // под чужим весом не отдохнёшь. Это и делает позицию ценной сама по себе.
     private void Recover(float dt)
     {
         float baseRate = 6.5f;
@@ -185,7 +322,6 @@ public class Match
         float rateA = baseRate * (neutral || Top == Side.A ? 1f : 0.45f);
         float rateB = baseRate * (neutral || Top == Side.B ? 1f : 0.45f);
 
-        // Чем хуже позиция, тем дороже в ней просто находиться.
         float pressure = Positions.Adv(Position) * 3.2f;
         if (!neutral)
         {
@@ -205,6 +341,8 @@ public class Match
     private void FinishByPoints()
     {
         Finished = true;
+        Now = Phase.Neutral;
+
         if (ScoreA > ScoreB) Winner = Side.A;
         else if (ScoreB > ScoreA) Winner = Side.B;
         else Winner = Side.Neutral;
