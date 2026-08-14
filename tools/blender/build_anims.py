@@ -113,29 +113,49 @@ def build_hold(arm, role, position, pose):
     key_pose(arm, pose, 1 + HOLD_FRAMES, breathe=0.0)
 
 
-def build_move(arm, role, move_name, pose_from, pose_to, seconds):
-    """Переход между позициями. Ключи только по краям плюс средний кадр.
+def _lerp_pose(a, b, t, lift=0.0):
+    """Промежуточная поза между двумя. Углы интерполируются покостно."""
+    out = {}
+    for name in set(list(a.keys()) + list(b.keys())):
+        va = a.get(name)
+        vb = b.get(name)
+        if va is None:
+            out[name] = vb
+            continue
+        if vb is None:
+            out[name] = va
+            continue
+        mixed = tuple(x + (y - x) * t for x, y in zip(va, vb))
+        if name == "root":
+            # Подъём по дуге в середине: по прямой таз проходит сквозь
+            # татами, когда боец встаёт или переворачивается.
+            mixed = tuple(v + (lift if i == 2 else 0.0) for i, v in enumerate(mixed))
+        out[name] = mixed
+    return out
 
-    Средний кадр не для красоты: без него интерполяция ведёт таз по прямой
-    сквозь татами, когда боец встаёт. Приподнятая середина задаёт дугу.
+
+def build_move(arm, role, move_name, pose_from, pose_to, seconds):
+    """Переход между позициями.
+
+    Ключей пять, а не три. С тремя всё между ними — чистая линейная
+    интерполяция, и это видно: движение идёт с постоянной скоростью, без
+    разгона и торможения, как у механизма. Пять ключей с неравномерными
+    долями дают приёму разгон, бросок и оседание.
     """
-    frames = max(2, int(round(seconds * FPS)))
+    frames = max(4, int(round(seconds * FPS)))
     new_action(arm, role + "_" + move_name)
 
-    key_pose(arm, pose_from, 1)
+    # Доли времени и доли пройденного пути. Путь опережает время в
+    # середине — так выглядит рывок, а не равномерное перетекание.
+    stops = ((0.00, 0.00, 0.000),
+             (0.28, 0.16, 0.030),
+             (0.55, 0.62, 0.055),
+             (0.80, 0.90, 0.022),
+             (1.00, 1.00, 0.000))
 
-    mid = {}
-    mid.update(pose_to)
-    r_from = pose_from.get("root")
-    r_to = pose_to.get("root")
-    if r_from and r_to:
-        mid["root"] = tuple(
-            (a + b) * 0.5 + (0.06 if i == 2 else 0.0)
-            for i, (a, b) in enumerate(zip(r_from, r_to))
-        )
-    key_pose(arm, mid, 1 + frames // 2)
-
-    key_pose(arm, pose_to, 1 + frames)
+    for time_frac, path_frac, lift in stops:
+        pose = _lerp_pose(pose_from, pose_to, path_frac, lift)
+        key_pose(arm, pose, 1 + int(round(frames * time_frac)))
 
 
 def build_all():

@@ -49,6 +49,7 @@ public static class Arena
         BuildHall(root.transform);
         BuildCrowd(root.transform);
         BuildLights(root.transform);
+        BuildProbe(root.transform);
         BuildAtmosphere();
 
         return root;
@@ -339,6 +340,26 @@ public static class Arena
         l.spotAngle = 62f;
         l.innerSpotAngle = 30f;
         l.shadows = LightShadows.None;
+    }
+
+    // Кубмап отражений. Без него глянцевому татами и коже отражать
+    // нечего, и обе поверхности выходят ровно-матовыми независимо от
+    // шероховатости — то самое «пластмассово». Зал статичен, поэтому
+    // достаточно снять пробу один раз на старте.
+    private static void BuildProbe(Transform parent)
+    {
+        GameObject go = new GameObject("ReflectionProbe");
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = new Vector3(0f, 1.2f, 0f);
+
+        ReflectionProbe probe = go.AddComponent<ReflectionProbe>();
+        probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Realtime;
+        probe.refreshMode = UnityEngine.Rendering.ReflectionProbeRefreshMode.ViaScripting;
+        probe.resolution = 128;
+        probe.size = new Vector3(24f, 12f, 24f);
+        probe.center = Vector3.zero;
+        probe.cullingMask = ~0;
+        probe.RenderProbe();
     }
 
     private static void BuildAtmosphere()

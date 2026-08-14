@@ -77,6 +77,14 @@ BONES = [
     ("LeftFoot",      "LeftLowerLeg", (HIP_X, 0, H["ankle"]),    (HIP_X, -0.16, H["toe"])),
     ("LeftToes",      "LeftFoot",  (HIP_X, -0.16, H["toe"]),     (HIP_X, -0.24, H["toe"])),
 
+    # Кости для динамики кимоно. В анимации они не двигаются: их качает
+    # код в игре (ClothBones), отставая от движения таза. Ткань, намертво
+    # прибитая к телу, читается доспехом, а в борьбе за кимоно всё время
+    # тянут — это движение и есть половина ощущения ги.
+    ("Skirt",         "Hips",      (0, 0, H["hips"] - 0.06),     (0, 0, H["hips"] - 0.22)),
+    ("BeltTailL",     "Hips",      (0.040, -0.12, H["hips"] - 0.06), (0.040, -0.13, H["hips"] - 0.20)),
+    ("BeltTailR",     "Hips",      (-0.040, -0.12, H["hips"] - 0.06), (-0.040, -0.13, H["hips"] - 0.20)),
+
     ("RightUpperLeg", "Hips",      (-HIP_X, 0, H["hips"]),       (-HIP_X, 0, H["knee"])),
     ("RightLowerLeg", "RightUpperLeg", (-HIP_X, 0, H["knee"]),   (-HIP_X, 0, H["ankle"])),
     ("RightFoot",     "RightLowerLeg", (-HIP_X, 0, H["ankle"]),  (-HIP_X, -0.16, H["toe"])),

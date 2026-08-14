@@ -70,6 +70,7 @@ public class FighterRig : MonoBehaviour
         _animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
         ApplyMaterials(model, gi, rim);
+        ClothBones.Attach(model);
         BuildGraph();
     }
 

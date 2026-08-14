@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """Боец целиком: тело, кимоно, пояс, голова — и привязка к скелету.
 
-Каждая деталь целиком принадлежит одной кости (весовая группа с весом 1).
-Автовесами такую модель привязывать нельзя: рукав кимоно налезает на
-корпус, и Blender размажет его веса между грудью и плечом — при первом же
-сгибе руки рукав потянет за собой грудь.
+Развесовка своя, а не автоматическая. Автовесами такую модель привязывать
+нельзя: рукав кимоно налезает на корпус, и Blender размажет его веса между
+грудью и плечом — при первом же сгибе руки рукав потянет за собой грудь.
 
-Жёсткая привязка оставляет щели в суставах. Их закрывают «шарниры» —
-сферы в плечах, локтях, бёдрах и коленях, принадлежащие верхнему звену.
-Приём старый и в стилизации работает лучше мягкой развесовки: силуэт
-остаётся чётким, а сустав не «мнётся».
+Но и жёсткая привязка «одна деталь — одна кость» не годится: в суставе
+она оставляет разрыв, который приходится затыкать шарами, а шар в плече
+виден и выдаёт модель, собранную из кусков.
+
+Поэтому середина: каждая деталь принадлежит своей кости, и только у
+самого сустава вершины получают долю соседней кости — родителя или
+ребёнка, не дальше. Радиус смешивания задан в BLEND_RADIUS.
 """
 
 import math
@@ -118,10 +120,11 @@ def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
         ]), "Chest", pal["gi_dark"])
 
     # Юбка куртки ниже пояса — свободный край, а не обтяжка.
+    # Юбка висит на своей кости — её качает физика ткани в игре.
     add(_loft("Skirt", [
         ((0, 0, H["hips"] - 0.06), 0.154, 0.113),
         ((0, 0, H["hips"] - 0.19), 0.163, 0.121),
-    ], cap_end=False), "Hips", pal["gi"])
+    ], cap_end=False), "Skirt", pal["gi"])
 
     # ----------------------------------------------------------- пояс
     add(_loft("Belt", [
@@ -133,10 +136,10 @@ def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
     # Два хвоста узла: они и отличают завязанный пояс от обруча.
     add(_box("BeltTailL", (0.040, -0.128, H["hips"] - 0.112),
               (0.022, 0.012, 0.062), rotation=(0, 0, math.radians(5))),
-        "Hips", pal["belt"])
+        "BeltTailL", pal["belt"])
     add(_box("BeltTailR", (-0.040, -0.128, H["hips"] - 0.112),
               (0.022, 0.012, 0.062), rotation=(0, 0, math.radians(-5))),
-        "Hips", pal["belt"])
+        "BeltTailR", pal["belt"])
 
     # ------------------------------------------------------ шея, голова
     #
@@ -393,11 +396,90 @@ def bake_rest_coords(mesh_obj):
         uv_z.data[loop.index].uv = (v.z * scale, 0.0)
 
 
-def attach(arm_obj, parts, name="Body"):
-    """Склеивает детали в один меш и привязывает к скелету по группам."""
-    for obj, bone, mat in parts:
-        vg = obj.vertex_groups.new(name=bone)
+# Насколько далеко от кости расходится её влияние, в метрах. Мягкость
+# нужна только у самого сустава: дальше вершина обязана принадлежать
+# своей кости целиком, иначе рукав кимоно потянет за собой грудь.
+BLEND_RADIUS = 0.075
+
+
+def _bone_segment(arm_obj, name):
+    b = arm_obj.data.bones.get(name)
+    if b is None:
+        return None
+    return (b.head_local.copy(), b.tail_local.copy())
+
+
+def _distance_to_segment(p, a, b):
+    ab = b - a
+    length2 = ab.dot(ab)
+    if length2 < 1e-9:
+        return (p - a).length
+    t = max(0.0, min(1.0, (p - a).dot(ab) / length2))
+    return (p - (a + ab * t)).length
+
+
+def soft_weights(arm_obj, obj, own_bone):
+    """Развесовка детали: своя кость плюс соседние — но только у сустава.
+
+    Жёсткая привязка «одна деталь — одна кость» держит силуэт, но в
+    суставе оставляет разрыв, который приходилось затыкать шарами. Шар
+    в плече виден, и это первое, что выдаёт модель, собранную из кусков.
+
+    Здесь вершина у стыка получает вес двух костей — своей и соседней, —
+    и при сгибе поверхность мнётся, а не расходится. Соседними считаются
+    родитель и дети своей кости: развесовка «по всем костям» размазала бы
+    влияние на всё тело.
+    """
+    bone = arm_obj.data.bones.get(own_bone)
+    if bone is None:
+        vg = obj.vertex_groups.new(name=own_bone)
         vg.add(range(len(obj.data.vertices)), 1.0, "REPLACE")
+        return
+
+    neighbours = []
+    if bone.parent is not None:
+        neighbours.append(bone.parent.name)
+    for child in bone.children:
+        neighbours.append(child.name)
+
+    groups = {own_bone: obj.vertex_groups.new(name=own_bone)}
+    segments = {own_bone: _bone_segment(arm_obj, own_bone)}
+    for n in neighbours:
+        seg = _bone_segment(arm_obj, n)
+        if seg is None:
+            continue
+        groups[n] = obj.vertex_groups.new(name=n)
+        segments[n] = seg
+
+    own_seg = segments[own_bone]
+
+    for i, v in enumerate(obj.data.vertices):
+        weights = {}
+        own_dist = _distance_to_segment(v.co, own_seg[0], own_seg[1])
+
+        for name, seg in segments.items():
+            if seg is None:
+                continue
+            d = _distance_to_segment(v.co, seg[0], seg[1])
+            if name == own_bone:
+                weights[name] = 1.0
+                continue
+            # Чужая кость влияет тем сильнее, чем ближе вершина к ней и
+            # дальше от своей: ровно так ведёт себя кожа у сустава.
+            if d < own_dist + BLEND_RADIUS:
+                w = max(0.0, 1.0 - (d - own_dist + BLEND_RADIUS) / (2.0 * BLEND_RADIUS))
+                if w > 0.001:
+                    weights[name] = w * 0.85
+
+        total = sum(weights.values())
+        for name, w in weights.items():
+            groups[name].add([i], w / total, "REPLACE")
+
+
+def attach(arm_obj, parts, name="Body"):
+    """Склеивает детали в один меш и привязывает к скелету."""
+    for obj, bone, mat in parts:
+        soft_weights(arm_obj, obj, bone)
 
     bpy.ops.object.select_all(action="DESELECT")
     for obj, _, _ in parts:

@@ -47,6 +47,7 @@ namespace UnityEngine
         public static Vector3 Lerp(Vector3 a, Vector3 b, float t) { return a; }
         public static Vector3 MoveTowards(Vector3 a, Vector3 b, float d) { return a; }
         public static Vector3 Scale(Vector3 a, Vector3 b) { return a; }
+        public static Vector3 ClampMagnitude(Vector3 v, float max) { return v; }
         public static Vector3 operator +(Vector3 a, Vector3 b) { return a; }
         public static Vector3 operator -(Vector3 a, Vector3 b) { return a; }
         public static Vector3 operator -(Vector3 a) { return a; }
@@ -541,6 +542,17 @@ namespace UnityEngine
 
     public enum CameraClearFlags { Skybox, SolidColor, Depth, Nothing }
 
+    public class ReflectionProbe : Behaviour
+    {
+        public UnityEngine.Rendering.ReflectionProbeMode mode { get; set; }
+        public UnityEngine.Rendering.ReflectionProbeRefreshMode refreshMode { get; set; }
+        public int resolution { get; set; }
+        public Vector3 size { get; set; }
+        public Vector3 center { get; set; }
+        public int cullingMask { get; set; }
+        public int RenderProbe() { return 0; }
+    }
+
     public class Light : Behaviour
     {
         public LightType type { get; set; }
@@ -903,6 +915,9 @@ namespace UnityEngine
 
         public enum IndexFormat { UInt16, UInt32 }
         public enum ShadowCastingMode { Off, On, TwoSided, ShadowsOnly }
+        public enum ReflectionProbeMode { Baked, Realtime, Custom }
+        public enum ReflectionProbeRefreshMode { OnAwake, EveryFrame, ViaScripting }
+
         public enum AmbientMode { Skybox = 0, Trilight = 1, Flat = 3, Custom = 4 }
     }
 
