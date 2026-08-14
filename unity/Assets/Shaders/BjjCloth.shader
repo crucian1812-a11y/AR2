@@ -20,6 +20,10 @@ Shader "Bjj/Cloth"
         _SheenPower ("Sheen Power", Range(0.5,8)) = 2.6
         _Smoothness ("Smoothness", Range(0,1)) = 0.08
         _Sweat ("Sweat", Range(0,1)) = 0
+        _MainTex ("Albedo", 2D) = "white" {}
+        _BumpMap ("Normal", 2D) = "bump" {}
+        _ORM ("Occlusion/Roughness", 2D) = "white" {}
+        _NormalScale ("Normal Scale", Range(0,2)) = 1
         _StitchScale ("Stitch Scale", Float) = 26
         _WearStrength ("Wear", Range(0,1)) = 0.3
         _RimColor ("Rim Color", Color) = (1,1,1,1)
@@ -73,6 +77,10 @@ Shader "Bjj/Cloth"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "BjjNoise.hlsl"
 
+            TEXTURE2D(_MainTex);  SAMPLER(sampler_MainTex);
+            TEXTURE2D(_BumpMap);  SAMPLER(sampler_BumpMap);
+            TEXTURE2D(_ORM);      SAMPLER(sampler_ORM);
+
             struct Attributes
             {
                 float4 positionOS : POSITION;
@@ -80,6 +88,7 @@ Shader "Bjj/Cloth"
                 float2 uv         : TEXCOORD0;
                 float2 restXY     : TEXCOORD1;
                 float2 restZ      : TEXCOORD2;
+                float4 tangentOS  : TANGENT;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -88,6 +97,8 @@ Shader "Bjj/Cloth"
                 float4 positionCS  : SV_POSITION;
                 float3 positionWS  : TEXCOORD0;
                 float3 normalWS    : TEXCOORD1;
+                float2 uv          : TEXCOORD7;
+                float4 tangentWS   : TEXCOORD8;
                 float3 rest        : TEXCOORD2;
                 float4 shadowCoord : TEXCOORD3;
                 float fogFactor    : TEXCOORD4;
@@ -104,7 +115,11 @@ Shader "Bjj/Cloth"
                 OUT.positionCS = pos.positionCS;
                 OUT.positionWS = pos.positionWS;
                 OUT.rest = BjjRestPos(IN.restXY, IN.restZ);
-                OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
+                OUT.uv = TRANSFORM_TEX(IN.uv, _MainTex);
+
+                VertexNormalInputs nrm = GetVertexNormalInputs(IN.normalOS, IN.tangentOS);
+                OUT.normalWS = nrm.normalWS;
+                OUT.tangentWS = float4(nrm.tangentWS, IN.tangentOS.w * GetOddNegativeScale());
                 OUT.shadowCoord = GetShadowCoord(pos);
                 OUT.fogFactor = ComputeFogFactor(pos.positionCS.z);
                 return OUT;
@@ -140,20 +155,23 @@ Shader "Bjj/Cloth"
                 half4 shadowMask = half4(1, 1, 1, 1);
                 Light main = GetMainLight(IN.shadowCoord, IN.positionWS, shadowMask);
 
-                // Микрорельеф ткани: переплетение возмущает нормаль, а не
-                // только красит. Без этого ги остаётся идеально гладким —
-                // а идеальная гладкость и выдаёт компьютерную модель.
-                float3 grad = BjjNoiseGrad(IN.rest * 70.0, 0.5);
-                float3 T, B;
-                BjjBasis(N, T, B);
-                N = BjjPerturbNormal(N, T, B, 0.0, grad, 0.020);
+                // Переплетение, складки, потёртости и строчка — всё из
+                // запечённых карт. Ткань напечатана почти белой, а цвет
+                // бойца приходит из _Color: один атлас служит и синему,
+                // и красному.
+                half3 texAlbedo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, IN.uv).rgb;
+                half3 orm = SAMPLE_TEXTURE2D(_ORM, sampler_ORM, IN.uv).rgb;
 
-                half3 albedo = _Color.rgb * Weave(IN.rest);
+                half3 nTS = SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, IN.uv).rgb * 2.0h - 1.0h;
+                nTS = normalize(lerp(half3(0, 0, 1), nTS, _NormalScale));
 
-                // Потёртости на коленях, локтях и плечах — там, где кимоно
-                // трёт о татами. Ткань там светлее и более ворсистая.
-                half wear = saturate(BjjFbm(IN.rest * 3.4h) * 1.7h - 0.35h);
-                albedo = lerp(albedo, albedo * 1.22h + 0.02h, wear * _WearStrength);
+                float sgn = IN.tangentWS.w;
+                float3 bitangent = sgn * cross(N, IN.tangentWS.xyz);
+                half3x3 tbn = half3x3(IN.tangentWS.xyz, bitangent, N);
+                N = normalize(mul(nTS, tbn));
+
+                half occlusion = orm.r;
+                half3 albedo = texAlbedo * _Color.rgb;
 
                 // Намокшая ткань темнеет — это самый заметный признак
                 // тяжёлого раунда, и стоит он одного lerp.
@@ -163,10 +181,10 @@ Shader "Bjj/Cloth"
                 half sweat = saturate(_Sweat * (0.40h + sweatMask));
 
                 albedo *= lerp(1.0h, 0.68h, sweat);
-                half smoothness = lerp(_Smoothness, 0.58h, sweat);
+                half smoothness = lerp(1.0h - orm.g, 0.58h, sweat);
 
                 half ndotl = saturate(dot(N, main.direction));
-                half3 color = albedo * main.color * ndotl * main.shadowAttenuation;
+                half3 color = albedo * main.color * ndotl * main.shadowAttenuation * occlusion;
 
                 // Sheen: подсветка вдоль силуэта, независимая от блика.
                 half fresnel = pow(saturate(1.0h - saturate(dot(N, V))), _SheenPower);
@@ -187,13 +205,10 @@ Shader "Bjj/Cloth"
                 }
                 #endif
 
-                color += albedo * SampleSH(N);
+                color += albedo * SampleSH(N) * occlusion;
 
                 half rim = pow(saturate(1.0h - saturate(dot(N, V))), _RimPower);
                 color += _RimColor.rgb * rim * _RimStrength;
-
-                // Строчка: тонкие тёмные линии по ткани.
-                color *= lerp(0.86h, 1.0h, Stitch(IN.rest));
 
                 color = MixFog(color, IN.fogFactor);
                 return half4(color, 1.0h);

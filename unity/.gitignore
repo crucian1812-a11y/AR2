@@ -29,3 +29,4 @@ Assets/Scenes.meta
 # окружения, а обычным блобом каждая пересборка добавляла бы к истории
 # несколько мегабайт навсегда.
 Assets/Resources/Models/fighters/*.fbx
+Assets/Resources/Textures/fighters/*.png

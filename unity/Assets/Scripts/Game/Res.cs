@@ -60,4 +60,22 @@ public static class Res
     {
         return (top ? "Top_" : "Bottom_") + clip;
     }
+
+    // Карты рисуются в tools/blender/texture.py и лежат рядом с моделью.
+    // Имена — «<материал>_<карта>»: skin_albedo, gi_normal, belt_orm.
+    private static readonly Dictionary<string, Texture2D> _textures =
+        new Dictionary<string, Texture2D>();
+
+    public static Texture2D Map(string material, string kind)
+    {
+        string key = material + "_" + kind;
+        Texture2D tex;
+        if (_textures.TryGetValue(key, out tex)) return tex;
+
+        tex = Resources.Load<Texture2D>("Textures/fighters/" + key);
+        if (tex == null)
+            Debug.LogWarning("Res: нет карты " + key);
+        _textures[key] = tex;
+        return tex;
+    }
 }

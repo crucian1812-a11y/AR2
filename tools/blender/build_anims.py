@@ -44,6 +44,7 @@ except ImportError as exc:
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import poses  # noqa: E402
 import rig  # noqa: E402
+import texture  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT_DIR = os.path.join(ROOT, "unity", "Assets", "Resources", "Models", "fighters")
@@ -197,6 +198,14 @@ def export(arm, body):
 
 if __name__ == "__main__":
     arm, body, made = build_all()
+
+    # Текстуры рисуются здесь же, по раскладке атласа той самой модели,
+    # которая сейчас экспортируется. Разносить это по разным запускам
+    # нельзя: раскладка зависит от состава деталей, и текстуры от другой
+    # сборки легли бы мимо.
+    maps = texture.build(rig.ATLAS)
+    print("Атласов:", ", ".join(maps))
+
     export(arm, body)
 
     size = os.path.getsize(OUT_FBX) / 1024.0

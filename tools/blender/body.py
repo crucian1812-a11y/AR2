@@ -202,3 +202,111 @@ def auto_smooth(obj, angle=40.0):
         bpy.ops.object.shade_auto_smooth(angle=math.radians(angle))
     except Exception as exc:
         print("  авто-сглаживание недоступно:", exc)
+
+
+# ------------------------------------------------------------- развёртка
+
+# Развёртка делается не автоматом, а осознанно: модель строится этим же
+# кодом, поэтому для каждой детали известна её форма, и проекцию можно
+# выбрать точную. Автоматический разворот (smart_project) режет деталь на
+# случайные острова — в такой атлас нельзя осмысленно рисовать, а весь
+# смысл текстур именно в том, чтобы рисовать намеренно: брови, потёртости
+# на коленях, полоски на поясе.
+#
+# Проекции ровно три, и они покрывают всё:
+#   cyl — труба вокруг оси (конечности, корпус, шея, пальцы)
+#   sph — шар (голова, суставы, кисти)
+#   box — плоская по главной нормали (отвороты, пояс, брови)
+
+def uv_cylindrical(obj, axis_from, axis_to):
+    """Развёртка трубы: u — угол вокруг оси, v — вдоль оси."""
+    mesh = obj.data
+    if not mesh.uv_layers:
+        mesh.uv_layers.new(name="UVMap")
+    uv = mesh.uv_layers[0]
+
+    a = Vec(axis_from)
+    b = Vec(axis_to)
+    axis = b - a
+    length = axis.length
+    if length < 1e-6:
+        return
+    axis = axis / length
+
+    ref = Vec((0.0, 0.0, 1.0))
+    if abs(axis.dot(ref)) > 0.95:
+        ref = Vec((0.0, 1.0, 0.0))
+    u_dir = axis.cross(ref).normalized()
+    v_dir = axis.cross(u_dir).normalized()
+
+    for loop in mesh.loops:
+        p = mesh.vertices[loop.vertex_index].co - a
+        along = p.dot(axis) / length
+        radial = p - axis * p.dot(axis)
+        ang = math.atan2(radial.dot(v_dir), radial.dot(u_dir))
+        uv.data[loop.index].uv = (ang / (2.0 * math.pi) + 0.5, along)
+
+
+def uv_spherical(obj, center):
+    """Развёртка шара."""
+    mesh = obj.data
+    if not mesh.uv_layers:
+        mesh.uv_layers.new(name="UVMap")
+    uv = mesh.uv_layers[0]
+
+    c = Vec(center)
+    for loop in mesh.loops:
+        p = (mesh.vertices[loop.vertex_index].co - c)
+        r = max(p.length, 1e-6)
+        u = math.atan2(p.y, p.x) / (2.0 * math.pi) + 0.5
+        v = math.acos(max(-1.0, min(1.0, p.z / r))) / math.pi
+        uv.data[loop.index].uv = (u, 1.0 - v)
+
+
+def uv_planar(obj):
+    """Плоская развёртка по главной оси детали."""
+    mesh = obj.data
+    if not mesh.uv_layers:
+        mesh.uv_layers.new(name="UVMap")
+    uv = mesh.uv_layers[0]
+
+    xs = [v.co.x for v in mesh.vertices]
+    ys = [v.co.y for v in mesh.vertices]
+    zs = [v.co.z for v in mesh.vertices]
+    span = (max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs))
+    # Проецируем вдоль самой короткой оси — так деталь разворачивается
+    # с наименьшим искажением.
+    drop = span.index(min(span))
+
+    def pick(co):
+        if drop == 0: return (co.y, co.z), (min(ys), min(zs)), (span[1], span[2])
+        if drop == 1: return (co.x, co.z), (min(xs), min(zs)), (span[0], span[2])
+        return (co.x, co.y), (min(xs), min(ys)), (span[0], span[1])
+
+    for loop in mesh.loops:
+        co = mesh.vertices[loop.vertex_index].co
+        (a, b), (a0, b0), (sa, sb) = pick(co)
+        uv.data[loop.index].uv = ((a - a0) / max(sa, 1e-6), (b - b0) / max(sb, 1e-6))
+
+
+def uv_remap(obj, rect):
+    """Ужимает развёртку детали в её клетку атласа.
+
+    Отступ внутрь клетки обязателен: без него билинейная фильтрация на
+    краю затягивает цвет соседней детали, и по швам идёт грязная кайма.
+    """
+    x0, y0, w, h = rect
+    pad = 0.02
+    x0 += w * pad
+    y0 += h * pad
+    w *= 1.0 - 2.0 * pad
+    h *= 1.0 - 2.0 * pad
+
+    mesh = obj.data
+    if not mesh.uv_layers:
+        return
+    uv = mesh.uv_layers[0]
+    for d in uv.data:
+        u = min(max(d.uv[0], 0.0), 1.0)
+        v = min(max(d.uv[1], 0.0), 1.0)
+        d.uv = (x0 + u * w, y0 + v * h)

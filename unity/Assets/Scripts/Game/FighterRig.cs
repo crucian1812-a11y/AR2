@@ -106,25 +106,29 @@ public class FighterRig : MonoBehaviour
         if (low.StartsWith("skin"))
         {
             Material m = new Material(Shader.Find("Bjj/Skin"));
-            m.SetColor("_Color", new Color(0.80f, 0.60f, 0.47f));
+            // Цвет здесь — множитель к текстуре, а не сам тон: тон
+            // запечён в альбедо вместе с бровями, губами и щетиной.
+            m.SetColor("_Color", Color.white);
             m.SetColor("_RimColor", rim);
             m.SetFloat("_RimStrength", 0.35f);
+            Maps(m, "skin");
             _skin.Add(m);
             return m;
         }
 
         if (low.StartsWith("gidark"))
         {
-            Material m = ClothMaterial(gi * 0.62f, rim);
-            return m;
+            return ClothMaterial(gi * 0.62f, rim, "gidark");
         }
         if (low.StartsWith("gi"))
         {
-            return ClothMaterial(gi, rim);
+            return ClothMaterial(gi, rim, "gi");
         }
         if (low.StartsWith("belt"))
         {
-            Material m = ClothMaterial(new Color(0.05f, 0.05f, 0.06f), rim);
+            // Пояс печётся со своими полосками, поэтому цвет — белый:
+            // умножать чёрную текстуру ещё и на чёрный цвет незачем.
+            Material m = ClothMaterial(Color.white, rim, "belt");
             m.SetFloat("_SheenStrength", 0.25f);
             return m;
         }
@@ -151,14 +155,29 @@ public class FighterRig : MonoBehaviour
         return Arena.Lit(gi);
     }
 
-    private Material ClothMaterial(Color color, Color rim)
+    private Material ClothMaterial(Color color, Color rim, string maps)
     {
         Material m = new Material(Shader.Find("Bjj/Cloth"));
         m.SetColor("_Color", color);
         m.SetColor("_RimColor", rim);
         m.SetFloat("_RimStrength", 0.4f);
+        Maps(m, maps);
         _cloth.Add(m);
         return m;
+    }
+
+    // Три карты на материал. Если какой-то нет, шейдер получит значение
+    // по умолчанию («white»/«bump») и просто останется гладким — сборка
+    // без текстур не должна падать чёрным экраном.
+    private static void Maps(Material m, string set)
+    {
+        Texture2D albedo = Res.Map(set, "albedo");
+        Texture2D normal = Res.Map(set, "normal");
+        Texture2D orm = Res.Map(set, "orm");
+
+        if (albedo != null) m.SetTexture("_MainTex", albedo);
+        if (normal != null) m.SetTexture("_BumpMap", normal);
+        if (orm != null) m.SetTexture("_ORM", orm);
     }
 
     // Граф: микшер на два входа. Новый клип приходит на вход 0, прежний

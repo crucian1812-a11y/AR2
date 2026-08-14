@@ -143,15 +143,21 @@ public class ModelImportSettings : AssetPostprocessor
 
         // Карты нормалей нельзя помечать как sRGB: видеокарта раскодировала
         // бы им гамму, и в шейдер пришёл бы искажённый вектор.
-        bool isNormal = file.Contains("_nor") || file.Contains("normal");
+        // Карты данных нельзя помечать как sRGB: видеокарта раскодировала
+        // бы им гамму, и в шейдер пришли бы искажённые числа. Это касается
+        // не только нормалей, но и ORM — там лежат затенение,
+        // шероховатость и металличность, а не цвет.
+        bool isData = file.Contains("_nor") || file.Contains("normal") ||
+                      file.EndsWith("_orm");
         ti.textureType = TextureImporterType.Default;
-        ti.sRGBTexture = !isNormal;
+        ti.sRGBTexture = !isData;
 
         ti.mipmapEnabled = true;
         ti.filterMode = FilterMode.Trilinear;
         ti.anisoLevel = 4;
 
-        // У стилизованных моделей нет микродеталей, 1K хватает с запасом.
+        // Атласы рисуются в 1K и в нём же используются: увеличивать
+        // бессмысленно, уменьшать — терять брови и полоски на поясе.
         ti.maxTextureSize = 1024;
         ti.textureCompression = TextureImporterCompression.Compressed;
         ti.wrapMode = TextureWrapMode.Clamp;

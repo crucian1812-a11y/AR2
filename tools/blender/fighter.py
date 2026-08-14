@@ -38,6 +38,34 @@ def _parts():
     return []
 
 
+# Обёртки над примитивами: каждая сразу разворачивает деталь той
+# проекцией, которая ей подходит. Разворачивать надо здесь, пока известна
+# форма детали и её ось: после склейки в общий меш это уже не восстановить.
+
+def _loft(name, sections, **kw):
+    obj = B.loft(name, sections, **kw)
+    B.uv_cylindrical(obj, sections[0][0], sections[-1][0])
+    return obj
+
+
+def _limb(name, a, b, ra, rb, **kw):
+    obj = B.limb(name, a, b, ra, rb, **kw)
+    B.uv_cylindrical(obj, a, b)
+    return obj
+
+
+def _blob(name, center, radius, **kw):
+    obj = B.blob(name, center, radius, **kw)
+    B.uv_spherical(obj, center)
+    return obj
+
+
+def _box(name, center, half, **kw):
+    obj = B.box(name, center, half, **kw)
+    B.uv_planar(obj)
+    return obj
+
+
 def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
     """Собирает бойца. Возвращает список пар (меш, имя кости)."""
     pal = B.palette(gi_rgb)
@@ -48,26 +76,26 @@ def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
 
     def add(obj, bone, mat):
         B.finish(obj, mat)
-        parts.append((obj, bone))
+        parts.append((obj, bone, mat))
         return obj
 
     # ---------------------------------------------------------- корпус
     # Кимоно надето поверх тела, поэтому корпус сразу строится «в куртке»:
     # отдельный меш тела под ней не виден и только тратил бы полигоны.
-    add(B.loft("Hips", [
+    add(_loft("Hips", [
         ((0, 0, H["hips"] - 0.10), 0.145, 0.105),
         ((0, 0, H["hips"] + 0.02), 0.150, 0.108),
         ((0, 0, H["spine"]),       0.148, 0.104),
     ]), "Hips", pal["gi"])
 
-    add(B.loft("Spine", [
+    add(_loft("Spine", [
         ((0, 0, H["spine"] - 0.02), 0.146, 0.102),
         ((0, 0, H["chest"] - 0.06), 0.163, 0.110),
     ]), "Spine", pal["gi"])
 
     # Грудная клетка шире таза и уходит в плечи — это главный вклад в
     # силуэт борца.
-    add(B.loft("Chest", [
+    add(_loft("Chest", [
         ((0, 0, H["chest"] - 0.08), 0.163, 0.116),
         ((0, 0, H["chest"] + 0.07), 0.181, 0.131),
         ((0, 0, H["shoulder"] - 0.02), 0.190, 0.133),
@@ -81,7 +109,7 @@ def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
     # ~0.115 по Y) и развёрнуты в букву V. Утопленные внутрь груди они
     # просто не видны, а захват за отворот — половина игры в ги.
     for tag, sx in (("L", 1.0), ("R", -1.0)):
-        add(B.loft("Lapel" + tag, [
+        add(_loft("Lapel" + tag, [
             # Вверху отвороты разведены к плечам, внизу сходятся к узлу
             # пояса. Две вертикальные полосы рядом читались одной планкой.
             ((sx * 0.098, -0.112, H["shoulder"] - 0.02), 0.030, 0.019),
@@ -90,23 +118,23 @@ def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
         ]), "Chest", pal["gi_dark"])
 
     # Юбка куртки ниже пояса — свободный край, а не обтяжка.
-    add(B.loft("Skirt", [
+    add(_loft("Skirt", [
         ((0, 0, H["hips"] - 0.06), 0.154, 0.113),
         ((0, 0, H["hips"] - 0.19), 0.163, 0.121),
     ], cap_end=False), "Hips", pal["gi"])
 
     # ----------------------------------------------------------- пояс
-    add(B.loft("Belt", [
+    add(_loft("Belt", [
         ((0, 0, H["hips"] - 0.010), 0.158, 0.116),
         ((0, 0, H["hips"] - 0.068), 0.159, 0.117),
     ]), "Hips", pal["belt"])
-    add(B.box("BeltKnot", (0.0, -0.122, H["hips"] - 0.039),
+    add(_box("BeltKnot", (0.0, -0.122, H["hips"] - 0.039),
               (0.042, 0.024, 0.024)), "Hips", pal["belt"])
     # Два хвоста узла: они и отличают завязанный пояс от обруча.
-    add(B.box("BeltTailL", (0.040, -0.128, H["hips"] - 0.112),
+    add(_box("BeltTailL", (0.040, -0.128, H["hips"] - 0.112),
               (0.022, 0.012, 0.062), rotation=(0, 0, math.radians(5))),
         "Hips", pal["belt"])
-    add(B.box("BeltTailR", (-0.040, -0.128, H["hips"] - 0.112),
+    add(_box("BeltTailR", (-0.040, -0.128, H["hips"] - 0.112),
               (0.022, 0.012, 0.062), rotation=(0, 0, math.radians(-5))),
         "Hips", pal["belt"])
 
@@ -119,14 +147,14 @@ def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
 
     # Шея с намёком на грудино-ключично-сосцевидные мышцы: у борца шея
     # толстая, и это часть силуэта.
-    add(B.loft("Neck", [
+    add(_loft("Neck", [
         ((0, 0, H["neck"] - 0.06), 0.076, 0.074),
         ((0, 0.004, H["neck"] + 0.02), 0.066, 0.068),
         ((0, 0.006, H["head"] + 0.03), 0.062, 0.064),
     ], sides=10), "Neck", pal["skin"])
 
     # Свод черепа: сечения сверху вниз, каждое своей ширины.
-    add(B.loft("Skull", [
+    add(_loft("Skull", [
         ((0, 0.012, H["head"] + 0.185), 0.038, 0.040),
         ((0, 0.012, H["head"] + 0.155), 0.078, 0.086),
         ((0, 0.010, H["head"] + 0.115), 0.095, 0.106),
@@ -141,7 +169,7 @@ def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
     # Надбровье: одна поперечная дуга. Без неё глаза «наклеены» на шар.
     # Надбровье. Первая версия торчала козырьком: дуга стояла слишком
     # далеко вперёд и слишком толстая. Тень под бровью нужна, полка — нет.
-    add(B.loft("Brow", [
+    add(_loft("Brow", [
         ((-0.066, -0.058, H["head"] + 0.084), 0.011, 0.008),
         ((-0.030, -0.072, H["head"] + 0.088), 0.013, 0.009),
         ((0.030, -0.072, H["head"] + 0.088), 0.013, 0.009),
@@ -149,7 +177,7 @@ def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
     ], sides=6), "Head", pal["skin"])
 
     # Нос: спинка и кончик.
-    add(B.loft("Nose", [
+    add(_loft("Nose", [
         ((0, -0.074, H["head"] + 0.078), 0.009, 0.008),
         ((0, -0.084, H["head"] + 0.058), 0.013, 0.014),
         ((0, -0.092, H["head"] + 0.040), 0.017, 0.017),
@@ -158,11 +186,11 @@ def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
 
     # Глазницы: тёмные впадины, утопленные в череп.
     for tag, ex in (("L", 1.0), ("R", -1.0)):
-        add(B.blob("Eye" + tag, (ex * 0.040, -0.070, H["head"] + 0.068), 0.024,
+        add(_blob("Eye" + tag, (ex * 0.040, -0.070, H["head"] + 0.068), 0.024,
                    scale=(1.20, 0.34, 0.60), segments=10, rings=6),
             "Head", pal["eye"])
         # Ухо с завитком: два объёма вместо одного плоского.
-        add(B.blob("Ear" + tag, (ex * 0.094, 0.004, H["head"] + 0.055), 0.028,
+        add(_blob("Ear" + tag, (ex * 0.094, 0.004, H["head"] + 0.055), 0.028,
                    scale=(0.38, 0.80, 1.05), segments=8, rings=6),
             "Head", pal["skin"])
 
@@ -170,14 +198,14 @@ def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
     # читается на любой дистанции.
     # Рот — тонкая дуга, повторяющая округлость челюсти. Прямоугольная
     # плашка читалась прорезью в маске.
-    add(B.loft("Mouth", [
+    add(_loft("Mouth", [
         ((-0.022, -0.070, H["head"] + 0.012), 0.004, 0.003),
         ((0.0, -0.078, H["head"] + 0.010), 0.005, 0.004),
         ((0.022, -0.070, H["head"] + 0.012), 0.004, 0.003),
     ], sides=6), "Head", pal["mouth"])
 
     # Волосы коротким ёжиком по форме черепа, а не шапкой поверх.
-    add(B.loft("Hair", [
+    add(_loft("Hair", [
         ((0, 0.014, H["head"] + 0.192), 0.040, 0.042),
         ((0, 0.014, H["head"] + 0.158), 0.082, 0.090),
         ((0, 0.012, H["head"] + 0.118), 0.099, 0.110),
@@ -193,26 +221,26 @@ def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
         hand = (sx * 0.70, 0, ARM_Z)
 
         # Плечо-шарнир: закрывает стык руки с корпусом при любом махе.
-        add(B.blob(side + "ShoulderCap", (sx * 0.178, 0, H["shoulder"] - 0.008),
+        add(_blob(side + "ShoulderCap", (sx * 0.178, 0, H["shoulder"] - 0.008),
                    0.080, scale=(1.0, 1.05, 1.0)),
             side + "Shoulder", pal["gi"])
 
         # Рукав кимоно доходит до середины предплечья — так его и носят.
         # Рукав с наполнением под дельтой и бицепсом: ровная труба
         # читается рукавом рубашки, а не рукой борца в кимоно.
-        add(B.loft(side + "UpperArm", [
+        add(_loft(side + "UpperArm", [
             (sh, 0.076, 0.074),
             ((sx * 0.26, 0, ARM_Z + 0.045), 0.084, 0.081),
             ((sx * 0.35, 0, ARM_Z + 0.015), 0.076, 0.074),
             (elbow, 0.062, 0.061),
         ], sides=10), side + "UpperArm", pal["gi"])
-        add(B.blob(side + "ElbowCap", elbow, 0.061), side + "UpperArm", pal["gi"])
+        add(_blob(side + "ElbowCap", elbow, 0.061), side + "UpperArm", pal["gi"])
 
         # Радиус рукава совпадает с концом плеча, иначе на стыке ступенька.
         sleeve_end = (sx * 0.545, 0, ARM_Z)
-        add(B.limb(side + "Sleeve", elbow, sleeve_end, 0.061, 0.056),
+        add(_limb(side + "Sleeve", elbow, sleeve_end, 0.061, 0.056),
             side + "LowerArm", pal["gi"])
-        add(B.limb(side + "LowerArm", sleeve_end, wrist, 0.048, 0.038, mid=0.050),
+        add(_limb(side + "LowerArm", sleeve_end, wrist, 0.048, 0.038, mid=0.050),
             side + "LowerArm", pal["skin"])
 
         # Кисть с пальцами. В борьбе кисти постоянно в кадре и постоянно
@@ -221,7 +249,7 @@ def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
         # раскрытая ладонь выглядит неестественно, а полусогнутая читается
         # как готовая к захвату.
         palm = (sx * 0.655, 0, ARM_Z)
-        add(B.loft(side + "Palm", [
+        add(_loft(side + "Palm", [
             ((sx * 0.628, 0, ARM_Z), 0.038, 0.024),
             ((sx * 0.672, -0.004, ARM_Z), 0.042, 0.027),
             ((sx * 0.700, -0.008, ARM_Z), 0.038, 0.024),
@@ -234,14 +262,14 @@ def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
             base = (sx * 0.700, -0.006 + spread * 0.2, ARM_Z + spread)
             tip = (sx * (0.700 + length), -0.020 - spread * 0.15, ARM_Z + spread * 1.15)
             mid = (sx * (0.700 + length * 0.55), -0.011, ARM_Z + spread * 1.05)
-            add(B.loft(side + "Finger%d" % f, [
+            add(_loft(side + "Finger%d" % f, [
                 (base, 0.011, 0.010),
                 (mid, 0.010, 0.009),
                 (tip, 0.008, 0.008),
             ], sides=6), side + "Hand", pal["skin"])
 
         # Большой палец отставлен вперёд и вниз — им и берут отворот.
-        add(B.loft(side + "Thumb", [
+        add(_loft(side + "Thumb", [
             ((sx * 0.640, -0.024, ARM_Z - 0.004), 0.015, 0.014),
             ((sx * 0.664, -0.048, ARM_Z - 0.008), 0.013, 0.012),
             ((sx * 0.682, -0.062, ARM_Z - 0.010), 0.010, 0.010),
@@ -253,28 +281,88 @@ def build(gi_rgb=(0.11, 0.21, 0.60), skin_rgb=None):
         knee = (sx * HIP_X, 0, H["knee"])
         ankle = (sx * HIP_X, 0, H["ankle"])
 
-        add(B.blob(side + "HipCap", hip, 0.092, scale=(1.0, 0.95, 0.9)),
+        add(_blob(side + "HipCap", hip, 0.092, scale=(1.0, 0.95, 0.9)),
             side + "UpperLeg", pal["gi"])
 
-        add(B.limb(side + "UpperLeg", hip, knee, 0.098, 0.076, mid=0.101),
+        add(_limb(side + "UpperLeg", hip, knee, 0.098, 0.076, mid=0.101),
             side + "UpperLeg", pal["gi"])
-        add(B.blob(side + "KneeCap", knee, 0.074), side + "UpperLeg", pal["gi"])
+        add(_blob(side + "KneeCap", knee, 0.074), side + "UpperLeg", pal["gi"])
 
         # Штанина до середины голени, дальше голая нога: борются босиком.
         shin_mid = (sx * HIP_X, 0, H["knee"] - (H["knee"] - H["ankle"]) * 0.45)
-        add(B.limb(side + "Pant", knee, shin_mid, 0.080, 0.072),
+        add(_limb(side + "Pant", knee, shin_mid, 0.080, 0.072),
             side + "LowerLeg", pal["gi"])
-        add(B.limb(side + "Shin", shin_mid, ankle, 0.058, 0.040, mid=0.062),
+        add(_limb(side + "Shin", shin_mid, ankle, 0.058, 0.040, mid=0.062),
             side + "LowerLeg", pal["skin"])
 
-        add(B.blob(side + "Heel", (sx * HIP_X, -0.01, H["ankle"] - 0.005), 0.045,
+        add(_blob(side + "Heel", (sx * HIP_X, -0.01, H["ankle"] - 0.005), 0.045,
                    scale=(0.9, 1.0, 0.8)), side + "Foot", pal["skin"])
-        add(B.loft(side + "Foot", [
+        add(_loft(side + "Foot", [
             ((sx * HIP_X, -0.02, H["toe"] + 0.032), 0.048, 0.055),
             ((sx * HIP_X, -0.19, H["toe"] + 0.022), 0.052, 0.045),
         ]), side + "Foot", pal["skin"])
 
     return parts
+
+
+# Детали, которым нужна большая клетка атласа. Смотрят на них
+# непропорционально много: голова почти всегда в кадре, а на добивании
+# занимает пол-экрана. Равномерная сетка отдавала черепу одну тридцатую
+# атласа, и брови получались шириной в два пикселя.
+IMPORTANT = ("Skull",)
+
+
+def pack_atlas(parts):
+    """Раскладывает детали по атласу — свой атлас на каждый материал.
+
+    Возвращает {материал: {деталь: (x, y, w, h)}} — карту, по которой
+    texture.py рисует. Без неё рисовать было бы некуда: рисунок должен
+    знать, где на картинке лицо, а где колено.
+
+    Раскладка сеткой, а не плотной упаковкой. Плотная дала бы больше
+    полезной площади, но одинаковые клетки означают, что рисунок детали
+    задаётся в её собственных координатах 0..1, и это важнее нескольких
+    процентов текселей.
+    """
+    import math as _m
+
+    by_material = {}
+    for obj, bone, mat in parts:
+        by_material.setdefault(mat.name, []).append(obj)
+
+    layout = {}
+    for mat_name, objs in by_material.items():
+        big = [o for o in objs if o.name in IMPORTANT][:1]
+        rest = [o for o in objs if o not in big]
+
+        rects = {}
+        for obj in big:
+            rect = (0.0, 0.0, 0.5, 0.5)
+            B.uv_remap(obj, rect)
+            rects[obj.name] = rect
+
+        regions = ([(0.5, 0.0, 0.5, 0.5), (0.0, 0.5, 0.5, 0.5), (0.5, 0.5, 0.5, 0.5)]
+                   if big else [(0.0, 0.0, 1.0, 1.0)])
+
+        per = int(_m.ceil(len(rest) / float(len(regions)))) if rest else 0
+        idx = 0
+        for rx, ry, rw, rh in regions:
+            chunk = rest[idx:idx + per]
+            idx += per
+            if not chunk:
+                continue
+            cols = int(_m.ceil(_m.sqrt(len(chunk))))
+            rows = int(_m.ceil(len(chunk) / float(cols)))
+            cw = rw / cols
+            ch = rh / rows
+            for i, obj in enumerate(chunk):
+                rect = (rx + (i % cols) * cw, ry + (i // cols) * ch, cw, ch)
+                B.uv_remap(obj, rect)
+                rects[obj.name] = rect
+
+        layout[mat_name] = rects
+
+    return layout
 
 
 def bake_rest_coords(mesh_obj):
@@ -307,23 +395,18 @@ def bake_rest_coords(mesh_obj):
 
 def attach(arm_obj, parts, name="Body"):
     """Склеивает детали в один меш и привязывает к скелету по группам."""
-    for obj, bone in parts:
+    for obj, bone, mat in parts:
         vg = obj.vertex_groups.new(name=bone)
         vg.add(range(len(obj.data.vertices)), 1.0, "REPLACE")
 
     bpy.ops.object.select_all(action="DESELECT")
-    for obj, _ in parts:
+    for obj, _, _ in parts:
         obj.select_set(True)
     bpy.context.view_layer.objects.active = parts[0][0]
     bpy.ops.object.join()
 
     mesh_obj = bpy.context.active_object
     mesh_obj.name = name
-
-    # Первый UV-канал нужен просто чтобы он был: часть кода Unity и
-    # шейдеров ожидает TEXCOORD0, а у построенного кодом меша его нет.
-    if not mesh_obj.data.uv_layers:
-        mesh_obj.data.uv_layers.new(name="UVMap")
 
     bake_rest_coords(mesh_obj)
     B.auto_smooth(mesh_obj)

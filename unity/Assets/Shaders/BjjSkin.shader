@@ -22,6 +22,10 @@ Shader "Bjj/Skin"
         _SubsurfaceStrength ("Subsurface Strength", Range(0,2)) = 0.55
         _Smoothness ("Smoothness", Range(0,1)) = 0.24
         _Sweat ("Sweat", Range(0,1)) = 0
+        _MainTex ("Albedo", 2D) = "white" {}
+        _BumpMap ("Normal", 2D) = "bump" {}
+        _ORM ("Occlusion/Roughness", 2D) = "white" {}
+        _NormalScale ("Normal Scale", Range(0,2)) = 1
         _PoreScale ("Pore Scale", Float) = 190
         _PoreStrength ("Pore Strength", Range(0,1)) = 0.35
         _MottleScale ("Mottle Scale", Float) = 9
@@ -78,6 +82,10 @@ Shader "Bjj/Skin"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "BjjNoise.hlsl"
 
+            TEXTURE2D(_MainTex);  SAMPLER(sampler_MainTex);
+            TEXTURE2D(_BumpMap);  SAMPLER(sampler_BumpMap);
+            TEXTURE2D(_ORM);      SAMPLER(sampler_ORM);
+
             struct Attributes
             {
                 float4 positionOS : POSITION;
@@ -96,6 +104,8 @@ Shader "Bjj/Skin"
                 float3 normalWS    : TEXCOORD1;
                 float4 shadowCoord : TEXCOORD2;
                 float fogFactor    : TEXCOORD3;
+                float2 uv          : TEXCOORD7;
+                float4 tangentWS   : TEXCOORD8;
                 float3 rest        : TEXCOORD4;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
@@ -110,7 +120,11 @@ Shader "Bjj/Skin"
                 OUT.positionCS = pos.positionCS;
                 OUT.positionWS = pos.positionWS;
                 OUT.rest = BjjRestPos(IN.restXY, IN.restZ);
-                OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
+                OUT.uv = TRANSFORM_TEX(IN.uv, _MainTex);
+
+                VertexNormalInputs nrm = GetVertexNormalInputs(IN.normalOS, IN.tangentOS);
+                OUT.normalWS = nrm.normalWS;
+                OUT.tangentWS = float4(nrm.tangentWS, IN.tangentOS.w * GetOddNegativeScale());
                 OUT.shadowCoord = GetShadowCoord(pos);
                 OUT.fogFactor = ComputeFogFactor(pos.positionCS.z);
                 return OUT;
@@ -132,23 +146,25 @@ Shader "Bjj/Skin"
                 half4 shadowMask = half4(1, 1, 1, 1);
                 Light main = GetMainLight(IN.shadowCoord, IN.positionWS, shadowMask);
 
-                // Микрорельеф кожи. Поры дрожат по нормали, крупные пятна
-                // меняют цвет: живая кожа не одноцветная, а идеально
-                // ровный тон — первый признак пластика.
-                float3 poreP = IN.rest * _PoreScale;
-                float3 grad = BjjNoiseGrad(poreP, 0.35);
-                float3 T, B;
-                BjjBasis(N, T, B);
-                N = BjjPerturbNormal(N, T, B, 0.0, grad, _PoreStrength * 0.012);
+                // Микрорельеф и разнотон приходят из запечённых карт.
+                // Раньше это считалось шумом каждый кадр: около двенадцати
+                // выборок на пиксель, и при этом шум умеет только
+                // однородную зернистость — ни бровей, ни вен, ни губ.
+                half3 texAlbedo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, IN.uv).rgb;
+                half3 orm = SAMPLE_TEXTURE2D(_ORM, sampler_ORM, IN.uv).rgb;
 
-                half mottle = BjjFbm(IN.rest * _MottleScale) - 0.5h;
+                // Карта нормалей записана обычным RGB, а не в упаковке
+                // Unity, поэтому распаковывается вручную.
+                half3 nTS = SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, IN.uv).rgb * 2.0h - 1.0h;
+                nTS = normalize(lerp(half3(0, 0, 1), nTS, _NormalScale));
 
-                half3 albedo = _Color.rgb;
-                // Пятна уводят тон и в красноту, и в желтизну — разнотон
-                // важнее самой яркости.
-                albedo *= 1.0h + mottle * _MottleStrength;
-                albedo.r *= 1.0h + mottle * _MottleStrength * 0.55h;
-                albedo.b *= 1.0h - mottle * _MottleStrength * 0.30h;
+                float sgn = IN.tangentWS.w;
+                float3 bitangent = sgn * cross(N, IN.tangentWS.xyz);
+                half3x3 tbn = half3x3(IN.tangentWS.xyz, bitangent, N);
+                N = normalize(mul(nTS, tbn));
+
+                half occlusion = orm.r;
+                half3 albedo = texAlbedo * _Color.rgb;
 
                 // Пот: поверхность становится глаже и чуть темнее — мокрая
                 // ткань и кожа всегда темнее сухой, это читается сразу.
@@ -157,13 +173,13 @@ Shader "Bjj/Skin"
                 half sweatMask = saturate(BjjFbm(IN.rest * 5.5h + float3(0, 0, 1.7h)) * 1.9h);
                 half sweat = saturate(_Sweat * (0.45h + sweatMask));
 
-                half smoothness = lerp(_Smoothness, 0.78h, sweat);
+                half smoothness = lerp(1.0h - orm.g, 0.78h, sweat);
                 albedo *= lerp(1.0h, 0.84h, sweat);
 
                 half ndotl = dot(N, main.direction);
                 half diffuse = WrapDiffuse(ndotl, _WrapAmount) * main.shadowAttenuation;
 
-                half3 color = albedo * main.color * diffuse;
+                half3 color = albedo * main.color * diffuse * occlusion;
 
                 // Просвет: сильнее там, где смотрим вдоль поверхности и
                 // навстречу свету.
@@ -188,7 +204,7 @@ Shader "Bjj/Skin"
                 }
                 #endif
 
-                color += albedo * SampleSH(N);
+                color += albedo * SampleSH(N) * occlusion;
 
                 // Контровой контур: отделяет бойца от фона и от соперника.
                 half rim = pow(saturate(1.0h - saturate(dot(N, V))), _RimPower);

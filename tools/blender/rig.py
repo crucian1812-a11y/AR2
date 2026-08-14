@@ -133,16 +133,28 @@ def bone_midpoint(arm_obj, bone_name):
 
 
 def build_body(arm_obj, gi_color=(0.11, 0.21, 0.60)):
-    """Меш бойца из fighter.py, привязанный к скелету."""
+    """Меш бойца из fighter.py, привязанный к скелету.
+
+    Раскладка атласа возвращается наружу: по ней texture.py рисует карты,
+    и без неё рисунок не знал бы, где на картинке колено, а где лицо.
+    """
     import fighter
     parts = fighter.build(gi_color)
-    return fighter.attach(arm_obj, parts)
+    layout = fighter.pack_atlas(parts)
+    mesh = fighter.attach(arm_obj, parts)
+    mesh["atlas"] = layout
+    return mesh, layout
+
+
+ATLAS = {}
 
 
 def build_fighter(name="Fighter", gi_color=(0.11, 0.21, 0.60)):
-    """Собирает скелет и болванку. Возвращает (арматура, меш)."""
+    """Собирает скелет и модель. Возвращает (арматура, меш)."""
+    global ATLAS
     arm = build_armature(name)
-    body = build_body(arm, gi_color)
+    body, layout = build_body(arm, gi_color)
+    ATLAS = layout
     return arm, body
 
 
