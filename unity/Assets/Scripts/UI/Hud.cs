@@ -37,6 +37,11 @@ public class Hud : MonoBehaviour
     private Text _hints;
     private Gestures _gestures;
 
+    // Позиция, для которой уже проигран всплеск. Осталась одна на весь
+    // класс: всё остальное состояние интерфейса пересобирается из матча
+    // каждый кадр.
+    private Pos _pulsedFor = (Pos)(-1);
+
     private float _toastLife;
     private float _posPulse;
     private float _flashLife;
@@ -293,7 +298,11 @@ public class Hud : MonoBehaviour
     {
         _position.text = Positions.Name(_match.Position);
 
-        if (_shownFor != _match.Position) _posPulse = 1f;
+        if (_pulsedFor != _match.Position)
+        {
+            _pulsedFor = _match.Position;
+            _posPulse = 1f;
+        }
         _posPulse = Mathf.Max(0f, _posPulse - dt * 2.2f);
 
         // Смена позиции подчёркивается коротким увеличением: это главное
