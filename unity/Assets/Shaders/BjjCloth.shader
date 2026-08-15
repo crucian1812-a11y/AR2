@@ -64,7 +64,7 @@ Shader "Bjj/Cloth"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
-            #pragma target 3.0
+            #pragma target 3.5
 
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
@@ -92,16 +92,19 @@ Shader "Bjj/Cloth"
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
+            // Номера идут подряд и не выходят за TEXCOORD7: см. BjjSkin,
+            // TEXCOORD8 не компилировался на Android и делал бойцов
+            // прозрачными.
             struct Varyings
             {
                 float4 positionCS  : SV_POSITION;
                 float3 positionWS  : TEXCOORD0;
                 float3 normalWS    : TEXCOORD1;
-                float2 uv          : TEXCOORD7;
-                float4 tangentWS   : TEXCOORD8;
                 float3 rest        : TEXCOORD2;
                 float4 shadowCoord : TEXCOORD3;
                 float fogFactor    : TEXCOORD4;
+                float2 uv          : TEXCOORD5;
+                float4 tangentWS   : TEXCOORD6;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -225,7 +228,7 @@ Shader "Bjj/Cloth"
             HLSLPROGRAM
             #pragma vertex ShadowVert
             #pragma fragment ShadowFrag
-            #pragma target 3.0
+            #pragma target 3.5
             #pragma multi_compile_instancing
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
@@ -263,7 +266,7 @@ Shader "Bjj/Cloth"
             HLSLPROGRAM
             #pragma vertex DepthVert
             #pragma fragment DepthFrag
-            #pragma target 3.0
+            #pragma target 3.5
             #pragma multi_compile_instancing
             struct A { float4 positionOS : POSITION; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct V { float4 positionCS : SV_POSITION; };
@@ -281,7 +284,7 @@ Shader "Bjj/Cloth"
             HLSLPROGRAM
             #pragma vertex DNVert
             #pragma fragment DNFrag
-            #pragma target 3.0
+            #pragma target 3.5
             #pragma multi_compile_instancing
             struct A { float4 positionOS : POSITION; float3 normalOS : NORMAL; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct V { float4 positionCS : SV_POSITION; float3 normalWS : TEXCOORD0; };

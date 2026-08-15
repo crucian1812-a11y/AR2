@@ -271,12 +271,21 @@ public static class BuildScript
             if (element != null) existing.Add(element.objectReferenceValue as Shader);
         }
 
+        // Отсутствие шейдера — ошибка сборки, а не предупреждение.
+        //
+        // Shader.Find возвращает null и когда шейдера нет, и когда он не
+        // скомпилировался. Раньше здесь стояло предупреждение, сборка шла
+        // дальше, и в APK уезжали материалы без шейдера — бойцы получались
+        // прозрачными, а причина не была видна ни в игре, ни в логе сборки,
+        // потому что предупреждение терялось среди тысяч строк.
+        List<string> missing = new List<string>();
+
         for (int i = 0; i < RequiredShaders.Length; i++)
         {
             Shader shader = Shader.Find(RequiredShaders[i]);
             if (shader == null)
             {
-                Debug.LogWarning("BuildScript: shader not found: " + RequiredShaders[i]);
+                missing.Add(RequiredShaders[i]);
                 continue;
             }
             if (existing.Contains(shader)) continue;
@@ -291,6 +300,10 @@ public static class BuildScript
 
         so.ApplyModifiedProperties();
         AssetDatabase.SaveAssets();
+
+        if (missing.Count > 0)
+            throw new Exception("Не найдены или не скомпилировались шейдеры: " +
+                                string.Join(", ", missing.ToArray()));
     }
 
     private static void CreateMainScene()

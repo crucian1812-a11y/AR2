@@ -100,13 +100,30 @@ public class FighterRig : MonoBehaviour
         }
     }
 
+    // Шейдер с запасным вариантом. Материал, созданный из null, ничего не
+    // рисует — боец становится невидимым, и по картинке не догадаешься,
+    // что причина в шейдере. Один раз это уже случилось: TEXCOORD8 не
+    // компилировался на Android, и оба бойца выходили прозрачными.
+    private static Material Shaded(string wanted)
+    {
+        Shader sh = Shader.Find(wanted);
+        if (sh == null)
+        {
+            Debug.LogError("FighterRig: шейдер " + wanted +
+                           " не найден — беру запасной Bjj/Lit");
+            sh = Shader.Find("Bjj/Lit");
+        }
+        if (sh == null) sh = Shader.Find("Universal Render Pipeline/Lit");
+        return new Material(sh);
+    }
+
     private Material MakeMaterial(string name, Color gi, Color rim)
     {
         string low = name.ToLowerInvariant();
 
         if (low.StartsWith("skin"))
         {
-            Material m = new Material(Shader.Find("Bjj/Skin"));
+            Material m = Shaded("Bjj/Skin");
             // Цвет здесь — множитель к текстуре, а не сам тон: тон
             // запечён в альбедо вместе с бровями, губами и щетиной.
             m.SetColor("_Color", Color.white);
@@ -135,7 +152,7 @@ public class FighterRig : MonoBehaviour
         }
         if (low.StartsWith("hair"))
         {
-            Material m = new Material(Shader.Find("Bjj/Skin"));
+            Material m = Shaded("Bjj/Skin");
             m.SetColor("_Color", new Color(0.09f, 0.07f, 0.06f));
             m.SetFloat("_WrapAmount", 0.2f);
             m.SetFloat("_SubsurfaceStrength", 0.1f);
@@ -146,7 +163,7 @@ public class FighterRig : MonoBehaviour
         }
         if (low.StartsWith("eye"))
         {
-            Material m = new Material(Shader.Find("Bjj/Skin"));
+            Material m = Shaded("Bjj/Skin");
             m.SetColor("_Color", new Color(0.05f, 0.045f, 0.05f));
             m.SetFloat("_SubsurfaceStrength", 0f);
             m.SetFloat("_Smoothness", 0.85f);
@@ -158,7 +175,7 @@ public class FighterRig : MonoBehaviour
 
     private Material ClothMaterial(Color color, Color rim, string maps)
     {
-        Material m = new Material(Shader.Find("Bjj/Cloth"));
+        Material m = Shaded("Bjj/Cloth");
         m.SetColor("_Color", color);
         m.SetColor("_RimColor", rim);
         m.SetFloat("_RimStrength", 0.4f);
