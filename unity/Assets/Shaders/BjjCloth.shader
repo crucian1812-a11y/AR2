@@ -53,6 +53,14 @@ Shader "Bjj/Cloth"
             half _RimStrength;
             half _StitchScale;
             half _WearStrength;
+            // Объявлять обязательно: свойство из блока Properties не
+            // становится uniform само по себе. Пропущенный _NormalScale
+            // ронял компиляцию всего шейдера — а материал из
+            // несобравшегося шейдера просто не рисует боец.
+            half _NormalScale;
+            // TRANSFORM_TEX разворачивается в _MainTex_ST — без объявления
+            // это тоже ошибка компиляции, невидимая в редакторе.
+            float4 _MainTex_ST;
         CBUFFER_END
         ENDHLSL
 

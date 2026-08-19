@@ -377,6 +377,7 @@ namespace UnityEngine
     public class Shader : Object
     {
         public static Shader Find(string name) { return null; }
+        public bool isSupported { get { return true; } }
     }
 
     public class Material : Object

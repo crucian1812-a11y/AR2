@@ -33,4 +33,9 @@ if [ $STATUS -eq 0 ]; then
 else
   echo "C# CHECK FAILED"
 fi
+
+# Шейдеры проверяются здесь же: сломанный шейдер не роняет сборку, он
+# просто перестаёт рисовать — и это дороже любой ошибки компилятора C#.
+python3 "$ROOT/tools/shader-check/check.py" || STATUS=1
+
 exit $STATUS

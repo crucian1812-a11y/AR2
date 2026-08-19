@@ -58,6 +58,12 @@ Shader "Bjj/Skin"
             half _PoreStrength;
             half _MottleScale;
             half _MottleStrength;
+            // См. BjjCloth: свойство обязано быть объявлено здесь, иначе
+            // шейдер не компилируется, а Shader.Find молча возвращает null.
+            half _NormalScale;
+            // TRANSFORM_TEX разворачивается в _MainTex_ST — без объявления
+            // это тоже ошибка компиляции, невидимая в редакторе.
+            float4 _MainTex_ST;
         CBUFFER_END
         ENDHLSL
 
@@ -94,6 +100,10 @@ Shader "Bjj/Skin"
                 // Координаты позы покоя: неподвижны при анимации.
                 float2 restXY     : TEXCOORD1;
                 float2 restZ      : TEXCOORD2;
+                // Касательная нужна для карты нормалей: без неё
+                // GetVertexNormalInputs не с чем строить базис, а обращение
+                // к несуществующему полю роняет компиляцию.
+                float4 tangentOS  : TANGENT;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
