@@ -49,7 +49,9 @@ public class CameraDirector : MonoBehaviour
         data.renderPostProcessing = true;
         data.antialiasing = AntialiasingMode.FastApproximateAntialiasing;
 
-        go.AddComponent<AudioListener>();
+        // Слушателя здесь нет: он один на всё приложение и живёт в
+        // Bootstrap. Камера схватки появляется и исчезает вместе с ней, а
+        // два слушателя одновременно Unity не прощает.
 
         CameraDirector dir = go.AddComponent<CameraDirector>();
         dir._match = match;

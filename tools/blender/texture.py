@@ -118,6 +118,10 @@ class Canvas:
         self.height = np.zeros((size, size))
         self.rough = np.full((size, size), 0.6)
         self.ao = np.ones((size, size))
+        # Синий канал ORM свободен: металла в ги нет. В нём едет маска
+        # нашивок пояса — по ней шейдер оставляет полоски белыми, когда
+        # весь пояс перекрашивается в цвет разряда.
+        self.mask = np.zeros((size, size))
 
     def cell(self, rect):
         """Границы клетки в пикселях: (y0, y1, x0, x1)."""
@@ -129,7 +133,7 @@ class Canvas:
         y0, y1, x0, x1 = self.cell(rect)
         return (y1 - y0, x1 - x0)
 
-    def paint(self, rect, albedo=None, height=None, rough=None, ao=None):
+    def paint(self, rect, albedo=None, height=None, rough=None, ao=None, mask=None):
         y0, y1, x0, x1 = self.cell(rect)
         if albedo is not None:
             self.albedo[y0:y1, x0:x1] = albedo
@@ -139,12 +143,14 @@ class Canvas:
             self.rough[y0:y1, x0:x1] = rough
         if ao is not None:
             self.ao[y0:y1, x0:x1] = ao
+        if mask is not None:
+            self.mask[y0:y1, x0:x1] = mask
 
     def save(self, prefix):
         os.makedirs(OUT_DIR, exist_ok=True)
         _save_rgb(prefix + "_albedo", self.albedo)
         _save_rgb(prefix + "_normal", height_to_normal(self.height))
-        orm = np.stack([self.ao, self.rough, np.zeros_like(self.rough)], axis=-1)
+        orm = np.stack([self.ao, self.rough, self.mask], axis=-1)
         _save_rgb(prefix + "_orm", orm)
 
 
@@ -354,12 +360,19 @@ def paint_cloth(canvas, rects, base=(0.86, 0.87, 0.88), weave_freq=150):
                      rough=np.clip(rough, 0.05, 1.0), ao=np.clip(ao, 0.2, 1.0))
 
 
-def paint_belt(canvas, rects, base=(0.05, 0.05, 0.06)):
-    """Пояс: плотное плетение и полоски на хвосте.
+def paint_belt(canvas, rects, base=(0.80, 0.79, 0.76)):
+    """Пояс: плотное плетение, тёмная полоса и нашивки на хвосте.
 
-    Полоски — не украшение. Чёрный пояс с полосками мгновенно читается как
-    уровень бойца, и это единственное место, где можно показать его без
-    единой подписи на экране.
+    Полотно печатается светлым и нейтральным, а цвет разряда приходит из
+    материала: один и тот же атлас служит и белому поясу, и чёрному.
+    Умножением белый из чёрного не получить, поэтому светлое полотно —
+    единственный способ обойтись одной текстурой.
+
+    Нашивки — не украшение: пояс с полосками мгновенно читается как
+    уровень бойца, и это единственное место, где его видно без единой
+    подписи на экране. Их количество меняется по ходу карьеры, поэтому в
+    синий канал ORM пишется НОМЕР нашивки (0.25, 0.5, 0.75, 1.0), а
+    шейдер оставляет белыми только те, что заслужены.
     """
     for part, rect in rects.items():
         shape = canvas.shape(rect)
@@ -374,21 +387,27 @@ def paint_belt(canvas, rects, base=(0.05, 0.05, 0.06)):
         height = (weave - 0.5) * 0.16
         tone = np.array(base)[None, None, :] + (weave[..., None] - 0.5) * 0.05
         rough = np.full(shape, 0.72)
+        mask = np.zeros(shape)
 
         if "tail" in part.lower():
-            # Красная полоса и четыре белые нашивки поперёк хвоста.
-            red = np.exp(-((yy - 0.30) ** 2) / (2 * 0.055 ** 2))
-            tone = tone * (1 - red[..., None]) + \
-                np.array([0.42, 0.03, 0.04])[None, None, :] * red[..., None]
+            # Тёмная полоса поперёк хвоста. Она печатается прямо в альбедо
+            # тёмной: после умножения на любой цвет пояса она остаётся
+            # тёмной, как и должна.
+            bar = np.exp(-((yy - 0.30) ** 2) / (2 * 0.055 ** 2))
+            tone = tone * (1 - bar[..., None]) + \
+                np.array([0.10, 0.09, 0.09])[None, None, :] * bar[..., None]
 
             for k in range(4):
                 y = 0.44 + k * 0.075
-                bar = np.exp(-((yy - y) ** 2) / (2 * 0.013 ** 2)) * \
-                      ((xx > 0.18) & (xx < 0.82)).astype(float)
-                tone = tone * (1 - bar[..., None]) + \
-                    np.array([0.88, 0.88, 0.86])[None, None, :] * bar[..., None]
+                patch = np.exp(-((yy - y) ** 2) / (2 * 0.013 ** 2)) * \
+                        ((xx > 0.18) & (xx < 0.82)).astype(float)
+                hard = (patch > 0.5).astype(float)
+                tone = tone * (1 - hard[..., None]) + \
+                    np.array([0.95, 0.94, 0.92])[None, None, :] * hard[..., None]
+                # Номер нашивки: шейдер сравнит его с числом заработанных.
+                mask = np.maximum(mask, hard * (k + 1) * 0.25)
 
-        canvas.paint(rect, albedo=tone, height=height, rough=rough)
+        canvas.paint(rect, albedo=tone, height=height, rough=rough, mask=mask)
 
 
 # ------------------------------------------------------------ сборка

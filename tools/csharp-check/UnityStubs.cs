@@ -757,6 +757,13 @@ namespace UnityEngine
 
     public enum RenderMode { ScreenSpaceOverlay, ScreenSpaceCamera, WorldSpace }
 
+    public class CanvasGroup : Behaviour
+    {
+        public float alpha { get; set; }
+        public bool interactable { get; set; }
+        public bool blocksRaycasts { get; set; }
+    }
+
     public class Gradient { }
     public class AnimationCurve { }
 

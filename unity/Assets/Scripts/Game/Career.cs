@@ -10,6 +10,7 @@ public struct Opponent
     public string Name;
     public Style Style;
     public Belt Belt;
+    public int Stripes;
     public float Difficulty;
     public string Note;      // одна строка о манере — чтобы было к чему готовиться
 }
@@ -190,6 +191,9 @@ public static class Career
         o.Style = Styles[index];
         o.Note = Notes[index];
         o.Belt = Belt;
+        // Полоски соперника — его место на поясе: четвёртый на поясе
+        // выходит с тремя нашивками, и это видно ещё до первого захвата.
+        o.Stripes = Mathf.Min(Stripes, StripesPerBelt - 1);
 
         // Сложность растёт и от пояса, и от полоски: четвёртый соперник на
         // поясе ощутимо тяжелее первого, а первый на следующем — тяжелее его.
@@ -199,6 +203,7 @@ public static class Career
         if (Champion)
         {
             o.Difficulty = 1f;
+            o.Stripes = StripesPerBelt;
             o.Note = "вольная схватка — сильнейший из зала";
         }
 

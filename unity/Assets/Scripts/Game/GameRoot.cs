@@ -12,15 +12,31 @@ public class GameRoot : MonoBehaviour
     private FighterRig _b;
     private CameraDirector _cam;
 
-    private string _opponentStyle = "";
     private Pos _shownPos = (Pos)(-1);
     private Side _shownTop = (Side)(-1);
     private float _moveHold;      // сколько ещё играть клип перехода
 
-    public static GameRoot Create()
+    private Opponent _opponent;
+    private float _endWait = -1f;
+    private bool _reported;
+
+    /// Схватка окончена: кто победил и с кем боролись. Дальше решает
+    /// Bootstrap — показать итог и вернуться в меню.
+    public event System.Action<Side> OnFinished;
+
+    /// Победа приёмом, а не по очкам. Экран итога говорит об этом отдельно,
+    /// и карьера считает такие победы отдельной строкой.
+    public bool BySubmission { get { return _match != null && _match.Position == Pos.Submitted; } }
+    public int ScoreA { get { return _match == null ? 0 : _match.ScoreA; } }
+    public int ScoreB { get { return _match == null ? 0 : _match.ScoreB; } }
+    public Opponent Rival { get { return _opponent; } }
+
+    public static GameRoot Create(Opponent opponent)
     {
         GameObject go = new GameObject("GameRoot");
-        return go.AddComponent<GameRoot>();
+        GameRoot root = go.AddComponent<GameRoot>();
+        root._opponent = opponent;
+        return root;
     }
 
     private void Awake()
@@ -28,36 +44,35 @@ public class GameRoot : MonoBehaviour
         int seed = System.Environment.TickCount;
         _match = new Match(seed);
 
-        // Стиль соперника выбирается на матч: одни и те же двадцать
-        // приёмов при разных склонностях гоняют схватку по разным ветвям
-        // графа, и партия ощущается иначе.
-        System.Random pick = new System.Random(seed);
-        Style style = Ai.RandomStyle(pick);
-        _ai = new Ai(_match, Side.B, seed + 7919, 0.55f, style);
-        _opponentStyle = Ai.StyleName(style);
+        // Соперник приходит из карьеры: его склонность и класс заданы
+        // местом в списке, а не случайным броском. Один и тот же «третий
+        // фиолетовый» ведёт схватку одинаково, пока его не пройдёшь.
+        _ai = new Ai(_match, Side.B, seed + 7919, _opponent.Difficulty, _opponent.Style);
         _match.OnMoveStart += PlayMove;
         _match.OnEvent += Announce;
         _match.OnGrip += OnGrip;
         _match.OnStruggle += OnStruggle;
 
-        Snd.Create();
         Snd.Play("bell", 0.7f);
         Snd.Play("whistle", 0.35f);
 
-        Arena.Build(transform);
-        PostFx.Build(transform);
+        // Зал и пост-обработка живут дольше схватки — их строит Bootstrap
+        // один раз. Пересобирать зал между схватками незачем: он не
+        // меняется, а толпа в нём стоит недёшево.
 
         // Оба бойца стоят в одной точке: взаимное расположение целиком
         // лежит в анимации (см. tools/blender/README.md). Разносить их
         // ещё и здесь значило бы применить смещение дважды.
-        _a = FighterRig.Create(transform, Side.A, Arena.GiBlue, Arena.RimBlue);
-        _b = FighterRig.Create(transform, Side.B, Arena.GiRed, Arena.RimRed);
+        _a = FighterRig.Create(transform, Side.A, Arena.GiBlue, Arena.RimBlue,
+                               Career.Belt, Career.Stripes);
+        _b = FighterRig.Create(transform, Side.B, Arena.GiRed, Arena.RimRed,
+                               _opponent.Belt, _opponent.Stripes);
 
         _cam = CameraDirector.Create(transform, _match);
-        Hud.Create(transform, _match, Player);
+        Hud.Create(transform, _match, Player, _opponent.Name);
 
         ShowHold(true);
-        Debug.Log("Соперник: " + _opponentStyle);
+        Debug.Log("Соперник: " + _opponent.Name + ", " + Ai.StyleName(_opponent.Style));
     }
 
     private void OnDestroy()
@@ -89,6 +104,25 @@ public class GameRoot : MonoBehaviour
 
         UpdateSweat();
         UpdateAudio(dt);
+        UpdateEnding();
+    }
+
+    // Пауза между концом схватки и экраном итога. Она нужна: на сдаче
+    // камера подъезжает вплотную и время замедляется, и обрывать этот
+    // показ табличкой — значит выбросить лучший кадр в игре.
+    private void UpdateEnding()
+    {
+        if (!_match.Finished || _reported) return;
+
+        if (_endWait < 0f) _endWait = 3.2f;
+
+        // Время на добивании замедлено, поэтому отсчёт идёт по
+        // неотмасштабированному: иначе пауза растянулась бы втрое.
+        _endWait -= Time.unscaledDeltaTime;
+        if (_endWait > 0f) return;
+
+        _reported = true;
+        if (OnFinished != null) OnFinished(_match.Winner);
     }
 
     private float _breathTimer = 2f;

@@ -29,6 +29,7 @@ Shader "Bjj/Cloth"
         _RimColor ("Rim Color", Color) = (1,1,1,1)
         _RimPower ("Rim Power", Range(0.5,8)) = 3.2
         _RimStrength ("Rim Strength", Range(0,3)) = 0
+        _Stripes ("Belt Stripes", Range(0,4)) = 0
     }
 
     SubShader
@@ -61,6 +62,7 @@ Shader "Bjj/Cloth"
             // TRANSFORM_TEX разворачивается в _MainTex_ST — без объявления
             // это тоже ошибка компиляции, невидимая в редакторе.
             float4 _MainTex_ST;
+            half _Stripes;
         CBUFFER_END
         ENDHLSL
 
@@ -182,7 +184,16 @@ Shader "Bjj/Cloth"
                 N = normalize(mul(nTS, tbn));
 
                 half occlusion = orm.r;
-                half3 albedo = texAlbedo * _Color.rgb;
+
+                // Синий канал — номер нашивки на поясе (0.25…1.0), ноль на
+                // всём остальном. Заработанные остаются белыми, прочие
+                // красятся вместе с полотном: так один атлас показывает и
+                // белый пояс без полосок, и чёрный с четырьмя.
+                half slot = orm.b * 4.0h;
+                half isStripe = step(0.5h, slot) * step(slot, _Stripes + 0.5h);
+                half3 tint = lerp(_Color.rgb, half3(0.94h, 0.93h, 0.90h), isStripe);
+
+                half3 albedo = texAlbedo * tint;
 
                 // Намокшая ткань темнеет — это самый заметный признак
                 // тяжёлого раунда, и стоит он одного lerp.

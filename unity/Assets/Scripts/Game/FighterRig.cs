@@ -30,13 +30,22 @@ public class FighterRig : MonoBehaviour
 
     public Side Who { get; private set; }
 
-    public static FighterRig Create(Transform parent, Side who, Color gi, Color rim)
+    // Пояс бойца: цвет разряда и число нашивок. Второе шейдер сравнивает
+    // с номером, запечённым в маске, — заслуженные полоски остаются белыми,
+    // остальные красятся вместе с полотном.
+    private Color _belt = Color.white;
+    private int _stripes;
+
+    public static FighterRig Create(Transform parent, Side who, Color gi, Color rim,
+                                    Belt belt, int stripes)
     {
         GameObject holder = new GameObject("Fighter" + who);
         holder.transform.SetParent(parent, false);
 
         FighterRig rig = holder.AddComponent<FighterRig>();
         rig.Who = who;
+        rig._belt = Career.BeltColor(belt);
+        rig._stripes = stripes;
         rig.Build(gi, rim);
         return rig;
     }
@@ -144,10 +153,13 @@ public class FighterRig : MonoBehaviour
         }
         if (low.StartsWith("belt"))
         {
-            // Пояс печётся со своими полосками, поэтому цвет — белый:
-            // умножать чёрную текстуру ещё и на чёрный цвет незачем.
-            Material m = ClothMaterial(Color.white, rim, "belt");
+            // Полотно пояса напечатано светлым и нейтральным, цвет разряда
+            // приходит отсюда. Иначе пришлось бы печь пять разных атласов
+            // или мириться с тем, что белый пояс невозможно получить
+            // умножением из чёрного.
+            Material m = ClothMaterial(_belt, rim, "belt");
             m.SetFloat("_SheenStrength", 0.25f);
+            m.SetFloat("_Stripes", _stripes);
             return m;
         }
         if (low.StartsWith("hair"))

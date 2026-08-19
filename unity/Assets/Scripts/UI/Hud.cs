@@ -16,6 +16,7 @@ public class Hud : MonoBehaviour
 {
     private Match _match;
     private Side _player;
+    private string _rival = "";
 
     private Text _clock;
     private Text _scoreA;
@@ -49,7 +50,7 @@ public class Hud : MonoBehaviour
     private float _barW;
     private float _s;
 
-    public static Hud Create(Transform parent, Match match, Side player)
+    public static Hud Create(Transform parent, Match match, Side player, string rival)
     {
         Canvas canvas = UiKit.CreateCanvas("HudCanvas", 10);
         canvas.transform.SetParent(parent, false);
@@ -57,6 +58,7 @@ public class Hud : MonoBehaviour
         Hud hud = canvas.gameObject.AddComponent<Hud>();
         hud._match = match;
         hud._player = player;
+        hud._rival = rival;
         hud.Build(canvas.transform);
         return hud;
     }
@@ -115,12 +117,23 @@ public class Hud : MonoBehaviour
 
         BuildLockBar(root, w, h);
 
-        // Захваты — цифрами под полоской сил игрока. В борьбе за ги это
+        // Захваты — точками под часами, посередине. В борьбе за ги это
         // такой же ресурс, как силы, и он должен быть на виду.
-        _grips = UiKit.MakeText(root, new Vector2(w * 0.5f - _barW * 0.5f - 132f * _s, h - 92f * _s),
-                                new Vector2(_barW, 30f * _s), "",
+        _grips = UiKit.MakeText(root, new Vector2(w * 0.5f, h - 92f * _s),
+                                new Vector2(w * 0.42f, 30f * _s), "",
                                 Mathf.RoundToInt(19f * _s),
                                 new Color(0.85f, 0.9f, 1f), TextAnchor.MiddleCenter);
+
+        // Имена над полосками сил. Соперник теперь не «красный», а живой
+        // человек из списка: у схватки появляется адрес.
+        UiKit.MakeText(root, new Vector2(w * 0.5f - _barW * 0.5f - 132f * _s, h - 92f * _s),
+                       new Vector2(_barW + 60f * _s, 28f * _s), "ТЫ",
+                       Mathf.RoundToInt(18f * _s),
+                       new Color(0.75f, 0.85f, 1f), TextAnchor.MiddleCenter);
+        UiKit.MakeText(root, new Vector2(w * 0.5f + _barW * 0.5f + 132f * _s, h - 92f * _s),
+                       new Vector2(_barW + 60f * _s, 28f * _s), _rival.ToUpperInvariant(),
+                       Mathf.RoundToInt(18f * _s),
+                       new Color(1f, 0.80f, 0.75f), TextAnchor.MiddleCenter);
 
         // Подсказка по жестам — в правом нижнем углу, полупрозрачная.
         // Она сообщает, что сделает каждое движение пальца, и исчезает,
