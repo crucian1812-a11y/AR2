@@ -42,7 +42,7 @@ public class GameRoot : MonoBehaviour
     private void Awake()
     {
         int seed = System.Environment.TickCount;
-        _match = new Match(seed);
+        _match = new Match(seed, Career.Edge);
 
         // Соперник приходит из карьеры: его склонность и класс заданы
         // местом в списке, а не случайным броском. Один и тот же «третий
@@ -64,9 +64,10 @@ public class GameRoot : MonoBehaviour
         // лежит в анимации (см. tools/blender/README.md). Разносить их
         // ещё и здесь значило бы применить смещение дважды.
         _a = FighterRig.Create(transform, Side.A, Arena.GiBlue, Arena.RimBlue,
-                               Career.Belt, Career.Stripes);
+                               Career.Belt, Career.Stripes, Career.PlayerSkin, 1f);
         _b = FighterRig.Create(transform, Side.B, Arena.GiRed, Arena.RimRed,
-                               _opponent.Belt, _opponent.Stripes);
+                               _opponent.Belt, _opponent.Stripes,
+                               _opponent.Skin, _opponent.Build);
 
         _cam = CameraDirector.Create(transform, _match);
         Hud.Create(transform, _match, Player, _opponent.Name);

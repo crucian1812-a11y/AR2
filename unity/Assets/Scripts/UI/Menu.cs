@@ -56,7 +56,8 @@ public class Menu : MonoBehaviour
 
         // Боец в поясе игрока — с ровно теми нашивками, что заработаны.
         FighterRig rig = FighterRig.Create(transform, Side.A, Arena.GiBlue, Arena.RimBlue,
-                                           Career.Belt, Career.Stripes);
+                                           Career.Belt, Career.Stripes,
+                                           Career.PlayerSkin, 1f);
         // Клип стойки для верхней роли: он и ставит бойца в точку z = 0.62,
         // вокруг которой ходит камера.
         rig.Play(Res.HoldName(true, Pos.Standing), true, 0.001f);

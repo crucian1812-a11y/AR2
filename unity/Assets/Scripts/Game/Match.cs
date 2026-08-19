@@ -62,14 +62,20 @@ public class Match
 
     private readonly System.Random _rng;
 
+    // Класс игрока: то, что даёт собственный пояс. Растёт медленно и
+    // ограничен сверху — соперники по ходу карьеры прибавляют быстрее,
+    // иначе к чёрному поясу схватки стали бы формальностью.
+    private readonly float _edge;
+
     public event Action<string> OnEvent;
     public event Action<Move, Side> OnMoveStart;
     public event Action<Side> OnGrip;
     public event Action<Side, bool> OnStruggle;   // кто и «дожал ли» (иначе вырвался)
 
-    public Match(int seed)
+    public Match(int seed, float edge = 0f)
     {
         _rng = new System.Random(seed);
+        _edge = Mathf.Clamp(edge, 0f, 0.12f);
         Position = Pos.Standing;
         Top = Side.Neutral;
         Now = Phase.Neutral;
@@ -268,6 +274,8 @@ public class Match
         // не меньше, чем собственный помогает.
         chance += Grips(_mover) * 0.07f - Grips(other) * 0.06f;
         chance -= _resist * 0.42f;
+        // Опыт игрока — прибавка только его приёмам.
+        if (_mover == Side.A) chance += _edge;
         chance = Mathf.Clamp(chance, 0.04f, 0.95f);
 
         bool ok = _rng.NextDouble() < chance;
@@ -319,7 +327,7 @@ public class Match
         float baseRate = 6.5f;
         bool neutral = Positions.IsNeutral(Position);
 
-        float rateA = baseRate * (neutral || Top == Side.A ? 1f : 0.45f);
+        float rateA = baseRate * (neutral || Top == Side.A ? 1f : 0.45f) * (1f + _edge);
         float rateB = baseRate * (neutral || Top == Side.B ? 1f : 0.45f);
 
         float pressure = Positions.Adv(Position) * 3.2f;

@@ -35,17 +35,23 @@ public class FighterRig : MonoBehaviour
     // остальные красятся вместе с полотном.
     private Color _belt = Color.white;
     private int _stripes;
+    private Color _skinTone = Color.white;
 
     public static FighterRig Create(Transform parent, Side who, Color gi, Color rim,
-                                    Belt belt, int stripes)
+                                    Belt belt, int stripes, Color skin, float build)
     {
         GameObject holder = new GameObject("Fighter" + who);
         holder.transform.SetParent(parent, false);
+        // Рост задаётся масштабом всего бойца — вместе с корнем, который
+        // двигает клип. Отклонения держим малыми: парная анимация ставит
+        // обоих в одну точку, и разошедшийся масштаб развёл бы захваты.
+        holder.transform.localScale = Vector3.one * build;
 
         FighterRig rig = holder.AddComponent<FighterRig>();
         rig.Who = who;
         rig._belt = Career.BeltColor(belt);
         rig._stripes = stripes;
+        rig._skinTone = skin;
         rig.Build(gi, rim);
         return rig;
     }
@@ -134,8 +140,9 @@ public class FighterRig : MonoBehaviour
         {
             Material m = Shaded("Bjj/Skin");
             // Цвет здесь — множитель к текстуре, а не сам тон: тон
-            // запечён в альбедо вместе с бровями, губами и щетиной.
-            m.SetColor("_Color", Color.white);
+            // запечён в альбедо вместе с бровями, губами и щетиной, а
+            // отсюда приходит только оттенок конкретного бойца.
+            m.SetColor("_Color", _skinTone);
             m.SetColor("_RimColor", rim);
             m.SetFloat("_RimStrength", 0.35f);
             Maps(m, "skin");
